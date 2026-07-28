@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 
+// Query the DB per-request instead of at build time — avoids build
+// failures if the DB isn't reachable from Vercel's build environment.
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const courses = await prisma.course.findMany({
     where: { isPublished: true },
