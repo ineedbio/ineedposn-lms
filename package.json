@@ -22,7 +22,7 @@
     "resend": "^3.5.0",
     "@aws-sdk/client-s3": "^3.637.0",
     "@aws-sdk/s3-request-presigner": "^3.637.0",
-    "promptpay-qr": "^0.5.1",
+    "promptpay-qr": "^0.5.0",
     "qrcode": "^1.5.4",
     "nanoid": "^5.0.7"
   },
