@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ============= USERS & AUTH =============
@@ -31,7 +30,6 @@ model User {
   otpCode          String?
   otpExpiry        DateTime?
 
-  // device-lock: single active session per account
   currentSessionId String?
   currentDeviceInfo String?
   lastLoginAt      DateTime?
@@ -43,12 +41,6 @@ model User {
   progress         LessonProgress[]
   quizAttempts     QuizAttempt[]
 }
-
-// ============= SUBJECT-SCOPED CATALOG =============
-// Every catalog + marketing table carries subjectId so that creating a new
-// Subject is enough for the rest of the system (promo blocks, revenue
-// reporting, course listing) to pick it up automatically — see
-// lib/subjects.ts `provisionSubject()`.
 
 model Subject {
   id          String     @id @default(cuid())
@@ -77,7 +69,7 @@ model Course {
   slug        String       @unique
   description String
   coverImage  String?
-  price       Int          // 0 = free trial course
+  price       Int
   isPublished Boolean      @default(false)
 
   subjectId   String
@@ -104,9 +96,9 @@ model Lesson {
   title       String
   order       Int
   type        LessonType
-  youtubeUrl  String?      // pasted YouTube link (unlisted) — no file upload needed
+  youtubeUrl  String?
   content     String?
-  duration    Int?         // seconds
+  duration    Int?
 
   courseId    String
   course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -123,8 +115,6 @@ model Attachment {
   lessonId String
   lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 }
-
-// ============= PROGRESS =============
 
 model LessonProgress {
   id             String    @id @default(cuid())
@@ -160,8 +150,6 @@ model Enrollment {
   @@unique([userId, courseId])
 }
 
-// ============= QUIZ =============
-
 enum QuestionType {
   MCQ
   SHORT_ANSWER
@@ -170,8 +158,8 @@ enum QuestionType {
 model Quiz {
   id         String        @id @default(cuid())
   title      String
-  timeLimit  Int           // seconds
-  passScore  Int           // percent
+  timeLimit  Int
+  passScore  Int
   isMockExam Boolean       @default(false)
 
   lessonId   String?       @unique
@@ -185,7 +173,7 @@ model Question {
   id            String       @id @default(cuid())
   text          String
   type          QuestionType
-  choices       Json?        // [{ id, text }]
+  choices       Json?
   correctAnswer String
   explanation   String?
 
@@ -205,8 +193,6 @@ model QuizAttempt {
   user        User     @relation(fields: [userId], references: [id])
   quiz        Quiz     @relation(fields: [quizId], references: [id])
 }
-
-// ============= PAYMENTS =============
 
 enum PayStatus {
   PENDING
@@ -231,17 +217,14 @@ model Payment {
   course       Course    @relation(fields: [courseId], references: [id])
 }
 
-// ============= NO-CODE ADMIN CONTENT =============
-
 model PageBlock {
   id          String   @id @default(cuid())
-  page        String   // e.g. "home", "course:<slug>"
+  page        String
   order       Int
-  type        String   // "hero" | "course_grid" | "promo_banner" | "testimonial" | ...
+  type        String
   contentJson Json
   isPublished Boolean  @default(false)
 
-  // when a block is scoped to a subject (per-subject promo banners etc.)
   subjectId   String?
   subject     Subject? @relation("SubjectPromoBlocks", fields: [subjectId], references: [id])
 
@@ -253,9 +236,250 @@ model ThemeSetting {
   value String
 }
 
-// ============= AUDIT LOG =============
-// Every admin mutation is written here — required because every action in
-// the admin Design Studio can change data across the whole site.
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String
+  action    String
+  target    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+}generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============= USERS & AUTH =============
+
+enum Role {
+  STUDENT
+  ADMIN
+  INSTRUCTOR
+}
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  password         String
+  firstName        String
+  lastName         String
+  nickname         String?
+  school           String?
+  gradeLevel       String?
+  phone            String?
+  role             Role     @default(STUDENT)
+  emailVerified    Boolean  @default(false)
+  otpCode          String?
+  otpExpiry        DateTime?
+
+  currentSessionId String?
+  currentDeviceInfo String?
+  lastLoginAt      DateTime?
+
+  createdAt        DateTime @default(now())
+
+  enrollments      Enrollment[]
+  payments         Payment[]
+  progress         LessonProgress[]
+  quizAttempts     QuizAttempt[]
+}
+
+model Subject {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  colorTheme  String     @default("#0B0B0C")
+  order       Int        @default(0)
+  createdAt   DateTime   @default(now())
+
+  categories  Category[]
+  courses     Course[]
+  promoBlocks PageBlock[] @relation("SubjectPromoBlocks")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  courses   Course[]
+}
+
+model Course {
+  id          String       @id @default(cuid())
+  title       String
+  slug        String       @unique
+  description String
+  coverImage  String?
+  price       Int
+  isPublished Boolean      @default(false)
+
+  subjectId   String
+  subject     Subject      @relation(fields: [subjectId], references: [id])
+  categoryId  String
+  category    Category     @relation(fields: [categoryId], references: [id])
+
+  lessons     Lesson[]
+  enrollments Enrollment[]
+  payments    Payment[]
+
+  createdAt   DateTime     @default(now())
+}
+
+enum LessonType {
+  VIDEO
+  PDF
+  RICH_TEXT
+  QUIZ
+}
+
+model Lesson {
+  id          String       @id @default(cuid())
+  title       String
+  order       Int
+  type        LessonType
+  youtubeUrl  String?
+  content     String?
+  duration    Int?
+
+  courseId    String
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  attachments Attachment[]
+  quiz        Quiz?
+  progress    LessonProgress[]
+}
+
+model Attachment {
+  id       String @id @default(cuid())
+  fileName String
+  fileUrl  String
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+model LessonProgress {
+  id             String    @id @default(cuid())
+  userId         String
+  lessonId       String
+  isCompleted    Boolean   @default(false)
+  watchedSeconds Int       @default(0)
+  completedAt    DateTime?
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson         Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+}
+
+enum EnrollStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+}
+
+model Enrollment {
+  id         String       @id @default(cuid())
+  userId     String
+  courseId   String
+  status     EnrollStatus @default(PENDING)
+  enrolledAt DateTime?
+  expiresAt  DateTime?
+
+  user       User         @relation(fields: [userId], references: [id])
+  course     Course       @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+}
+
+enum QuestionType {
+  MCQ
+  SHORT_ANSWER
+}
+
+model Quiz {
+  id         String        @id @default(cuid())
+  title      String
+  timeLimit  Int
+  passScore  Int
+  isMockExam Boolean       @default(false)
+
+  lessonId   String?       @unique
+  lesson     Lesson?       @relation(fields: [lessonId], references: [id])
+
+  questions  Question[]
+  attempts   QuizAttempt[]
+}
+
+model Question {
+  id            String       @id @default(cuid())
+  text          String
+  type          QuestionType
+  choices       Json?
+  correctAnswer String
+  explanation   String?
+
+  quizId        String
+  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  quizId      String
+  answers     Json
+  score       Int
+  isPassed    Boolean
+  submittedAt DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  quiz        Quiz     @relation(fields: [quizId], references: [id])
+}
+
+enum PayStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Payment {
+  id           String    @id @default(cuid())
+  userId       String
+  courseId     String
+  amount       Int
+  promptpayRef String    @unique
+  slipImageUrl String?
+  status       PayStatus @default(PENDING)
+  rejectReason String?
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id])
+  course       Course    @relation(fields: [courseId], references: [id])
+}
+
+model PageBlock {
+  id          String   @id @default(cuid())
+  page        String
+  order       Int
+  type        String
+  contentJson Json
+  isPublished Boolean  @default(false)
+
+  subjectId   String?
+  subject     Subject? @relation("SubjectPromoBlocks", fields: [subjectId], references: [id])
+
+  updatedAt   DateTime @updatedAt
+}
+
+model ThemeSetting {
+  key   String @id
+  value String
+}
 
 model AuditLog {
   id        String   @id @default(cuid())
