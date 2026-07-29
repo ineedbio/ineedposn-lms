@@ -18,6 +18,10 @@ function LoginForm() {
     setError("");
     const res = await signIn("credentials", { email, password, redirect: false });
     if (res?.error) {
+      if (res.error.includes("EMAIL_NOT_VERIFIED")) {
+        router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
+        return;
+      }
       setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
       return;
     }
@@ -63,6 +67,11 @@ function LoginForm() {
         <button className="w-full bg-black text-white rounded-full py-3 text-sm font-medium">
           เข้าสู่ระบบ
         </button>
+        <div className="text-center mt-4">
+          <a href="/forgot-password" className="text-xs text-ink/60 underline">
+            ลืมรหัสผ่าน?
+          </a>
+        </div>
       </form>
     </main>
   );

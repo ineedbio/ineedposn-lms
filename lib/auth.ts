@@ -27,6 +27,12 @@ export const authOptions: NextAuthOptions = {
         const valid = await bcrypt.compare(credentials.password, user.password);
         if (!valid) return null;
 
+        if (!user.emailVerified) {
+          // NextAuth surfaces thrown errors as ?error=<message> on redirect;
+          // the login page checks for this and sends the student to verify-otp.
+          throw new Error("EMAIL_NOT_VERIFIED");
+        }
+
         // Device-lock: every successful login mints a new session id and
         // invalidates whatever device was previously signed in.
         const sessionId = await issueNewSession(user.id, "unknown-device");

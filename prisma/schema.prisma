@@ -30,6 +30,7 @@ model User {
   otpCode          String?
   otpExpiry        DateTime?
 
+  // device-lock: single active session per account
   currentSessionId String?
   currentDeviceInfo String?
   lastLoginAt      DateTime?
@@ -41,6 +42,12 @@ model User {
   progress         LessonProgress[]
   quizAttempts     QuizAttempt[]
 }
+
+// ============= SUBJECT-SCOPED CATALOG =============
+// Every catalog + marketing table carries subjectId so that creating a new
+// Subject is enough for the rest of the system (promo blocks, revenue
+// reporting, course listing) to pick it up automatically — see
+// lib/subjects.ts `provisionSubject()`.
 
 model Subject {
   id          String     @id @default(cuid())
@@ -69,7 +76,7 @@ model Course {
   slug        String       @unique
   description String
   coverImage  String?
-  price       Int
+  price       Int          // 0 = free trial course
   isPublished Boolean      @default(false)
 
   subjectId   String
@@ -96,9 +103,9 @@ model Lesson {
   title       String
   order       Int
   type        LessonType
-  youtubeUrl  String?
+  youtubeUrl  String?      // pasted YouTube link (unlisted) — no file upload needed
   content     String?
-  duration    Int?
+  duration    Int?         // seconds
 
   courseId    String
   course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -115,6 +122,8 @@ model Attachment {
   lessonId String
   lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 }
+
+// ============= PROGRESS =============
 
 model LessonProgress {
   id             String    @id @default(cuid())
@@ -150,6 +159,8 @@ model Enrollment {
   @@unique([userId, courseId])
 }
 
+// ============= QUIZ =============
+
 enum QuestionType {
   MCQ
   SHORT_ANSWER
@@ -158,8 +169,8 @@ enum QuestionType {
 model Quiz {
   id         String        @id @default(cuid())
   title      String
-  timeLimit  Int
-  passScore  Int
+  timeLimit  Int           // seconds
+  passScore  Int           // percent
   isMockExam Boolean       @default(false)
 
   lessonId   String?       @unique
@@ -173,7 +184,7 @@ model Question {
   id            String       @id @default(cuid())
   text          String
   type          QuestionType
-  choices       Json?
+  choices       Json?        // [{ id, text }]
   correctAnswer String
   explanation   String?
 
@@ -193,6 +204,8 @@ model QuizAttempt {
   user        User     @relation(fields: [userId], references: [id])
   quiz        Quiz     @relation(fields: [quizId], references: [id])
 }
+
+// ============= PAYMENTS =============
 
 enum PayStatus {
   PENDING
@@ -217,14 +230,17 @@ model Payment {
   course       Course    @relation(fields: [courseId], references: [id])
 }
 
+// ============= NO-CODE ADMIN CONTENT =============
+
 model PageBlock {
   id          String   @id @default(cuid())
-  page        String
+  page        String   // e.g. "home", "course:<slug>"
   order       Int
-  type        String
+  type        String   // "hero" | "course_grid" | "promo_banner" | "testimonial" | ...
   contentJson Json
   isPublished Boolean  @default(false)
 
+  // when a block is scoped to a subject (per-subject promo banners etc.)
   subjectId   String?
   subject     Subject? @relation("SubjectPromoBlocks", fields: [subjectId], references: [id])
 
@@ -235,6 +251,10 @@ model ThemeSetting {
   key   String @id
   value String
 }
+
+// ============= AUDIT LOG =============
+// Every admin mutation is written here — required because every action in
+// the admin Design Studio can change data across the whole site.
 
 model AuditLog {
   id        String   @id @default(cuid())

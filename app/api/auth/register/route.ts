@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { sendRegistrationOtp } from "@/lib/email";
+
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 const RegisterSchema = z.object({
   firstName: z.string().min(1),
@@ -28,6 +33,8 @@ export async function POST(req: Request) {
   }
 
   const hashed = await bcrypt.hash(data.password, 12);
+  const otp = generateOtp();
+  const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   const user = await prisma.user.create({
     data: {
@@ -40,12 +47,13 @@ export async function POST(req: Request) {
       gradeLevel: data.gradeLevel,
       phone: data.phone,
       role: "STUDENT",
+      emailVerified: false,
+      otpCode: otp,
+      otpExpiry,
     },
   });
 
-  // TODO: send OTP verification email here (see /api/auth/otp) before
-  // flipping emailVerified — stubbed for now so registration isn't blocked
-  // during initial rollout.
+  await sendRegistrationOtp({ email: user.email, otp });
 
   return NextResponse.json({ id: user.id, email: user.email }, { status: 201 });
 }

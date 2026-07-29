@@ -35,7 +35,7 @@ export default function RegisterPage() {
       setError(data.error?.formErrors?.[0] ?? data.error ?? "สมัครไม่สำเร็จ");
       return;
     }
-    router.push("/login");
+    router.push(`/verify-otp?email=${encodeURIComponent(form.email ?? "")}`);
   }
 
   return (
