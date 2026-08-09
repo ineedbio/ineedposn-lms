@@ -6,43 +6,50 @@ import LogoutButton from "./LogoutButton";
 
 export default async function Navbar() {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role as string | undefined;
+  const user = session?.user as any;
 
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-md bg-white/80 border-b border-border-light">
-      <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-3">
-        <Link href="/" className="flex items-center gap-2">
-          <Image src="/ineedbio-logo.png" alt="INeedBio" width={30} height={30} />
-          <span className="font-bold text-[15px]">INeedBio</span>
-        </Link>
-        <nav className="flex items-center gap-7 text-[14px] text-ink">
-          {session?.user ? (
-            <>
-              <Link href="/dashboard" className="hover:text-secondary">
-                ห้องเรียนของฉัน
+    <header className="sticky top-0 z-50 flex items-center justify-between px-12 py-5 bg-white/85 backdrop-blur-md border-b border-border-light">
+      <Link href="/" className="flex items-center gap-2.5 text-[22px] font-extrabold tracking-[-0.02em] text-ink">
+        <Image src="/ineedbio-logo.png" alt="INeedBio" width={34} height={34} />
+        INeedBio
+      </Link>
+      <nav className="flex items-center gap-9">
+        {user ? (
+          <>
+            <Link href="/" className="text-[15px] font-medium text-ink hover:text-secondary transition">
+              คอร์สทั้งหมด
+            </Link>
+            {user.role === "ADMIN" && (
+              <Link href="/admin/payments" className="text-[15px] font-medium text-ink hover:text-secondary transition">
+                Admin
               </Link>
-              {role === "ADMIN" && (
-                <Link href="/admin/payments" className="hover:text-secondary">
-                  จัดการชำระเงิน
-                </Link>
-              )}
-              <LogoutButton />
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="hover:text-secondary">
-                เข้าสู่ระบบ
-              </Link>
-              <Link
-                href="/register"
-                className="bg-ink text-white rounded-pill px-5 py-2 text-[13px] font-medium hover:bg-dark-hover transition"
-              >
-                สมัครสมาชิก
-              </Link>
-            </>
-          )}
-        </nav>
-      </div>
+            )}
+            <LogoutButton className="text-[15px] font-medium text-secondary hover:text-ink transition" />
+            <Link
+              href="/dashboard"
+              className="w-[38px] h-[38px] rounded-full bg-ink text-white flex items-center justify-center text-sm font-bold flex-shrink-0"
+            >
+              {(user.name?.[0] ?? "?").toUpperCase()}
+            </Link>
+          </>
+        ) : (
+          <>
+            <Link href="/dashboard" className="text-[15px] font-medium text-ink hover:text-secondary transition">
+              ห้องเรียน
+            </Link>
+            <Link href="/login" className="text-[15px] font-medium text-ink hover:text-secondary transition">
+              เข้าสู่ระบบ
+            </Link>
+            <Link
+              href="/register"
+              className="text-sm font-semibold text-white bg-ink px-5 py-2.5 rounded-pill hover:bg-dark-hover transition"
+            >
+              สมัครสมาชิก
+            </Link>
+          </>
+        )}
+      </nav>
     </header>
   );
 }

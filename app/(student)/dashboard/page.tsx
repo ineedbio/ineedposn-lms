@@ -6,22 +6,28 @@ import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as any)?.id;
-  if (!userId) {
+  const user = session?.user as any;
+  if (!user?.id) {
     redirect("/login");
   }
 
   const enrollments = await prisma.enrollment.findMany({
-    where: { userId, status: "ACTIVE" },
+    where: { userId: user.id, status: "ACTIVE" },
     include: {
-      course: { include: { lessons: { include: { progress: { where: { userId } } } } } },
+      course: { include: { subject: true, lessons: { include: { progress: { where: { userId: user.id } } } } } },
     },
   });
 
+  const firstName = (user.name as string | undefined)?.split(" ")[0] ?? "";
+
   return (
-    <main className="max-w-3xl mx-auto px-6 py-16">
-      <h1 className="text-2xl font-bold mb-8">ห้องเรียนของฉัน</h1>
-      <div className="space-y-3">
+    <div className="max-w-[1300px] mx-auto px-12 pt-14 pb-24">
+      <div className="mb-12">
+        <h1 className="text-[36px] font-extrabold tracking-[-0.02em]">สวัสดี, {firstName} 👋</h1>
+        <p className="text-[17px] text-secondary mt-2">เรียนต่อจากที่ค้างไว้ หรือเลือกบทเรียนใหม่</p>
+      </div>
+
+      <div className="flex flex-col gap-5">
         {enrollments.map((e) => {
           const total = e.course.lessons.length;
           const done = e.course.lessons.filter((l) => l.progress[0]?.isCompleted).length;
@@ -30,17 +36,33 @@ export default async function DashboardPage() {
             <Link
               key={e.id}
               href={`/learn/${e.course.id}`}
-              className="flex items-center justify-between bg-gray-50 rounded-xl px-5 py-4"
+              className="flex gap-7 p-5 rounded-[20px] bg-panel items-center"
             >
-              <span className="font-medium">{e.course.title}</span>
-              <span className="text-sm font-mono">{pct}%</span>
+              <div className="w-[200px] h-[130px] flex-shrink-0 rounded-[14px] bg-white border border-dashed border-border flex items-center justify-center text-muted text-xs">
+                ภาพปกคอร์ส
+              </div>
+              <div className="flex-1 flex flex-col gap-2.5">
+                <div className="text-[13px] font-semibold text-secondary">{e.course.subject.name}</div>
+                <div className="text-[22px] font-extrabold tracking-[-0.01em]">{e.course.title}</div>
+                <div className="text-sm text-secondary">
+                  บทเรียน {done}/{total}
+                </div>
+                <div className="w-full max-w-[400px] h-1.5 rounded-full bg-border overflow-hidden mt-1">
+                  <div className="h-full bg-ink rounded-full" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+              <div className="text-[15px] font-semibold text-ink flex-shrink-0 px-6 py-3 bg-white rounded-pill">
+                เรียนต่อ
+              </div>
             </Link>
           );
         })}
         {enrollments.length === 0 && (
-          <p className="text-ink/40 text-sm">ยังไม่มีคอร์สที่ลงทะเบียน</p>
+          <div className="p-10 rounded-[20px] bg-panel text-center text-secondary text-[15px]">
+            ยังไม่มีคอร์สที่ลงทะเบียน
+          </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
