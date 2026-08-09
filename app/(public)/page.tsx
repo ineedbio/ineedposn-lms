@@ -5,14 +5,20 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+type BlockContent = { heading: string; sub: string; bg: string; fg: string; imageUrl?: string };
+
 export default async function HomePage() {
-  const [courses, session] = await Promise.all([
+  const [courses, session, blocks] = await Promise.all([
     prisma.course.findMany({
       where: { isPublished: true },
       include: { subject: true },
       orderBy: { createdAt: "desc" },
     }),
     getServerSession(authOptions),
+    prisma.pageBlock.findMany({
+      where: { page: "home", isPublished: true },
+      orderBy: { order: "asc" },
+    }),
   ]);
   const loggedIn = !!session?.user;
 
@@ -50,6 +56,55 @@ export default async function HomePage() {
           ภาพประกอบหน้าแรก
         </div>
       </section>
+
+      {/* ===== Admin-managed promo blocks (Design Studio) ===== */}
+      {blocks.length > 0 && (
+        <section className="max-w-6xl mx-auto px-6 flex flex-col gap-5 mb-20">
+          {blocks.map((b) => {
+            const c = b.contentJson as unknown as BlockContent;
+            const style = { background: c.bg, color: c.fg };
+            if (b.type === "banner") {
+              return (
+                <div key={b.id} className="rounded-card px-8 py-6 text-center" style={style}>
+                  <div className="text-lg font-bold">{c.heading}</div>
+                </div>
+              );
+            }
+            if (b.type === "course") {
+              return (
+                <div key={b.id} className="rounded-card px-8 py-7 flex items-center gap-5" style={style}>
+                  <div className="w-[110px] h-20 flex-shrink-0 rounded-xl bg-black/5 overflow-hidden flex items-center justify-center text-xs opacity-60">
+                    {c.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={c.imageUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      "รูป"
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xl font-extrabold">{c.heading}</div>
+                    <div className="text-sm opacity-70 mt-1">{c.sub}</div>
+                  </div>
+                </div>
+              );
+            }
+            if (b.type === "feature") {
+              return (
+                <div key={b.id} className="rounded-card px-8 py-9" style={style}>
+                  <div className="text-[22px] font-extrabold">{c.heading}</div>
+                  <div className="text-sm opacity-70 mt-1.5">{c.sub}</div>
+                </div>
+              );
+            }
+            return (
+              <div key={b.id} className="rounded-card px-8 py-12 text-center" style={style}>
+                <div className="text-[28px] font-extrabold tracking-[-0.02em]">{c.heading}</div>
+                <div className="text-[15px] opacity-70 mt-2">{c.sub}</div>
+              </div>
+            );
+          })}
+        </section>
+      )}
 
       {/* ===== Course grid ===== */}
       <section id="courses" className="max-w-6xl mx-auto px-6 py-20">
