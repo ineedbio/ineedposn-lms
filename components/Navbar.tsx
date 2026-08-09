@@ -25,10 +25,10 @@ export default async function Navbar() {
                 Admin
               </Link>
             )}
-            <LogoutButton className="text-[15px] font-medium text-secondary hover:text-ink transition" />
+            <LogoutButton className="text-[15px] font-medium text-secondary hover:text-ink transition active:scale-95" />
             <Link
               href="/dashboard"
-              className="w-[38px] h-[38px] rounded-full bg-ink text-white flex items-center justify-center text-sm font-bold flex-shrink-0"
+              className="w-[38px] h-[38px] rounded-full bg-ink text-white flex items-center justify-center text-sm font-bold flex-shrink-0 transition-transform duration-150 hover:scale-110 active:scale-95"
             >
               {(user.name?.[0] ?? "?").toUpperCase()}
             </Link>
@@ -43,7 +43,7 @@ export default async function Navbar() {
             </Link>
             <Link
               href="/register"
-              className="text-sm font-semibold text-white bg-ink px-5 py-2.5 rounded-pill hover:bg-dark-hover transition"
+              className="text-sm font-semibold text-white bg-ink px-5 py-2.5 rounded-pill hover:bg-dark-hover transition-all duration-150 active:scale-95"
             >
               สมัครสมาชิก
             </Link>

@@ -14,7 +14,12 @@ export default async function DashboardPage() {
   const enrollments = await prisma.enrollment.findMany({
     where: { userId: user.id, status: "ACTIVE" },
     include: {
-      course: { include: { subject: true, lessons: { include: { progress: { where: { userId: user.id } } } } } },
+      course: {
+        include: {
+          subject: true,
+          lessons: { orderBy: { order: "asc" }, include: { progress: { where: { userId: user.id } } } },
+        },
+      },
     },
   });
 
@@ -32,11 +37,15 @@ export default async function DashboardPage() {
           const total = e.course.lessons.length;
           const done = e.course.lessons.filter((l) => l.progress[0]?.isCompleted).length;
           const pct = total ? Math.round((done / total) * 100) : 0;
+          const resumeIdx = Math.max(
+            e.course.lessons.findIndex((l) => !l.progress[0]?.isCompleted),
+            0
+          );
           return (
             <Link
               key={e.id}
-              href={`/learn/${e.course.id}`}
-              className="flex gap-7 p-5 rounded-[20px] bg-panel items-center"
+              href={`/learn/${e.course.id}?lesson=${resumeIdx}`}
+              className="flex gap-7 p-5 rounded-[20px] bg-panel items-center hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
             >
               <div className="w-[200px] h-[130px] flex-shrink-0 rounded-[14px] bg-white border border-dashed border-border flex items-center justify-center text-muted text-xs">
                 ภาพปกคอร์ส

@@ -106,6 +106,7 @@ model Lesson {
   youtubeUrl  String?      // pasted YouTube link (unlisted) — no file upload needed
   content     String?
   duration    Int?         // seconds
+  isPreview   Boolean      @default(false) // free "ทดลองเรียน" lesson, viewable without enrollment
 
   courseId    String
   course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)

@@ -136,7 +136,7 @@ export default function RegisterPage() {
           </div>
           <button
             disabled={loading}
-            className="mt-2 h-[50px] rounded-pill bg-ink text-white text-base font-semibold flex items-center justify-center hover:bg-dark-hover transition disabled:opacity-50"
+            className="mt-2 h-[50px] rounded-pill bg-ink text-white text-base font-semibold flex items-center justify-center hover:bg-dark-hover hover:shadow-md transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
           >
             {loading ? "กำลังสร้างบัญชี..." : "สร้างบัญชี"}
           </button>

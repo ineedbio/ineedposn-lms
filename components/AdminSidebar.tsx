@@ -17,8 +17,8 @@ export default function AdminSidebar({ active }: { active: string }) {
           <Link
             key={item.href}
             href={item.href}
-            className={`text-[15px] px-3 py-3 rounded-[10px] transition ${
-              active === item.href ? "font-semibold bg-dark-hover text-white" : "font-medium text-muted hover:text-white"
+            className={`text-[15px] px-3 py-3 rounded-[10px] transition-all duration-150 active:scale-[0.97] ${
+              active === item.href ? "font-semibold bg-dark-hover text-white" : "font-medium text-muted hover:text-white hover:bg-dark-hover/50"
             }`}
           >
             {item.label}

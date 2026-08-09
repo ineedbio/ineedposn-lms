@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +12,6 @@ export default async function HomePage() {
 
   return (
     <>
-      <Navbar />
-
       {/* ===== Hero ===== */}
       <section className="text-center px-6 pt-20 pb-16 max-w-3xl mx-auto">
         <div className="text-[13px] font-semibold text-secondary mb-4">
@@ -32,13 +29,13 @@ export default async function HomePage() {
         <div className="flex items-center justify-center gap-3 mb-14">
           <Link
             href="#courses"
-            className="bg-ink text-white rounded-pill px-7 py-3.5 text-[14.5px] font-medium hover:bg-dark-hover transition"
+            className="bg-ink text-white rounded-pill px-7 py-3.5 text-[14.5px] font-medium hover:bg-dark-hover hover:shadow-lg transition-all duration-150 active:scale-95"
           >
             ดูคอร์สทั้งหมด
           </Link>
           <Link
             href="/register"
-            className="bg-panel text-ink rounded-pill px-7 py-3.5 text-[14.5px] font-medium hover:bg-border-light transition"
+            className="bg-panel text-ink rounded-pill px-7 py-3.5 text-[14.5px] font-medium hover:bg-border-light transition-all duration-150 active:scale-95"
           >
             ทดลองเรียนฟรี
           </Link>
@@ -58,7 +55,7 @@ export default async function HomePage() {
             <Link
               key={c.id}
               href={`/courses/${c.slug}`}
-              className={`group rounded-card border border-border-light overflow-hidden hover:border-border transition ${
+              className={`group rounded-card border border-border-light overflow-hidden hover:border-border hover:shadow-lg hover:-translate-y-1 transition-all duration-200 ${
                 i === 0 ? "md:col-span-2" : ""
               }`}
             >
@@ -153,7 +150,7 @@ export default async function HomePage() {
             ["ระบบควิซท้ายบทช่วยให้รู้ว่าจุดไหนยังไม่แน่น", "น้องปอนด์, ม.6"],
             ["ดูวิดีโอซ้ำได้ตลอด สะดวกมากตอนใกล้สอบ", "น้องมิว, ม.5"],
           ].map(([quote, who]) => (
-            <div key={who} className="rounded-card border border-border-light p-6">
+            <div key={who} className="rounded-card border border-border-light p-6 hover:shadow-md transition-shadow duration-200">
               <p className="text-[14.5px] text-secondary leading-relaxed mb-4">
                 &ldquo;{quote}&rdquo;
               </p>
@@ -169,30 +166,30 @@ export default async function HomePage() {
           <div>
             <h5 className="text-[13px] font-semibold mb-4">คอร์สเรียน</h5>
             <ul className="space-y-2.5 text-[13px] text-white/60">
-              <li>คอร์ส สอวน.</li>
-              <li>คอร์ส TCAS</li>
-              <li>คอร์ส กสพท</li>
+              <li><Link href="/#courses" className="hover:text-white transition">คอร์ส สอวน.</Link></li>
+              <li><Link href="/#courses" className="hover:text-white transition">คอร์ส TCAS</Link></li>
+              <li><Link href="/#courses" className="hover:text-white transition">คอร์ส กสพท</Link></li>
             </ul>
           </div>
           <div>
             <h5 className="text-[13px] font-semibold mb-4">บัญชี</h5>
             <ul className="space-y-2.5 text-[13px] text-white/60">
-              <li><Link href="/login">เข้าสู่ระบบ</Link></li>
-              <li><Link href="/register">สมัครสมาชิก</Link></li>
-              <li><Link href="/dashboard">ห้องเรียนของฉัน</Link></li>
+              <li><Link href="/login" className="hover:text-white transition">เข้าสู่ระบบ</Link></li>
+              <li><Link href="/register" className="hover:text-white transition">สมัครสมาชิก</Link></li>
+              <li><Link href="/dashboard" className="hover:text-white transition">ห้องเรียนของฉัน</Link></li>
             </ul>
           </div>
           <div>
             <h5 className="text-[13px] font-semibold mb-4">ช่วยเหลือ</h5>
             <ul className="space-y-2.5 text-[13px] text-white/60">
-              <li>วิธีสมัครเรียน</li>
-              <li>แจ้งชำระเงิน</li>
-              <li>ติดต่อเรา</li>
+              <li><Link href="/register" className="hover:text-white transition">วิธีสมัครเรียน</Link></li>
+              <li><Link href="/dashboard" className="hover:text-white transition">แจ้งชำระเงิน</Link></li>
+              <li className="text-white/30">ติดต่อเรา</li>
             </ul>
           </div>
           <div>
             <h5 className="text-[13px] font-semibold mb-4">เกี่ยวกับ</h5>
-            <ul className="space-y-2.5 text-[13px] text-white/60">
+            <ul className="space-y-2.5 text-[13px] text-white/30">
               <li>เกี่ยวกับ INeedBio</li>
               <li>ข้อตกลงการใช้งาน</li>
               <li>นโยบายความเป็นส่วนตัว</li>
