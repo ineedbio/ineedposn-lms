@@ -45,8 +45,11 @@ export default async function CheckoutPage({
     );
   }
 
-  const promptpayId = process.env.PROMPTPAY_ID;
-  const qrDataUrl = promptpayId ? await generatePromptPayQR(promptpayId, course.price) : null;
+  let qrDataUrl: string | null = course.paymentQrUrl ?? null;
+  if (!qrDataUrl) {
+    const promptpayId = process.env.PROMPTPAY_ID;
+    qrDataUrl = promptpayId ? await generatePromptPayQR(promptpayId, course.price) : null;
+  }
 
   return (
     <div className="max-w-[900px] mx-auto px-6 md:px-12 pt-14 pb-24">

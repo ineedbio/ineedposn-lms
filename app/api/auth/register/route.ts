@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendRegistrationOtp } from "@/lib/email";
+import { uploadFile } from "@/lib/storage";
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -20,8 +21,14 @@ const RegisterSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const parsed = RegisterSchema.safeParse(body);
+  const formData = await req.formData();
+  const raw = Object.fromEntries(
+    ["firstName", "lastName", "nickname", "school", "gradeLevel", "phone", "email", "password"].map((k) => [
+      k,
+      formData.get(k)?.toString() ?? "",
+    ])
+  );
+  const parsed = RegisterSchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
@@ -31,6 +38,9 @@ export async function POST(req: Request) {
   if (existing) {
     return NextResponse.json({ error: "อีเมลนี้ถูกใช้งานแล้ว" }, { status: 409 });
   }
+
+  const avatarFile = formData.get("avatar") as File | null;
+  const avatarUrl = avatarFile && avatarFile.size > 0 ? await uploadFile(avatarFile, "avatars") : null;
 
   const hashed = await bcrypt.hash(data.password, 12);
   const otp = generateOtp();
@@ -50,6 +60,7 @@ export async function POST(req: Request) {
       emailVerified: false,
       otpCode: otp,
       otpExpiry,
+      avatarUrl,
     },
   });
 

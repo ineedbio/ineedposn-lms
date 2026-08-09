@@ -42,6 +42,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: `${user.firstName} ${user.lastName}`,
           role: user.role,
+          avatarUrl: user.avatarUrl,
           sessionId,
         } as any;
       },
@@ -54,6 +55,7 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role;
         token.sessionId = (user as any).sessionId;
         token.uid = (user as any).id;
+        token.avatarUrl = (user as any).avatarUrl;
       }
 
       // Every subsequent request: verify this token's sessionId still
@@ -80,6 +82,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.uid;
         (session.user as any).role = token.role;
+        (session.user as any).avatarUrl = token.avatarUrl;
       }
       return session;
     },

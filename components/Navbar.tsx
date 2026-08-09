@@ -28,9 +28,14 @@ export default async function Navbar() {
             <LogoutButton className="text-[15px] font-medium text-secondary hover:text-ink transition active:scale-95" />
             <Link
               href="/dashboard"
-              className="w-[38px] h-[38px] rounded-full bg-ink text-white flex items-center justify-center text-sm font-bold flex-shrink-0 transition-transform duration-150 hover:scale-110 active:scale-95"
+              className="w-[38px] h-[38px] rounded-full bg-ink text-white flex items-center justify-center text-sm font-bold flex-shrink-0 overflow-hidden transition-transform duration-150 hover:scale-110 active:scale-95"
             >
-              {(user.name?.[0] ?? "?").toUpperCase()}
+              {user.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.avatarUrl} alt={user.name ?? ""} className="w-full h-full object-cover" />
+              ) : (
+                (user.name?.[0] ?? "?").toUpperCase()
+              )}
             </Link>
           </>
         ) : (

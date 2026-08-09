@@ -1,14 +1,20 @@
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const courses = await prisma.course.findMany({
-    where: { isPublished: true },
-    include: { subject: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const [courses, session] = await Promise.all([
+    prisma.course.findMany({
+      where: { isPublished: true },
+      include: { subject: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    getServerSession(authOptions),
+  ]);
+  const loggedIn = !!session?.user;
 
   return (
     <>
@@ -34,7 +40,7 @@ export default async function HomePage() {
             ดูคอร์สทั้งหมด
           </Link>
           <Link
-            href="/register"
+            href={loggedIn ? "#courses" : "/register"}
             className="bg-panel text-ink rounded-pill px-7 py-3.5 text-[14.5px] font-medium hover:bg-border-light transition-all duration-150 active:scale-95"
           >
             ทดลองเรียนฟรี

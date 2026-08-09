@@ -34,6 +34,7 @@ model User {
   currentSessionId String?
   currentDeviceInfo String?
   lastLoginAt      DateTime?
+  avatarUrl        String?
 
   createdAt        DateTime @default(now())
 
@@ -78,6 +79,7 @@ model Course {
   coverImage  String?
   price       Int          // 0 = free trial course
   isPublished Boolean      @default(false)
+  paymentQrUrl String?     // admin-uploaded PromptPay QR image — each course can settle to a different account
 
   subjectId   String
   subject     Subject      @relation(fields: [subjectId], references: [id])

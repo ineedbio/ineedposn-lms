@@ -13,6 +13,8 @@ const labelClass = "text-[13px] font-semibold text-ink";
 export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState<Record<string, string>>({ gradeLevel: GRADE_OPTIONS[0] });
+  const [avatar, setAvatar] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -20,15 +22,21 @@ export default function RegisterPage() {
     setForm((f) => ({ ...f, [name]: value }));
   }
 
+  function onAvatarChange(file: File | null) {
+    setAvatar(file);
+    setAvatarPreview(file ? URL.createObjectURL(file) : null);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+
+    const formData = new FormData();
+    Object.entries(form).forEach(([k, v]) => formData.append(k, v));
+    if (avatar) formData.append("avatar", avatar);
+
+    const res = await fetch("/api/auth/register", { method: "POST", body: formData });
     setLoading(false);
     if (!res.ok) {
       const data = await res.json();
@@ -51,6 +59,24 @@ export default function RegisterPage() {
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col items-center gap-2.5 mb-1">
+            <label className="relative w-24 h-24 rounded-full bg-panel border-[1.5px] border-dashed border-border flex items-center justify-center cursor-pointer overflow-hidden hover:border-ink transition">
+              {avatarPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarPreview} alt="รูปโปรไฟล์" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs text-muted text-center px-2">เพิ่มรูป</span>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => onAvatarChange(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            <span className="text-xs text-secondary">รูปโปรไฟล์ (ไม่บังคับ)</span>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className={labelClass}>ชื่อจริง</label>
