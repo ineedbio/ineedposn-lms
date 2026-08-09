@@ -6,7 +6,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   try {
     await requireAdmin();
     const body = await req.json();
-    const data: Record<string, unknown> = {};
+    const data: any = {};
     if (typeof body.title === "string") data.title = body.title;
     if (typeof body.youtubeUrl === "string") data.youtubeUrl = body.youtubeUrl;
     if (typeof body.durationMinutes === "number") data.duration = Math.round(body.durationMinutes * 60);

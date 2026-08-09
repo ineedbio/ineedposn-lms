@@ -10,12 +10,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const existing = await prisma.pageBlock.findUnique({ where: { id: params.id } });
     if (!existing) return NextResponse.json({ error: "ไม่พบบล็อกนี้" }, { status: 404 });
 
-    const content = { ...(existing.contentJson as Record<string, unknown>) };
+    const content = { ...(existing.contentJson as unknown as Record<string, unknown>) };
     for (const key of ["heading", "sub", "bg", "fg"]) {
       if (typeof body[key] === "string") content[key] = body[key];
     }
 
-    const data: Record<string, unknown> = { contentJson: content };
+    const data: any = { contentJson: content };
     if (typeof body.isPublished === "boolean") data.isPublished = body.isPublished;
     if (typeof body.order === "number") data.order = body.order;
 

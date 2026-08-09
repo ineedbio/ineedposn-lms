@@ -14,7 +14,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!existing) return NextResponse.json({ error: "ไม่พบบล็อกนี้" }, { status: 404 });
 
     const url = await uploadFile(file, "page-blocks");
-    const content = { ...(existing.contentJson as Record<string, unknown>), imageUrl: url };
+    const content = { ...(existing.contentJson as unknown as Record<string, unknown>), imageUrl: url };
     const block = await prisma.pageBlock.update({ where: { id: params.id }, data: { contentJson: content } });
     return NextResponse.json(block, { status: 201 });
   } catch (e) {
