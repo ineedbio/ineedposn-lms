@@ -1,31 +1,59 @@
 import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL!;
 const FROM = process.env.EMAIL_FROM ?? "INeedBio <onboarding@resend.dev>";
 
 /**
- * Resend's SDK returns `{ data, error }` and does NOT throw on API-level
- * failures (unverified sending domain, revoked key, rate limit...). Code that
- * ignores `error` cannot tell a failed send from a successful one — that is how
- * OTP emails were silently disappearing. Every send goes through here so a
- * failure becomes a thrown error the caller can surface to the user.
+ * Two transports, picked at runtime:
+ *   - SMTP (e.g. Gmail app password) when SMTP_HOST/SMTP_USER/SMTP_PASS are set
+ *   - Resend otherwise
+ * Flip between them with env vars only — no code change. SMTP is the fallback
+ * while the ineedbio.shop domain is unavailable and can't be verified in Resend.
+ *
+ * Both paths THROW on failure so the caller can surface it (Resend's SDK returns
+ * `{ error }` instead of throwing, so that case is turned into a throw here).
  */
+const smtpConfigured = Boolean(
+  process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS
+);
+
+const smtpPort = Number(process.env.SMTP_PORT ?? 465);
+const smtp = smtpConfigured
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
+    })
+  : null;
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 async function send(opts: { to: string | string[]; subject: string; html: string }) {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error("RESEND_API_KEY is not configured");
+  if (smtp) {
+    try {
+      await smtp.sendMail({ from: FROM, to: opts.to, subject: opts.subject, html: opts.html });
+    } catch (err) {
+      console.error("[email] SMTP send failed", { to: opts.to, subject: opts.subject, err });
+      throw new Error(`SMTP send failed: ${(err as Error).message}`);
+    }
+    return;
   }
-  const { data, error } = await resend.emails.send({
+
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("No email transport configured — set SMTP_HOST/SMTP_USER/SMTP_PASS or RESEND_API_KEY");
+  }
+  const { error } = await resend.emails.send({
     from: FROM,
     to: opts.to,
     subject: opts.subject,
     html: opts.html,
   });
   if (error) {
-    console.error("[email] send failed", { to: opts.to, subject: opts.subject, error });
+    console.error("[email] Resend send failed", { to: opts.to, subject: opts.subject, error });
     throw new Error(`Resend rejected the email: ${error.name} — ${error.message}`);
   }
-  return data;
 }
 
 const otpBlock = (intro: string, otp: string, outro: string) => `
