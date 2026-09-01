@@ -2,12 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { issueOtp } from "@/lib/otp";
 import { sendRegistrationOtp } from "@/lib/email";
 import { uploadFile } from "@/lib/storage";
-
-function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
 
 const RegisterSchema = z.object({
   firstName: z.string().min(1),
@@ -33,38 +30,56 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const data = parsed.data;
+  const email = data.email.toLowerCase();
 
-  const existing = await prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
-  if (existing) {
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing?.emailVerified) {
     return NextResponse.json({ error: "อีเมลนี้ถูกใช้งานแล้ว" }, { status: 409 });
   }
 
   const avatarFile = formData.get("avatar") as File | null;
-  const avatarUrl = avatarFile && avatarFile.size > 0 ? await uploadFile(avatarFile, "avatars") : null;
+  let avatarUrl: string | null = null;
+  if (avatarFile && avatarFile.size > 0) {
+    try {
+      avatarUrl = await uploadFile(avatarFile, "avatars");
+    } catch (err) {
+      // The optional avatar must never block sign-up / OTP delivery.
+      console.error("[register] avatar upload failed, continuing without it", err);
+    }
+  }
 
   const hashed = await bcrypt.hash(data.password, 12);
-  const otp = generateOtp();
-  const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-  const user = await prisma.user.create({
-    data: {
-      email: data.email.toLowerCase(),
-      password: hashed,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      nickname: data.nickname,
-      school: data.school,
-      gradeLevel: data.gradeLevel,
-      phone: data.phone,
-      role: "STUDENT",
-      emailVerified: false,
-      otpCode: otp,
-      otpExpiry,
-      avatarUrl,
-    },
-  });
+  const profile = {
+    email,
+    password: hashed,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    nickname: data.nickname,
+    school: data.school,
+    gradeLevel: data.gradeLevel,
+    phone: data.phone,
+    role: "STUDENT" as const,
+    emailVerified: false,
+    ...(avatarUrl ? { avatarUrl } : {}),
+  };
 
-  await sendRegistrationOtp({ email: user.email, otp });
+  // An unverified account can re-register (first OTP never arrived, typo in
+  // profile, etc.) — overwrite the pending record instead of rejecting it.
+  const user = existing
+    ? await prisma.user.update({ where: { id: existing.id }, data: profile })
+    : await prisma.user.create({ data: profile });
+
+  const code = await issueOtp(user.id, "EMAIL_VERIFY");
+  try {
+    await sendRegistrationOtp({ email: user.email, otp: code });
+  } catch (err) {
+    console.error("[register] OTP email failed", err);
+    return NextResponse.json(
+      { error: "ส่งอีเมลยืนยันไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" },
+      { status: 502 }
+    );
+  }
 
   return NextResponse.json({ id: user.id, email: user.email }, { status: 201 });
 }
