@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED") // Neon non-pooled connection — used by prisma migrate only
 }
 
 // ============= USERS & AUTH =============
@@ -15,33 +16,53 @@ enum Role {
   INSTRUCTOR
 }
 
+enum OtpPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
 model User {
-  id               String   @id @default(cuid())
-  email            String   @unique
-  password         String
-  firstName        String
-  lastName         String
-  nickname         String?
-  school           String?
-  gradeLevel       String?
-  phone            String?
-  role             Role     @default(STUDENT)
-  emailVerified    Boolean  @default(false)
-  otpCode          String?
-  otpExpiry        DateTime?
+  id            String  @id @default(cuid())
+  email         String  @unique
+  password      String
+  firstName     String
+  lastName      String
+  nickname      String?
+  school        String?
+  gradeLevel    String?
+  phone         String?
+  role          Role    @default(STUDENT)
+  emailVerified Boolean @default(false)
 
   // device-lock: single active session per account
-  currentSessionId String?
+  currentSessionId  String?
   currentDeviceInfo String?
-  lastLoginAt      DateTime?
-  avatarUrl        String?
+  lastLoginAt       DateTime?
+  avatarUrl         String?
 
-  createdAt        DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  enrollments      Enrollment[]
-  payments         Payment[]
-  progress         LessonProgress[]
-  quizAttempts     QuizAttempt[]
+  enrollments  Enrollment[]
+  payments     Payment[]
+  progress     LessonProgress[]
+  quizAttempts QuizAttempt[]
+  otpTokens    OtpToken[]
+}
+
+// One-time codes for email verification and password reset.
+// Stored hashed (never the raw code); short TTL; capped attempts.
+model OtpToken {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose    OtpPurpose
+  codeHash   String // sha-256 of the 6-digit code — raw code is emailed, never persisted
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int        @default(0)
+  createdAt  DateTime   @default(now())
+
+  @@index([userId, purpose])
 }
 
 // ============= SUBJECT-SCOPED CATALOG =============
@@ -51,12 +72,12 @@ model User {
 // lib/subjects.ts `provisionSubject()`.
 
 model Subject {
-  id          String     @id @default(cuid())
-  name        String
-  slug        String     @unique
-  colorTheme  String     @default("#0B0B0C")
-  order       Int        @default(0)
-  createdAt   DateTime   @default(now())
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  colorTheme String   @default("#0B0B0C")
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
 
   categories  Category[]
   courses     Course[]
@@ -72,25 +93,25 @@ model Category {
 }
 
 model Course {
-  id          String       @id @default(cuid())
-  title       String
-  slug        String       @unique
-  description String
-  coverImage  String?
-  price       Int          // 0 = free trial course
-  isPublished Boolean      @default(false)
-  paymentQrUrl String?     // admin-uploaded PromptPay QR image — each course can settle to a different account
+  id           String  @id @default(cuid())
+  title        String
+  slug         String  @unique
+  description  String
+  coverImage   String?
+  price        Int // 0 = free trial course
+  isPublished  Boolean @default(false)
+  paymentQrUrl String? // admin-uploaded PromptPay QR image — each course can settle to a different account
 
-  subjectId   String
-  subject     Subject      @relation(fields: [subjectId], references: [id])
-  categoryId  String
-  category    Category     @relation(fields: [categoryId], references: [id])
+  subjectId  String
+  subject    Subject  @relation(fields: [subjectId], references: [id])
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
 
   lessons     Lesson[]
   enrollments Enrollment[]
   payments    Payment[]
 
-  createdAt   DateTime     @default(now())
+  createdAt DateTime @default(now())
 }
 
 enum LessonType {
@@ -101,17 +122,17 @@ enum LessonType {
 }
 
 model Lesson {
-  id          String       @id @default(cuid())
-  title       String
-  order       Int
-  type        LessonType
-  youtubeUrl  String?      // pasted YouTube link (unlisted) — no file upload needed
-  content     String?
-  duration    Int?         // seconds
-  isPreview   Boolean      @default(false) // free "ทดลองเรียน" lesson, viewable without enrollment
+  id         String     @id @default(cuid())
+  title      String
+  order      Int
+  type       LessonType
+  youtubeUrl String? // pasted YouTube link (unlisted) — no file upload needed
+  content    String?
+  duration   Int? // seconds
+  isPreview  Boolean    @default(false) // free "ทดลองเรียน" lesson, viewable without enrollment
 
-  courseId    String
-  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   attachments Attachment[]
   quiz        Quiz?
@@ -136,8 +157,8 @@ model LessonProgress {
   watchedSeconds Int       @default(0)
   completedAt    DateTime?
 
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lesson         Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@unique([userId, lessonId])
 }
@@ -156,8 +177,8 @@ model Enrollment {
   enrolledAt DateTime?
   expiresAt  DateTime?
 
-  user       User         @relation(fields: [userId], references: [id])
-  course     Course       @relation(fields: [courseId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
 
   @@unique([userId, courseId])
 }
@@ -170,29 +191,29 @@ enum QuestionType {
 }
 
 model Quiz {
-  id         String        @id @default(cuid())
+  id         String  @id @default(cuid())
   title      String
-  timeLimit  Int           // seconds
-  passScore  Int           // percent
-  isMockExam Boolean       @default(false)
+  timeLimit  Int // seconds
+  passScore  Int // percent
+  isMockExam Boolean @default(false)
 
-  lessonId   String?       @unique
-  lesson     Lesson?       @relation(fields: [lessonId], references: [id])
+  lessonId String? @unique
+  lesson   Lesson? @relation(fields: [lessonId], references: [id])
 
-  questions  Question[]
-  attempts   QuizAttempt[]
+  questions Question[]
+  attempts  QuizAttempt[]
 }
 
 model Question {
   id            String       @id @default(cuid())
   text          String
   type          QuestionType
-  choices       Json?        // [{ id, text }]
+  choices       Json? // [{ id, text }]
   correctAnswer String
   explanation   String?
 
-  quizId        String
-  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
 }
 
 model QuizAttempt {
@@ -204,8 +225,8 @@ model QuizAttempt {
   isPassed    Boolean
   submittedAt DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id])
-  quiz        Quiz     @relation(fields: [quizId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  quiz Quiz @relation(fields: [quizId], references: [id])
 }
 
 // ============= PAYMENTS =============
@@ -229,25 +250,25 @@ model Payment {
   reviewedAt   DateTime?
   createdAt    DateTime  @default(now())
 
-  user         User      @relation(fields: [userId], references: [id])
-  course       Course    @relation(fields: [courseId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
 }
 
 // ============= NO-CODE ADMIN CONTENT =============
 
 model PageBlock {
-  id          String   @id @default(cuid())
-  page        String   // e.g. "home", "course:<slug>"
+  id          String  @id @default(cuid())
+  page        String // e.g. "home", "course:<slug>"
   order       Int
-  type        String   // "hero" | "course_grid" | "promo_banner" | "testimonial" | ...
+  type        String // "hero" | "course_grid" | "promo_banner" | "testimonial" | ...
   contentJson Json
-  isPublished Boolean  @default(false)
+  isPublished Boolean @default(false)
 
   // when a block is scoped to a subject (per-subject promo banners etc.)
-  subjectId   String?
-  subject     Subject? @relation("SubjectPromoBlocks", fields: [subjectId], references: [id])
+  subjectId String?
+  subject   Subject? @relation("SubjectPromoBlocks", fields: [subjectId], references: [id])
 
-  updatedAt   DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 model ThemeSetting {
