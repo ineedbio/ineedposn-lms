@@ -3,5 +3,8 @@ const nextConfig = {
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
+  experimental: {
+    serverComponentsExternalPackages: ["nodemailer"],
+  },
 };
 module.exports = nextConfig;
