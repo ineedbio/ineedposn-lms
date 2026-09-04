@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Button from "@/components/Button";
 
 function LoginForm() {
   const router = useRouter();
@@ -62,7 +63,7 @@ function LoginForm() {
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-ink transition"
+              className="h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-accent transition"
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -73,23 +74,20 @@ function LoginForm() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-ink transition"
+              className="h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-accent transition"
             />
           </div>
-          <Link href="/forgot-password" className="text-[13px] text-secondary self-end">
+          <Link href="/forgot-password" className="text-[13px] text-secondary self-end hover:text-accent transition-colors">
             ลืมรหัสผ่าน?
           </Link>
-          <button
-            disabled={loading}
-            className="mt-2 h-[50px] rounded-pill bg-ink text-white text-base font-semibold flex items-center justify-center hover:bg-dark-hover hover:shadow-md transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
-          >
+          <Button disabled={loading} className="mt-2">
             {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
-          </button>
+          </Button>
         </form>
 
         <div className="text-center text-sm text-secondary">
           ยังไม่มีบัญชี?{" "}
-          <Link href="/register" className="font-semibold text-ink">
+          <Link href="/register" className="font-semibold text-accent hover:text-accent-hover transition-colors">
             สมัครสมาชิก
           </Link>
         </div>

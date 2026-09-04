@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Button from "@/components/Button";
 
 const GRADE_OPTIONS = ["มัธยมศึกษาปีที่ 4", "มัธยมศึกษาปีที่ 5", "มัธยมศึกษาปีที่ 6", "อื่น ๆ"];
 
 const inputClass =
-  "h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-ink transition";
+  "h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-accent transition";
 const labelClass = "text-[13px] font-semibold text-ink";
 
 export default function RegisterPage() {
@@ -60,7 +61,7 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col items-center gap-2.5 mb-1">
-            <label className="relative w-24 h-24 rounded-full bg-panel border-[1.5px] border-dashed border-border flex items-center justify-center cursor-pointer overflow-hidden hover:border-ink transition">
+            <label className="relative w-24 h-24 rounded-full bg-panel border-[1.5px] border-dashed border-border flex items-center justify-center cursor-pointer overflow-hidden hover:border-accent transition">
               {avatarPreview ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={avatarPreview} alt="รูปโปรไฟล์" className="w-full h-full object-cover" />
@@ -160,17 +161,14 @@ export default function RegisterPage() {
               className={inputClass}
             />
           </div>
-          <button
-            disabled={loading}
-            className="mt-2 h-[50px] rounded-pill bg-ink text-white text-base font-semibold flex items-center justify-center hover:bg-dark-hover hover:shadow-md transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
-          >
+          <Button disabled={loading} className="mt-2">
             {loading ? "กำลังสร้างบัญชี..." : "สร้างบัญชี"}
-          </button>
+          </Button>
         </form>
 
         <div className="text-center text-sm text-secondary">
           มีบัญชีอยู่แล้ว?{" "}
-          <Link href="/login" className="font-semibold text-ink">
+          <Link href="/login" className="font-semibold text-accent hover:text-accent-hover transition-colors">
             เข้าสู่ระบบ
           </Link>
         </div>

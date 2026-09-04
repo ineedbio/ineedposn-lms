@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Button from "@/components/Button";
 
 const inputClass =
-  "h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-ink transition";
+  "h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-accent transition";
 const labelClass = "text-[13px] font-semibold text-ink";
 
 export default function SettingsPage() {
@@ -48,7 +49,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-[1300px] mx-auto px-12 pt-14 pb-24">
       <div className="mb-10">
-        <Link href="/dashboard" className="text-sm font-medium text-secondary hover:text-ink transition">
+        <Link href="/dashboard" className="text-sm font-medium text-secondary hover:text-accent transition-colors">
           ← กลับหน้าหลัก
         </Link>
         <h1 className="text-[32px] font-extrabold tracking-[-0.02em] mt-3">ตั้งค่าบัญชี</h1>
@@ -102,12 +103,9 @@ export default function SettingsPage() {
               className={inputClass}
             />
           </div>
-          <button
-            disabled={loading}
-            className="mt-2 h-[50px] rounded-pill bg-ink text-white text-base font-semibold flex items-center justify-center hover:bg-dark-hover hover:shadow-md transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
-          >
+          <Button disabled={loading} className="mt-2">
             {loading ? "กำลังบันทึก..." : "เปลี่ยนรหัสผ่าน"}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

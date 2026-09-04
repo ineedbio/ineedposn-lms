@@ -55,7 +55,7 @@ export default async function LessonPlayerPage({
       <header className="flex items-center justify-between px-10 py-5 border-b border-dark-hover">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 text-[15px] font-semibold text-panel hover:text-white transition"
+          className="flex items-center gap-2 text-[15px] font-semibold text-panel hover:text-accent transition-colors"
         >
           ← กลับหน้าหลัก
         </Link>
@@ -74,7 +74,7 @@ export default async function LessonPlayerPage({
               </div>
               <Link
                 href={`/learn/quiz/${lesson.quiz.id}`}
-                className="text-sm font-semibold text-ink bg-white px-6 py-3 rounded-pill hover:bg-panel transition-all duration-150 active:scale-95"
+                className="text-sm font-semibold text-white bg-accent px-6 py-3 rounded-pill shadow-soft-lg hover:bg-accent-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
               >
                 เริ่มทำข้อสอบ
               </Link>
@@ -99,7 +99,7 @@ export default async function LessonPlayerPage({
             {idx > 0 && (
               <Link
                 href={`/learn/${course.id}?lesson=${idx - 1}`}
-                className="text-sm font-semibold text-panel bg-dark-hover px-5 py-2.5 rounded-pill hover:bg-[#4a4a4c] transition-all duration-150 active:scale-95"
+                className="text-sm font-semibold text-panel bg-dark-hover px-5 py-2.5 rounded-pill hover:bg-[#4a4a4c] hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
               >
                 ← บทก่อนหน้า
               </Link>
@@ -107,7 +107,7 @@ export default async function LessonPlayerPage({
             {idx < course.lessons.length - 1 && (
               <Link
                 href={`/learn/${course.id}?lesson=${idx + 1}`}
-                className="text-sm font-semibold text-ink bg-white px-5 py-2.5 rounded-pill hover:bg-panel transition-all duration-150 active:scale-95"
+                className="text-sm font-semibold text-white bg-accent px-5 py-2.5 rounded-pill shadow-soft hover:bg-accent-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
               >
                 บทถัดไป →
               </Link>

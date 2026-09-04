@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Button, { LinkButton } from "@/components/Button";
 
 type Choice = { id: string; text: string };
 type Question = {
@@ -94,7 +95,7 @@ export default function QuizTaker({
     return (
       <div className="max-w-[900px] mx-auto px-6 py-14 flex flex-col gap-8">
         <div
-          className={`p-8 rounded-3xl text-center flex flex-col items-center gap-2 ${
+          className={`p-8 rounded-3xl shadow-soft text-center flex flex-col items-center gap-2 ${
             result.isPassed ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"
           }`}
         >
@@ -114,7 +115,7 @@ export default function QuizTaker({
             return (
               <div
                 key={q.id}
-                className={`p-4 rounded-2xl border ${
+                className={`p-4 rounded-2xl border shadow-soft ${
                   r.isCorrect ? "border-green-200 bg-green-50/40" : "border-red-200 bg-red-50/40"
                 }`}
               >
@@ -157,12 +158,9 @@ export default function QuizTaker({
           })}
         </div>
 
-        <Link
-          href={backHref}
-          className="self-center text-[15px] font-semibold text-ink bg-panel px-6 py-3 rounded-pill hover:bg-border-light transition-all duration-150 active:scale-95"
-        >
+        <LinkButton href={backHref} variant="secondary" size="sm" className="self-center">
           กลับไปเรียนต่อ
-        </Link>
+        </LinkButton>
       </div>
     );
   }
@@ -179,8 +177,8 @@ export default function QuizTaker({
           </p>
         </div>
         <div
-          className={`text-lg font-bold px-4 py-2 rounded-pill ${
-            timeLeft <= 60 ? "bg-red-50 text-red-700" : "bg-panel text-ink"
+          className={`text-lg font-bold px-4 py-2 rounded-pill shadow-soft transition-colors duration-200 ${
+            timeLeft <= 60 ? "bg-red-50 text-red-700" : "bg-accent-soft text-accent"
           }`}
         >
           ⏱ {formatTime(timeLeft)}
@@ -191,7 +189,7 @@ export default function QuizTaker({
 
       <div className="flex flex-col gap-5">
         {questions.map((q, i) => (
-          <div key={q.id} className="p-5 rounded-2xl bg-panel flex flex-col gap-3">
+          <div key={q.id} className="p-5 rounded-2xl bg-panel shadow-soft flex flex-col gap-3">
             <div className="text-[15px] font-semibold">
               {i + 1}. {q.text}
             </div>
@@ -200,7 +198,7 @@ export default function QuizTaker({
                 {q.choices.map((c) => (
                   <label
                     key={c.id}
-                    className="flex items-center gap-2.5 text-[14px] cursor-pointer p-2 rounded-lg hover:bg-white transition"
+                    className="flex items-center gap-2.5 text-[14px] cursor-pointer p-2 rounded-lg hover:bg-white transition-colors"
                   >
                     <input
                       type="radio"
@@ -208,6 +206,7 @@ export default function QuizTaker({
                       value={c.id}
                       checked={answers[q.id] === c.id}
                       onChange={() => setAnswers((a) => ({ ...a, [q.id]: c.id }))}
+                      className="accent-accent"
                     />
                     {c.text}
                   </label>
@@ -219,20 +218,16 @@ export default function QuizTaker({
                 value={answers[q.id] ?? ""}
                 onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
                 placeholder="พิมพ์คำตอบของคุณ"
-                className="h-11 rounded-lg border-[1.5px] border-border px-3 text-[14px] bg-white focus:outline-none focus:border-ink transition"
+                className="h-11 rounded-lg border-[1.5px] border-border px-3 text-[14px] bg-white focus:outline-none focus:border-accent transition"
               />
             )}
           </div>
         ))}
       </div>
 
-      <button
-        onClick={submit}
-        disabled={submitting}
-        className="self-center h-[52px] px-10 rounded-pill bg-ink text-white text-base font-semibold flex items-center justify-center hover:bg-dark-hover hover:shadow-md transition-all duration-150 active:scale-[0.97] disabled:opacity-50"
-      >
+      <Button onClick={submit} disabled={submitting} size="md" className="self-center px-10">
         {submitting ? "กำลังส่ง..." : "ส่งคำตอบ"}
-      </button>
+      </Button>
     </div>
   );
 }
