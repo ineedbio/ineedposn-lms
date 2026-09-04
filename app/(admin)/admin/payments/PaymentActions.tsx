@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Button from "@/components/Button";
 
 export default function PaymentActions({ paymentId }: { paymentId: string }) {
   const router = useRouter();
@@ -17,15 +18,12 @@ export default function PaymentActions({ paymentId }: { paymentId: string }) {
 
   return (
     <div className="flex gap-2.5 flex-shrink-0">
-      <button
-        onClick={() => decide("APPROVE")}
-        className="px-5 py-2.5 rounded-pill bg-ink text-white text-sm font-semibold hover:bg-dark-hover hover:shadow-md transition-all duration-150 active:scale-[0.96]"
-      >
+      <Button onClick={() => decide("APPROVE")} size="sm">
         อนุมัติ
-      </button>
+      </Button>
       <button
         onClick={() => decide("REJECT")}
-        className="px-5 py-2.5 rounded-pill bg-white border border-border text-ink text-sm font-semibold hover:bg-panel transition-all duration-150 active:scale-[0.96]"
+        className="px-5 py-2.5 rounded-pill bg-white border border-border text-ink text-sm font-semibold hover:bg-panel hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.96]"
       >
         ปฏิเสธ
       </button>

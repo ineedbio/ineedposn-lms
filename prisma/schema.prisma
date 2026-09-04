@@ -288,3 +288,16 @@ model AuditLog {
   metadata  Json?
   createdAt DateTime @default(now())
 }
+
+// ============= RATE LIMITING =============
+// Fixed-window counters for /api/auth/* — backed by Postgres (not
+// in-memory) because Vercel serverless instances are stateless and not
+// shared, so an in-memory counter would silently do nothing under load.
+// See lib/rate-limit.ts.
+model RateLimitHit {
+  key       String   @id
+  count     Int      @default(1)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}

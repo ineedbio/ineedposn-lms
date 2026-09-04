@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import PreviewLesson from "./PreviewLesson";
+import { LinkButton } from "@/components/Button";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,7 @@ export default async function CourseDetailPage({ params }: { params: { slug: str
             {course.lessons.map((l, i) => (
               <div
                 key={l.id}
-                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-border-light"
+                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-border-light hover:border-accent/30 hover:bg-accent-soft/40 transition-colors duration-200"
               >
                 <div className="flex items-center gap-4 min-w-0">
                   <span className="text-sm text-muted w-6 flex-shrink-0">{i + 1}</span>
@@ -72,16 +72,11 @@ export default async function CourseDetailPage({ params }: { params: { slug: str
           </div>
         </div>
 
-        <div className="md:sticky md:top-24 h-fit border border-border-light rounded-card p-7 flex flex-col gap-5">
+        <div className="md:sticky md:top-24 h-fit border border-border-light rounded-card shadow-soft p-7 flex flex-col gap-5">
           <div className="text-[32px] font-extrabold tracking-[-0.02em]">
             {course.price === 0 ? "ฟรี" : `฿${course.price.toLocaleString()}`}
           </div>
-          <Link
-            href={ctaHref}
-            className="h-[50px] rounded-pill bg-ink text-white text-base font-semibold flex items-center justify-center hover:bg-dark-hover hover:shadow-md transition-all duration-150 active:scale-[0.97]"
-          >
-            {ctaLabel}
-          </Link>
+          <LinkButton href={ctaHref}>{ctaLabel}</LinkButton>
           <ul className="flex flex-col gap-2.5 text-sm text-secondary">
             <li>เรียนซ้ำได้ไม่จำกัดตลอดอายุคอร์ส</li>
             <li>ควิซท้ายบทพร้อมเฉลยละเอียด</li>

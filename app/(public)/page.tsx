@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import Link from "next/link";
+import { LinkButton } from "@/components/Button";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default async function HomePage() {
     <>
       {/* ===== Hero ===== */}
       <section className="text-center px-6 pt-20 pb-16 max-w-3xl mx-auto">
-        <div className="text-[13px] font-semibold text-secondary mb-4">
+        <div className="inline-block text-[13px] font-semibold text-accent bg-accent-soft px-3.5 py-1.5 rounded-pill mb-4">
           INeedBio · ติวชีววิทยาออนไลน์
         </div>
         <h1 className="text-[48px] md:text-[64px] font-extrabold tracking-[-0.03em] leading-[1.05] mb-5">
@@ -39,20 +40,14 @@ export default async function HomePage() {
           ไม่ใช่แค่ท่องจำ
         </p>
         <div className="flex items-center justify-center gap-3 mb-14">
-          <Link
-            href="#courses"
-            className="bg-ink text-white rounded-pill px-7 py-3.5 text-[14.5px] font-medium hover:bg-dark-hover hover:shadow-lg transition-all duration-150 active:scale-95"
-          >
+          <LinkButton href="#courses" size="sm" className="px-7 py-3.5 text-[14.5px]">
             ดูคอร์สทั้งหมด
-          </Link>
-          <Link
-            href={loggedIn ? "#courses" : "/register"}
-            className="bg-panel text-ink rounded-pill px-7 py-3.5 text-[14.5px] font-medium hover:bg-border-light transition-all duration-150 active:scale-95"
-          >
+          </LinkButton>
+          <LinkButton href={loggedIn ? "#courses" : "/register"} variant="secondary" size="sm" className="px-7 py-3.5 text-[14.5px]">
             ทดลองเรียนฟรี
-          </Link>
+          </LinkButton>
         </div>
-        <div className="h-[280px] md:h-[400px] rounded-card bg-panel border border-dashed border-border flex items-center justify-center text-muted text-sm">
+        <div className="h-[280px] md:h-[400px] rounded-card bg-panel shadow-soft border border-dashed border-border flex items-center justify-center text-muted text-sm">
           ภาพประกอบหน้าแรก
         </div>
       </section>
@@ -116,7 +111,7 @@ export default async function HomePage() {
             <Link
               key={c.id}
               href={`/courses/${c.slug}`}
-              className={`group rounded-card border border-border-light overflow-hidden hover:border-border hover:shadow-lg hover:-translate-y-1 transition-all duration-200 ${
+              className={`group rounded-card border border-border-light shadow-soft overflow-hidden hover:border-accent/30 hover:shadow-soft-lg hover:-translate-y-1 transition-all duration-200 ${
                 i === 0 ? "md:col-span-2" : ""
               }`}
             >
@@ -124,10 +119,10 @@ export default async function HomePage() {
                 รูปคอร์ส
               </div>
               <div className="p-6">
-                <div className="text-[12px] font-semibold text-secondary mb-2">
+                <div className="text-[12px] font-semibold text-accent mb-2">
                   {c.subject.name}
                 </div>
-                <h3 className="text-[19px] font-bold mb-2 group-hover:text-secondary transition">
+                <h3 className="text-[19px] font-bold mb-2 group-hover:text-accent transition-colors">
                   {c.title}
                 </h3>
                 <p className="text-[14px] text-secondary mb-4 line-clamp-2">
@@ -211,7 +206,7 @@ export default async function HomePage() {
             ["ระบบควิซท้ายบทช่วยให้รู้ว่าจุดไหนยังไม่แน่น", "น้องปอนด์, ม.6"],
             ["ดูวิดีโอซ้ำได้ตลอด สะดวกมากตอนใกล้สอบ", "น้องมิว, ม.5"],
           ].map(([quote, who]) => (
-            <div key={who} className="rounded-card border border-border-light p-6 hover:shadow-md transition-shadow duration-200">
+            <div key={who} className="rounded-card border border-border-light p-6 shadow-soft hover:shadow-soft-lg transition-shadow duration-200">
               <p className="text-[14.5px] text-secondary leading-relaxed mb-4">
                 &ldquo;{quote}&rdquo;
               </p>

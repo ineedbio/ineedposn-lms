@@ -1,3 +1,7 @@
+-- APPLIED: already run against production (Neon) — do not run again.
+-- Kept only as a record of the incident; the columns it adds are also
+-- covered by prisma/migrations/0_init going forward for any new database.
+--
 -- Hotfix: schema drift — 3 columns exist in prisma/schema.prisma + app code
 -- but were never added to the production database.
 --

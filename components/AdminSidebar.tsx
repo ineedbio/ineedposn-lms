@@ -8,6 +8,7 @@ import LogoutButton from "./LogoutButton";
 const NAV = [
   { href: "/admin/payments", label: "การชำระเงิน" },
   { href: "/admin/courses", label: "คอร์สเรียน" },
+  { href: "/admin/quizzes", label: "ข้อสอบ" },
   { href: "/admin/students", label: "นักเรียน" },
   { href: "/admin/design-studio", label: "Design Studio" },
 ];
@@ -29,8 +30,8 @@ export default function AdminSidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`text-[15px] px-3 py-3 rounded-[10px] transition-all duration-150 active:scale-[0.97] ${
-                active ? "font-semibold bg-dark-hover text-white" : "font-medium text-muted hover:text-white hover:bg-dark-hover/50"
+              className={`text-[15px] px-3 py-3 rounded-xl transition-all duration-200 active:scale-[0.97] ${
+                active ? "font-semibold bg-accent text-white shadow-soft" : "font-medium text-muted hover:text-white hover:bg-dark-hover/50"
               }`}
             >
               {item.label}

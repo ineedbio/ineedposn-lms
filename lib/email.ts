@@ -28,8 +28,6 @@ const smtp = smtpConfigured
     })
   : null;
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 async function send(opts: { to: string | string[]; subject: string; html: string }) {
   if (smtp) {
     try {
@@ -44,6 +42,12 @@ async function send(opts: { to: string | string[]; subject: string; html: string
   if (!process.env.RESEND_API_KEY) {
     throw new Error("No email transport configured — set SMTP_HOST/SMTP_USER/SMTP_PASS or RESEND_API_KEY");
   }
+  // Constructed lazily (only once we know we're actually sending through
+  // Resend) — the Resend constructor throws on a missing key, and eagerly
+  // building it at module load broke `next build`'s page-data collection
+  // for every route that imports this file when RESEND_API_KEY isn't set
+  // (e.g. while SMTP is the active transport, or during a build with no env).
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const { error } = await resend.emails.send({
     from: FROM,
     to: opts.to,

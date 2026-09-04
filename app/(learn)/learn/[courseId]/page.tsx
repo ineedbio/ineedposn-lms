@@ -3,14 +3,14 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import LessonPlayer from "@/components/LessonPlayer";
 
 export const dynamic = "force-dynamic";
 
-function toEmbedUrl(url: string | null) {
+function extractVideoId(url: string | null) {
   if (!url) return null;
   const m = url.match(/(?:youtu\.be\/|[?&]v=|\/embed\/)([\w-]{11})/);
-  const id = m?.[1] ?? url;
-  return `https://www.youtube.com/embed/${id}`;
+  return m?.[1] ?? null;
 }
 
 export default async function LessonPlayerPage({
@@ -31,7 +31,12 @@ export default async function LessonPlayerPage({
 
   const course = await prisma.course.findUnique({
     where: { id: params.courseId },
-    include: { lessons: { orderBy: { order: "asc" } } },
+    include: {
+      lessons: {
+        orderBy: { order: "asc" },
+        include: { quiz: { include: { _count: { select: { questions: true } } } } },
+      },
+    },
   });
   if (!course) notFound();
 
@@ -39,20 +44,18 @@ export default async function LessonPlayerPage({
   const lesson = course.lessons[idx];
   if (!lesson) notFound();
 
-  await prisma.lessonProgress.upsert({
-    where: { userId_lessonId: { userId, lessonId: lesson.id } },
-    update: { isCompleted: true, completedAt: new Date() },
-    create: { userId, lessonId: lesson.id, isCompleted: true, completedAt: new Date() },
-  });
+  // NOTE: completion is no longer set here. Real watch time is reported by
+  // the client-side LessonPlayer to POST /api/progress, which is the only
+  // place LessonProgress.isCompleted gets flipped to true now.
 
-  const embedUrl = toEmbedUrl(lesson.youtubeUrl);
+  const videoId = extractVideoId(lesson.youtubeUrl);
 
   return (
     <div className="min-h-screen bg-ink text-white flex flex-col">
       <header className="flex items-center justify-between px-10 py-5 border-b border-dark-hover">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 text-[15px] font-semibold text-panel hover:text-white transition"
+          className="flex items-center gap-2 text-[15px] font-semibold text-panel hover:text-accent transition-colors"
         >
           ← กลับหน้าหลัก
         </Link>
@@ -63,8 +66,21 @@ export default async function LessonPlayerPage({
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 gap-7">
         <div className="w-full max-w-[1100px] aspect-video bg-black rounded-2xl overflow-hidden relative">
-          {embedUrl ? (
-            <iframe src={embedUrl} className="w-full h-full border-0" allowFullScreen />
+          {lesson.type === "QUIZ" && lesson.quiz ? (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-secondary">
+              <div className="text-base font-semibold text-white">{lesson.quiz.title}</div>
+              <div className="text-sm">
+                {lesson.quiz._count.questions} ข้อ · เวลา {Math.round(lesson.quiz.timeLimit / 60)} นาที
+              </div>
+              <Link
+                href={`/learn/quiz/${lesson.quiz.id}`}
+                className="text-sm font-semibold text-white bg-accent px-6 py-3 rounded-pill shadow-soft-lg hover:bg-accent-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+              >
+                เริ่มทำข้อสอบ
+              </Link>
+            </div>
+          ) : videoId ? (
+            <LessonPlayer lessonId={lesson.id} videoId={videoId} containerId={`yt-player-${lesson.id}`} />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-secondary">
               <div className="w-16 h-16 rounded-full bg-white/[0.08] flex items-center justify-center">
@@ -83,7 +99,7 @@ export default async function LessonPlayerPage({
             {idx > 0 && (
               <Link
                 href={`/learn/${course.id}?lesson=${idx - 1}`}
-                className="text-sm font-semibold text-panel bg-dark-hover px-5 py-2.5 rounded-pill hover:bg-[#4a4a4c] transition-all duration-150 active:scale-95"
+                className="text-sm font-semibold text-panel bg-dark-hover px-5 py-2.5 rounded-pill hover:bg-[#4a4a4c] hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
               >
                 ← บทก่อนหน้า
               </Link>
@@ -91,7 +107,7 @@ export default async function LessonPlayerPage({
             {idx < course.lessons.length - 1 && (
               <Link
                 href={`/learn/${course.id}?lesson=${idx + 1}`}
-                className="text-sm font-semibold text-ink bg-white px-5 py-2.5 rounded-pill hover:bg-panel transition-all duration-150 active:scale-95"
+                className="text-sm font-semibold text-white bg-accent px-5 py-2.5 rounded-pill shadow-soft hover:bg-accent-hover hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
               >
                 บทถัดไป →
               </Link>

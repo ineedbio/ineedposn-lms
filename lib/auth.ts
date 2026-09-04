@@ -3,6 +3,10 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { issueNewSession, isSessionStillValid } from "./device-lock";
+import { rateLimit, peekRateLimit, clientIp } from "./rate-limit";
+
+const LOGIN_ACCOUNT_LIMIT = { limit: 5, windowSeconds: 15 * 60 };
+const LOGIN_IP_LIMIT = { limit: 20, windowSeconds: 15 * 60 };
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -16,16 +20,47 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
+        const email = credentials.email.toLowerCase();
+        const ip = clientIp((req as any)?.headers ?? {});
+
+        // Per-account lock stops brute-forcing one person's password from
+        // any IP; per-IP lock stops credential-stuffing many accounts from
+        // one source. Both throw the same generic error NextAuth already
+        // shows on a wrong password, so this never reveals which accounts
+        // exist or which limit tripped.
+        //
+        // Only a WRONG password/unknown account below counts as an attempt
+        // against these limits (via recordFailedAttempt) — a successful
+        // login must never count, or normal re-logins (switching devices,
+        // a previous session getting device-locked out, simply logging in
+        // again later) would eventually lock out someone using the correct
+        // password. Here we only peek at the current count so an
+        // already-locked-out caller still fails fast.
+        const accountPeek = await peekRateLimit("login-account", email, LOGIN_ACCOUNT_LIMIT);
+        if (!accountPeek.allowed) throw new Error("TOO_MANY_ATTEMPTS");
+        const ipPeek = await peekRateLimit("login-ip", ip, LOGIN_IP_LIMIT);
+        if (!ipPeek.allowed) throw new Error("TOO_MANY_ATTEMPTS");
+
+        async function recordFailedAttempt() {
+          await rateLimit("login-account", email, LOGIN_ACCOUNT_LIMIT);
+          await rateLimit("login-ip", ip, LOGIN_IP_LIMIT);
+        }
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          where: { email },
         });
-        if (!user) return null;
+        if (!user) {
+          await recordFailedAttempt();
+          return null;
+        }
 
         const valid = await bcrypt.compare(credentials.password, user.password);
-        if (!valid) return null;
+        if (!valid) {
+          await recordFailedAttempt();
+          return null;
+        }
 
         if (!user.emailVerified) {
           // NextAuth surfaces thrown errors as ?error=<message> on redirect;

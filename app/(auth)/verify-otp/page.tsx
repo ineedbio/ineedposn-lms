@@ -2,9 +2,10 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Button from "@/components/Button";
 
 const inputClass =
-  "h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-ink transition";
+  "h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-accent transition";
 const labelClass = "text-[13px] font-semibold text-ink";
 
 function VerifyOtpForm() {
@@ -73,13 +74,14 @@ function VerifyOtpForm() {
               className={`${inputClass} tracking-widest`}
             />
           </div>
-          <button
-            disabled={loading}
-            className="mt-2 h-[50px] rounded-pill bg-ink text-white text-base font-semibold flex items-center justify-center hover:bg-dark-hover hover:shadow-md transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
-          >
+          <Button disabled={loading} className="mt-2">
             {loading ? "กำลังยืนยัน..." : "ยืนยัน"}
-          </button>
-          <button type="button" onClick={resend} className="text-center text-[13px] text-secondary">
+          </Button>
+          <button
+            type="button"
+            onClick={resend}
+            className="text-center text-[13px] text-secondary hover:text-accent transition-colors"
+          >
             ยังไม่ได้รับรหัส? ส่งใหม่
           </button>
         </form>

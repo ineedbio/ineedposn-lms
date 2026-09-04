@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyOtp, type VerifyOtpResult } from "@/lib/otp";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const Schema = z.object({
   email: z.string().email(),
@@ -18,6 +19,10 @@ const OTP_ERROR: Record<Extract<VerifyOtpResult, { ok: false }>["reason"], strin
 };
 
 export async function POST(req: Request) {
+  const ip = clientIp(req.headers);
+  const rl = await rateLimit("reset-password", ip, { limit: 10, windowSeconds: 15 * 60 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+
   const parsed = Schema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
