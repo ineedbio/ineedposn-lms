@@ -3,14 +3,15 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import LessonPlayer from "@/components/LessonPlayer";
+import QuizPlayer from "@/components/QuizPlayer";
 
 export const dynamic = "force-dynamic";
 
-function toEmbedUrl(url: string | null) {
+function extractVideoId(url: string | null) {
   if (!url) return null;
   const m = url.match(/(?:youtu\.be\/|[?&]v=|\/embed\/)([\w-]{11})/);
-  const id = m?.[1] ?? url;
-  return `https://www.youtube.com/embed/${id}`;
+  return m?.[1] ?? null;
 }
 
 export default async function LessonPlayerPage({
@@ -39,13 +40,36 @@ export default async function LessonPlayerPage({
   const lesson = course.lessons[idx];
   if (!lesson) notFound();
 
-  await prisma.lessonProgress.upsert({
-    where: { userId_lessonId: { userId, lessonId: lesson.id } },
-    update: { isCompleted: true, completedAt: new Date() },
-    create: { userId, lessonId: lesson.id, isCompleted: true, completedAt: new Date() },
-  });
+  // NOTE: completion is no longer set here. Real watch time is reported by
+  // the client-side LessonPlayer to POST /api/progress, which is the only
+  // place LessonProgress.isCompleted gets flipped to true now.
 
-  const embedUrl = toEmbedUrl(lesson.youtubeUrl);
+  const videoId = extractVideoId(lesson.youtubeUrl);
+
+  // Quiz lessons render a QuizPlayer instead of a video. correctAnswer and
+  // explanation are stripped here (server-side) so a student can't read the
+  // answer key out of the page's initial HTML/RSC payload before submitting.
+  const quiz =
+    lesson.type === "QUIZ"
+      ? await prisma.quiz.findUnique({
+          where: { lessonId: lesson.id },
+          include: { questions: { orderBy: { id: "asc" } } },
+        })
+      : null;
+  const quizForPlayer = quiz
+    ? {
+        id: quiz.id,
+        title: quiz.title,
+        timeLimit: quiz.timeLimit,
+        passScore: quiz.passScore,
+        questions: quiz.questions.map((q) => ({
+          id: q.id,
+          text: q.text,
+          type: q.type,
+          choices: q.choices as { id: string; text: string }[] | null,
+        })),
+      }
+    : null;
 
   return (
     <div className="min-h-screen bg-ink text-white flex flex-col">
@@ -62,18 +86,28 @@ export default async function LessonPlayerPage({
       </header>
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 gap-7">
-        <div className="w-full max-w-[1100px] aspect-video bg-black rounded-2xl overflow-hidden relative">
-          {embedUrl ? (
-            <iframe src={embedUrl} className="w-full h-full border-0" allowFullScreen />
+        {quizForPlayer ? (
+          quizForPlayer.questions.length > 0 ? (
+            <QuizPlayer key={quizForPlayer.id} quiz={quizForPlayer} />
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-secondary">
-              <div className="w-16 h-16 rounded-full bg-white/[0.08] flex items-center justify-center">
-                <div className="w-0 h-0 border-t-[14px] border-t-transparent border-b-[14px] border-b-transparent border-l-[22px] border-l-secondary ml-1.5" />
-              </div>
-              <div className="text-sm">ยังไม่มีวิดีโอสำหรับบทเรียนนี้</div>
+            <div className="w-full max-w-[800px] bg-white text-ink rounded-2xl p-8 text-center text-secondary">
+              ข้อสอบนี้ยังไม่มีคำถาม กรุณาติดต่อผู้ดูแลระบบ
             </div>
-          )}
-        </div>
+          )
+        ) : (
+          <div className="w-full max-w-[1100px] aspect-video bg-black rounded-2xl overflow-hidden relative">
+            {videoId ? (
+              <LessonPlayer lessonId={lesson.id} videoId={videoId} containerId={`yt-player-${lesson.id}`} />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-secondary">
+                <div className="w-16 h-16 rounded-full bg-white/[0.08] flex items-center justify-center">
+                  <div className="w-0 h-0 border-t-[14px] border-t-transparent border-b-[14px] border-b-transparent border-l-[22px] border-l-secondary ml-1.5" />
+                </div>
+                <div className="text-sm">ยังไม่มีวิดีโอสำหรับบทเรียนนี้</div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="w-full max-w-[1100px] flex justify-between items-center">
           <div className="text-base font-bold">

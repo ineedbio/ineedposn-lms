@@ -28,7 +28,7 @@ const smtp = smtpConfigured
     })
   : null;
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resend: Resend | null = null;
 
 async function send(opts: { to: string | string[]; subject: string; html: string }) {
   if (smtp) {
@@ -44,6 +44,7 @@ async function send(opts: { to: string | string[]; subject: string; html: string
   if (!process.env.RESEND_API_KEY) {
     throw new Error("No email transport configured — set SMTP_HOST/SMTP_USER/SMTP_PASS or RESEND_API_KEY");
   }
+  if (!resend) resend = new Resend(process.env.RESEND_API_KEY);
   const { error } = await resend.emails.send({
     from: FROM,
     to: opts.to,

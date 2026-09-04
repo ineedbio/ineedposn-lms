@@ -1,3 +1,7 @@
+-- APPLIED — already run against production (Neon). Kept only as a record of
+-- what happened; do not run again (though every statement below is
+-- idempotent via IF NOT EXISTS, so a re-run would be a harmless no-op).
+--
 -- Hotfix: schema drift — 3 columns exist in prisma/schema.prisma + app code
 -- but were never added to the production database.
 --

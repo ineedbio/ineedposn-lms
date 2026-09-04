@@ -25,6 +25,12 @@ export default async function Navbar() {
                 Admin
               </Link>
             )}
+            <Link href="/dashboard/exams" className="text-[15px] font-medium text-ink hover:text-secondary transition">
+              ข้อสอบจำลอง
+            </Link>
+            <Link href="/dashboard/settings" className="text-[15px] font-medium text-ink hover:text-secondary transition">
+              ตั้งค่า
+            </Link>
             <LogoutButton className="text-[15px] font-medium text-secondary hover:text-ink transition active:scale-95" />
             <Link
               href="/dashboard"
