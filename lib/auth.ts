@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { issueNewSession, isSessionStillValid } from "./device-lock";
+import { rateLimit, clientIp } from "./rate-limit";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -16,11 +17,24 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
+        const email = credentials.email.toLowerCase();
+
+        // Per-account lock stops brute-forcing one person's password from
+        // any IP; per-IP lock stops credential-stuffing many accounts from
+        // one source. Both throw the same generic error NextAuth already
+        // shows on a wrong password, so this never reveals which accounts
+        // exist or which limit tripped.
+        const accountRl = await rateLimit("login-account", email, { limit: 5, windowSeconds: 15 * 60 });
+        if (!accountRl.allowed) throw new Error("TOO_MANY_ATTEMPTS");
+
+        const ip = clientIp((req as any)?.headers ?? {});
+        const ipRl = await rateLimit("login-ip", ip, { limit: 20, windowSeconds: 15 * 60 });
+        if (!ipRl.allowed) throw new Error("TOO_MANY_ATTEMPTS");
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          where: { email },
         });
         if (!user) return null;
 

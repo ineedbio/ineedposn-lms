@@ -8,6 +8,7 @@ import LogoutButton from "./LogoutButton";
 const NAV = [
   { href: "/admin/payments", label: "การชำระเงิน" },
   { href: "/admin/courses", label: "คอร์สเรียน" },
+  { href: "/admin/quizzes", label: "ข้อสอบ" },
   { href: "/admin/students", label: "นักเรียน" },
   { href: "/admin/design-studio", label: "Design Studio" },
 ];

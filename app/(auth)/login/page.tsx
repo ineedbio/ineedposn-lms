@@ -26,6 +26,10 @@ function LoginForm() {
         router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
         return;
       }
+      if (res.error.includes("TOO_MANY_ATTEMPTS")) {
+        setError("เข้าสู่ระบบผิดหลายครั้งเกินไป กรุณาลองใหม่อีกครั้งในภายหลัง");
+        return;
+      }
       setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
       return;
     }
