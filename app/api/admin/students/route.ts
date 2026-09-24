@@ -82,7 +82,7 @@ export async function DELETE(req: Request) {
   }
 }
 
-// 3. บันทึกการเปลี่ยนแปลง (สถานะชำระเงิน) ลง Neon DB
+// 3. บันทึกการเปลี่ยนแปลงสถานะชำระเงินลง Neon DB
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
@@ -95,9 +95,42 @@ export async function PATCH(req: Request) {
     if (Array.isArray(updates)) {
       for (const item of updates) {
         const enrollStatus = item.paymentStatus === "ชำระแล้ว" ? "ACTIVE" : "PENDING";
-        await prisma.enrollment.updateMany({
+        const payStatus = item.paymentStatus === "ชำระแล้ว" ? "APPROVED" : "PENDING";
+
+        // ตรวจสอบว่ามี Enrollment เดิมอยู่หรือไม่
+        const count = await prisma.enrollment.count({
           where: { userId: item.id },
-          data: { status: enrollStatus },
+        });
+
+        if (count > 0) {
+          // ถ้ามีอยู่แล้ว ให้อัปเดตสถานะ
+          await prisma.enrollment.updateMany({
+            where: { userId: item.id },
+            data: { status: enrollStatus },
+          });
+        } else if (enrollStatus === "ACTIVE") {
+          // ถ้ายังไม่เคยลงคอร์สเลย ให้ดึงคอร์สแรกมาผูกและเปิดสถานะ ACTIVE ให้ทันที
+          const firstCourse = await prisma.course.findFirst({ orderBy: { createdAt: "asc" } });
+          if (firstCourse) {
+            await prisma.enrollment.create({
+              data: {
+                userId: item.id,
+                courseId: firstCourse.id,
+                status: "ACTIVE",
+                enrolledAt: new Date(),
+              },
+            });
+          }
+        }
+
+        // อัปเดตสถานะในตาราง Payment ด้วย (ถ้ามี)
+        await prisma.payment.updateMany({
+          where: { userId: item.id },
+          data: {
+            status: payStatus,
+            reviewedAt: new Date(),
+            reviewedBy: user.email || "ADMIN",
+          },
         });
       }
     }

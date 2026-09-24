@@ -22,7 +22,7 @@ export default async function AdminStudentsPage() {
       gradeLevel: true,
       phone: true,
       email: true,
-      avatarUrl: true, // ดึง avatarUrl จาก Neon DB
+      avatarUrl: true,
       createdAt: true,
       enrollments: {
         select: {
@@ -31,13 +31,33 @@ export default async function AdminStudentsPage() {
           course: { select: { id: true, title: true, price: true } },
         },
       },
+      payments: {
+        select: {
+          id: true,
+          status: true,
+          amount: true,
+          course: { select: { id: true, title: true, price: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
     },
     orderBy: { createdAt: "desc" },
   });
 
   const formatted = dbStudents.map((s) => {
-    const activeEnrollment = s.enrollments[0];
-    const statusText = activeEnrollment?.status === "ACTIVE" ? "ชำระแล้ว" : "ยังไม่ชำระ";
+    const activeEnrollment = s.enrollments.find((e) => e.status === "ACTIVE") || s.enrollments[0];
+    const latestPayment = s.payments[0];
+
+    let statusText = "ยังไม่ชำระ";
+    if (activeEnrollment?.status === "ACTIVE" || latestPayment?.status === "APPROVED") {
+      statusText = "ชำระแล้ว";
+    } else if (latestPayment?.status === "PENDING" || activeEnrollment?.status === "PENDING") {
+      statusText = "รอตรวจสอบ";
+    }
+
+    const courseObj = activeEnrollment?.course || latestPayment?.course;
+
     return {
       id: s.id,
       name: `${s.firstName} ${s.lastName}`,
@@ -47,9 +67,9 @@ export default async function AdminStudentsPage() {
       phone: s.phone || "-",
       email: s.email,
       avatarUrl: s.avatarUrl || null,
-      course: activeEnrollment?.course?.title ?? "ยังไม่ลงคอร์ส",
-      courseId: activeEnrollment?.course?.id ?? "NONE",
-      amount: activeEnrollment?.course?.price ?? 0,
+      course: courseObj?.title ?? "ยังไม่ลงคอร์ส",
+      courseId: courseObj?.id ?? "NONE",
+      amount: latestPayment?.amount ?? courseObj?.price ?? 0,
       date: s.createdAt.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }),
       paymentStatus: statusText,
       notes: "",
