@@ -3,7 +3,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import ChunkErrorRecovery from "@/components/ChunkErrorRecovery";
 
-const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"] });
+const inter = Inter({ subsets: ["latin"], });
 
 export const metadata: Metadata = {
   title: "INeedBio",
