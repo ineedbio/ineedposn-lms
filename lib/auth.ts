@@ -6,9 +6,10 @@ import { issueNewSession, isSessionStillValid } from "./device-lock";
 import { verifyOtp } from "./otp"; // <-- 1. เพิ่ม import นี้
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET, // <-- เพิ่มบรรทัดนี้
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // <-- เพิ่มบรรทัดนี้: ล็อกอินค้างไว้ 30 วัน
+    maxAge: 30 * 24 * 60 * 60,
   },
   pages: {
     signIn: "/login",
