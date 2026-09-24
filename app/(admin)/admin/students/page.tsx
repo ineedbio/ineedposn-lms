@@ -1,55 +1,90 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/rbac";
-import StudentsTable from "./StudentsTable";
-
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
+import StudentsClient from "./StudentsClient";
 
 export default async function AdminStudentsPage() {
-  await requireAdmin();
+  const session = await getServerSession(authOptions);
+  const user = session?.user as any;
+  if (!user || user.role !== "ADMIN") {
+    redirect("/dashboard");
+  }
 
-  const [students, subjects] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: "STUDENT" },
-      include: {
-        enrollments: {
-          where: { status: "ACTIVE" },
-          include: { course: { include: { subject: true, lessons: { select: { id: true } } } } },
+  // ดึงนักเรียนทั้งหมด พร้อมคอร์สและประวัติการเรียนจบ
+  const students = await prisma.user.findMany({
+    where: { role: "STUDENT" },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      nickname: true,
+      school: true,
+      gradeLevel: true,
+      phone: true,
+      email: true,
+      avatarUrl: true,
+      createdAt: true,
+      enrollments: {
+        where: { status: "ACTIVE" },
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          course: {
+            select: {
+              id: true,
+              title: true,
+              lessons: {
+                select: {
+                  id: true,
+                  progress: true,
+                },
+              },
+            },
+          },
         },
       },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.subject.findMany({ orderBy: { order: "asc" } }),
-  ]);
-
-  const studentIds = students.map((s) => s.id);
-  const completed = await prisma.lessonProgress.findMany({
-    where: { userId: { in: studentIds }, isCompleted: true },
-    select: { userId: true, lessonId: true },
+    },
+    orderBy: { createdAt: "desc" },
   });
-  const completedSet = new Set(completed.map((p) => `${p.userId}:${p.lessonId}`));
 
-  const rows = students.map((s) => {
-    const courses = Array.from(new Set(s.enrollments.map((e) => e.course.subject.name)));
-    const lessonIds = s.enrollments.flatMap((e) => e.course.lessons.map((l) => l.id));
-    const done = lessonIds.filter((id) => completedSet.has(`${s.id}:${id}`)).length;
-    const pct = lessonIds.length ? Math.round((done / lessonIds.length) * 100) : 0;
-    return {
-      id: s.id,
-      name: `${s.firstName} ${s.lastName}`,
-      email: s.email,
-      school: s.school ?? "-",
-      grade: s.gradeLevel ?? "-",
-      courses,
-      progress: `${pct}%`,
-    };
+  // คำนวณ % ความคืบหน้าของแต่ละคอร์ส
+  const formattedStudents = students.map((s) => ({
+    id: s.id,
+    name: `${s.firstName} ${s.lastName}`,
+    nickname: s.nickname ?? "-",
+    school: s.school ?? "-",
+    gradeLevel: s.gradeLevel ?? "-",
+    phone: s.phone ?? "-",
+    email: s.email,
+    avatarUrl: s.avatarUrl,
+    createdAt: s.createdAt.toISOString(),
+    courses: s.enrollments.map((e) => {
+      const totalLessons = e.course.lessons.length;
+      const completedLessons = e.course.lessons.filter((l) =>
+        l.progress.some((p) => p.userId === s.id && p.isCompleted)
+      ).length;
+      const percent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+      return {
+        id: e.course.id,
+        title: e.course.title,
+        percent,
+        completedLessons,
+        totalLessons,
+      };
+    }),
+  }));
+
+  // ดึงรายชื่อคอร์สทั้งหมดไว้สำหรับ Dropdown ตัวกรอง
+  const allCourses = await prisma.course.findMany({
+    select: { id: true, title: true },
+    orderBy: { title: "asc" },
   });
 
   return (
-    <main className="px-14 pt-12 pb-24 max-w-[1300px]">
-      <h1 className="text-[32px] font-extrabold tracking-[-0.02em] mb-2">นักเรียน</h1>
-      <p className="text-base text-secondary mb-8">ดูว่านักเรียนแต่ละคนลงทะเบียนคอร์สไหนบ้าง และความคืบหน้า</p>
-
-      <StudentsTable students={rows} subjectNames={subjects.map((s) => s.name)} />
-    </main>
+    <div className="max-w-[1300px] mx-auto px-8 py-10">
+      <StudentsClient initialStudents={formattedStudents} allCourses={allCourses} />
+    </div>
   );
 }
