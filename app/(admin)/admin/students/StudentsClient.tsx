@@ -23,7 +23,6 @@ export default function StudentsClient({
     setStudents((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
   }
 
-  // คำนวณจำนวนคนในแต่ละคอร์ส
   const courseCounts = useMemo(() => {
     const map: Record<string, number> = { NONE: 0 };
     allCourses.forEach((c) => (map[c.id] = 0));
@@ -112,9 +111,15 @@ export default function StudentsClient({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-8 flex flex-col gap-6">
-      {/* แถบสลับหน้า */}
+      {/* แถบสลับหน้า พร้อมปุ่มกลับหน้าหลัก */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <Link
+            href="/dashboard"
+            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition flex items-center gap-1.5 mr-2"
+          >
+            ← กลับหน้าหลัก
+          </Link>
           <Link
             href="/admin/students"
             className="px-4 py-2 rounded-xl bg-white text-emerald-700 font-bold shadow-sm border border-slate-200 text-sm"
@@ -143,7 +148,6 @@ export default function StudentsClient({
         </div>
       </div>
 
-      {/* หัวข้อ */}
       <div>
         <h1 className="text-2xl font-black text-slate-900">ทะเบียนนักเรียน & การสมัครคอร์ส</h1>
         <p className="text-xs text-slate-500 mt-1">
@@ -151,7 +155,7 @@ export default function StudentsClient({
         </p>
       </div>
 
-      {/* การ์ดคอร์สเรียน (กดเพื่อกรองตามคอร์ส) */}
+      {/* การ์ดคอร์สเรียน */}
       <div>
         <div className="text-xs text-slate-500 mb-2 font-bold uppercase tracking-wider">
           คอร์สเรียน — คลิกการ์ดเพื่อกรอง
@@ -280,7 +284,6 @@ export default function StudentsClient({
                 </td>
                 <td className="py-3.5 px-3 font-mono font-bold text-slate-900">฿{s.amount}</td>
                 <td className="py-3.5 px-3 text-slate-500 font-mono">{s.date}</td>
-                {/* Dropdown สถานะชำระเงิน */}
                 <td className="py-3.5 px-4">
                   <select
                     value={s.paymentStatus}
@@ -298,7 +301,6 @@ export default function StudentsClient({
                     <option value="ยังไม่ชำระ">ยังไม่ชำระ</option>
                   </select>
                 </td>
-                {/* ช่องพิมพ์บันทึก */}
                 <td className="py-3.5 px-4">
                   <input
                     type="text"

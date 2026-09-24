@@ -123,9 +123,15 @@ export default function CampResultsClient() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-8 flex flex-col gap-6">
-      {/* แถบสลับหน้า */}
+      {/* แถบสลับหน้า พร้อมปุ่มกลับหน้าหลัก */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <Link
+            href="/dashboard"
+            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition flex items-center gap-1.5 mr-2"
+          >
+            ← กลับหน้าหลัก
+          </Link>
           <Link
             href="/admin/students"
             className="px-4 py-2 rounded-xl text-slate-600 hover:bg-white/80 font-medium text-sm transition"
