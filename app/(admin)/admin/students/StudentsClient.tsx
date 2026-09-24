@@ -70,14 +70,10 @@ export default function StudentsClient({
     setTimeout(() => setToast(null), 2500);
   }
 
+  // อัปเดตข้อมูลสดจาก Neon DB เสมอ ไม่โดน localStorage เขียนทับ
   useEffect(() => {
-    const saved = localStorage.getItem("ineedbio_students_admin_data");
-    if (saved) {
-      try {
-        setStudents(JSON.parse(saved));
-      } catch (e) {}
-    }
-  }, []);
+    setStudents(initialStudents);
+  }, [initialStudents]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -102,16 +98,7 @@ export default function StudentsClient({
   }
 
   function handleCancelAll() {
-    const saved = localStorage.getItem("ineedbio_students_admin_data");
-    if (saved) {
-      try {
-        setStudents(JSON.parse(saved));
-      } catch (e) {
-        setStudents(initialStudents);
-      }
-    } else {
-      setStudents(initialStudents);
-    }
+    setStudents(initialStudents);
     setHasChanges(false);
     showToast("ยกเลิกและคืนค่าเดิมเรียบร้อยแล้ว", "info");
   }
@@ -148,7 +135,6 @@ export default function StudentsClient({
     setStudents((prev) => [created, ...prev]);
     setHasChanges(true);
 
-    // ถ้าเป็นนักเรียน สอวน. ให้ส่งข้อมูลเข้าฐานข้อมูล สอวน. (หน้าผลค่าย สอวน.) ทันที
     if (isPosn || newStudent.course.includes("สอวน")) {
       try {
         const savedPosn = localStorage.getItem("ineedbio_posn_results");
@@ -439,78 +425,78 @@ export default function StudentsClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.map((s) => {
-              const avatar = s.avatarUrl || s.image || s.photoUrl || s.picture;
-              return (
-                <tr key={s.id} className="hover:bg-slate-50/80 transition">
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center overflow-hidden flex-shrink-0 text-xs font-bold text-slate-700">
-                        {avatar ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={avatar}
-                            alt=""
-                            referrerPolicy="no-referrer"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          (s.name[0] ?? "?").toUpperCase()
-                        )}
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-900">{s.name}</div>
-                        <div className="text-[11px] text-slate-400">({s.nickname})</div>
-                      </div>
+            {filtered.map((s) => (
+              <tr key={s.id} className="hover:bg-slate-50/80 transition">
+                <td className="py-3.5 px-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center overflow-hidden flex-shrink-0 text-xs font-bold text-slate-700">
+                      {s.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={s.avatarUrl}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        (s.name[0] ?? "?").toUpperCase()
+                      )}
                     </div>
-                  </td>
-                  <td className="py-3.5 px-3 text-slate-600">{s.grade}</td>
-                  <td className="py-3.5 px-4 text-slate-600">{s.school}</td>
-                  <td className="py-3.5 px-4 font-medium text-emerald-700">{s.course}</td>
-                  <td className="py-3.5 px-4">
-                    <div className="font-mono">{s.phone}</div>
-                    <div className="text-[10px] text-slate-400">{s.email}</div>
-                  </td>
-                  <td className="py-3.5 px-3 font-mono font-bold text-slate-900">฿{s.amount}</td>
-                  <td className="py-3.5 px-3 text-slate-500 font-mono">{s.date}</td>
-                  <td className="py-3.5 px-4">
-                    <select
-                      value={s.paymentStatus}
-                      onChange={(e) => updateStudent(s.id, "paymentStatus", e.target.value)}
-                      className={`h-8 px-2 rounded-lg border text-xs font-semibold focus:outline-none ${
-                        s.paymentStatus === "ชำระแล้ว"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : s.paymentStatus === "รอตรวจสอบ"
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-red-50 text-red-700 border-red-200"
-                      }`}
-                    >
-                      <option value="ชำระแล้ว">ชำระแล้ว</option>
-                      <option value="รอตรวจสอบ">รอตรวจสอบ</option>
-                      <option value="ยังไม่ชำระ">ยังไม่ชำระ</option>
-                    </select>
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <input
-                      type="text"
-                      placeholder="พิมพ์โน้ต..."
-                      value={s.notes}
-                      onChange={(e) => updateStudent(s.id, "notes", e.target.value)}
-                      className="h-8 px-2 rounded-lg border border-slate-200 text-xs w-[120px] focus:outline-none focus:border-emerald-500"
-                    />
-                  </td>
-                  <td className="py-3.5 px-3 text-center">
-                    <button
-                      onClick={() => setDeleteTarget({ id: s.id, name: s.name })}
-                      title="ลบนักเรียนนี้"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
-                    >
-                      🗑️
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
+                    <div>
+                      <div className="font-bold text-slate-900">{s.name}</div>
+                      <div className="text-[11px] text-slate-400">({s.nickname})</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="py-3.5 px-3 text-slate-600">{s.grade}</td>
+                <td className="py-3.5 px-4 text-slate-600">{s.school}</td>
+                <td className="py-3.5 px-4 font-medium text-emerald-700">{s.course}</td>
+                <td className="py-3.5 px-4">
+                  <div className="font-mono">{s.phone}</div>
+                  <div className="text-[10px] text-slate-400">{s.email}</div>
+                </td>
+                <td className="py-3.5 px-3 font-mono font-bold text-slate-900">฿{s.amount}</td>
+                <td className="py-3.5 px-3 text-slate-500 font-mono">{s.date}</td>
+                <td className="py-3.5 px-4">
+                  <select
+                    value={s.paymentStatus}
+                    onChange={(e) => updateStudent(s.id, "paymentStatus", e.target.value)}
+                    className={`h-8 px-2 rounded-lg border text-xs font-semibold focus:outline-none ${
+                      s.paymentStatus === "ชำระแล้ว"
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : s.paymentStatus === "รอตรวจสอบ"
+                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                        : "bg-red-50 text-red-700 border-red-200"
+                    }`}
+                  >
+                    <option value="ชำระแล้ว">ชำระแล้ว</option>
+                    <option value="รอตรวจสอบ">รอตรวจสอบ</option>
+                    <option value="ยังไม่ชำระ">ยังไม่ชำระ</option>
+                  </select>
+                </td>
+                <td className="py-3.5 px-4">
+                  <input
+                    type="text"
+                    placeholder="พิมพ์โน้ต..."
+                    value={s.notes}
+                    onChange={(e) => updateStudent(s.id, "notes", e.target.value)}
+                    className="h-8 px-2 rounded-lg border border-slate-200 text-xs w-[120px] focus:outline-none focus:border-emerald-500"
+                  />
+                </td>
+                <td className="py-3.5 px-3 text-center">
+                  <button
+                    onClick={() => setDeleteTarget({ id: s.id, name: s.name })}
+                    title="ลบนักเรียนนี้"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                  >
+                    🗑️
+                  </button>
+                </td>
+              </tr>
+            ))}
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={10} className="py-12 text-center text-slate-400 text-xs">

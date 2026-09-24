@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import StudentsClient from "./StudentsClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminStudentsPage() {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
@@ -20,6 +22,7 @@ export default async function AdminStudentsPage() {
       gradeLevel: true,
       phone: true,
       email: true,
+      avatarUrl: true, // ดึง avatarUrl จาก Neon DB
       createdAt: true,
       enrollments: {
         select: {
@@ -43,7 +46,7 @@ export default async function AdminStudentsPage() {
       school: s.school || "-",
       phone: s.phone || "-",
       email: s.email,
-      avatarUrl: null, // ใช้ตัวอักษรย่อตัวแรกตามดีไซน์มาตรฐานของระบบ
+      avatarUrl: s.avatarUrl || null,
       course: activeEnrollment?.course?.title ?? "ยังไม่ลงคอร์ส",
       courseId: activeEnrollment?.course?.id ?? "NONE",
       amount: activeEnrollment?.course?.price ?? 0,
