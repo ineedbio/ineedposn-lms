@@ -103,6 +103,7 @@ export default function StudentsClient({
       const updates = students.map((s) => ({
         id: s.id,
         paymentStatus: s.paymentStatus,
+        notes: s.notes,
       }));
 
       const res = await fetch("/api/admin/students", {
@@ -112,13 +113,6 @@ export default function StudentsClient({
       });
 
       if (!res.ok) throw new Error("บันทึกลงฐานข้อมูลไม่สำเร็จ");
-
-      // บันทึกโน้ตเก็บไว้ตาม ID นักเรียน
-      const notesMap: Record<string, string> = {};
-      students.forEach((s) => {
-        if (s.notes) notesMap[s.id] = s.notes;
-      });
-      localStorage.setItem("ineedbio_students_notes", JSON.stringify(notesMap));
 
       setHasChanges(false);
       showToast("บันทึกการเปลี่ยนแปลงลงฐานข้อมูลเรียบร้อย");

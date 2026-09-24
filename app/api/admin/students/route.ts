@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
 import crypto from "crypto";
 
-// 1. เพิ่มนักเรียนใหม่ลง Neon DB
+const STATUS_KEY = "admin_student_statuses";
+
+// 1. เพิ่มนักเรียน
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
@@ -48,13 +51,14 @@ export async function POST(req: Request) {
       });
     }
 
+    revalidatePath("/admin/students");
     return NextResponse.json({ success: true, student: newStudent });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// 2. ลบนักเรียนออกจาก Neon DB
+// 2. ลบนักเรียน
 export async function DELETE(req: Request) {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
@@ -76,13 +80,14 @@ export async function DELETE(req: Request) {
       prisma.user.delete({ where: { id } }),
     ]);
 
+    revalidatePath("/admin/students");
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// 3. บันทึกการเปลี่ยนแปลงสถานะชำระเงินลง Neon DB
+// 3. บันทึกสถานะชำระเงินและโน้ตลง Neon DB
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
@@ -93,47 +98,31 @@ export async function PATCH(req: Request) {
   try {
     const { updates } = await req.json();
     if (Array.isArray(updates)) {
+      const existing = await prisma.themeSetting.findUnique({ where: { key: STATUS_KEY } });
+      const statusMap = existing?.value ? JSON.parse(existing.value) : {};
+
       for (const item of updates) {
+        statusMap[item.id] = {
+          paymentStatus: item.paymentStatus,
+          notes: item.notes || "",
+        };
+
         const enrollStatus = item.paymentStatus === "ชำระแล้ว" ? "ACTIVE" : "PENDING";
-        const payStatus = item.paymentStatus === "ชำระแล้ว" ? "APPROVED" : "PENDING";
-
-        // ตรวจสอบว่ามี Enrollment เดิมอยู่หรือไม่
-        const count = await prisma.enrollment.count({
+        await prisma.enrollment.updateMany({
           where: { userId: item.id },
-        });
-
-        if (count > 0) {
-          // ถ้ามีอยู่แล้ว ให้อัปเดตสถานะ
-          await prisma.enrollment.updateMany({
-            where: { userId: item.id },
-            data: { status: enrollStatus },
-          });
-        } else if (enrollStatus === "ACTIVE") {
-          // ถ้ายังไม่เคยลงคอร์สเลย ให้ดึงคอร์สแรกมาผูกและเปิดสถานะ ACTIVE ให้ทันที
-          const firstCourse = await prisma.course.findFirst({ orderBy: { createdAt: "asc" } });
-          if (firstCourse) {
-            await prisma.enrollment.create({
-              data: {
-                userId: item.id,
-                courseId: firstCourse.id,
-                status: "ACTIVE",
-                enrolledAt: new Date(),
-              },
-            });
-          }
-        }
-
-        // อัปเดตสถานะในตาราง Payment ด้วย (ถ้ามี)
-        await prisma.payment.updateMany({
-          where: { userId: item.id },
-          data: {
-            status: payStatus,
-            reviewedAt: new Date(),
-            reviewedBy: user.email || "ADMIN",
-          },
+          data: { status: enrollStatus },
         });
       }
+
+      await prisma.themeSetting.upsert({
+        where: { key: STATUS_KEY },
+        update: { value: JSON.stringify(statusMap) },
+        create: { key: STATUS_KEY, value: JSON.stringify(statusMap) },
+      });
+
+      revalidatePath("/admin/students");
     }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
