@@ -26,13 +26,12 @@ const CENTERS = [
 const CAMP_RESULTS = ["ทั้งหมด", "ยังไม่ทราบผล", "ผ่านค่าย 1", "ตัวสำรอง", "ไม่ผ่าน"];
 const SUBJECTS = ["ชีวะ", "เคมี", "ฟิสิกส์", "คอม", "คณิต", "ดาราศาสตร์"];
 
-export default function CampResultsClient() {
-  const [data, setData] = useState<any[]>([]);
+export default function CampResultsClient({ initialData = [] }: { initialData?: any[] }) {
+  const [data, setData] = useState<any[]>(initialData);
   const [search, setSearch] = useState("");
   const [selectedCenter, setSelectedCenter] = useState<string | null>(null);
   const [selectedResult, setSelectedResult] = useState("ทั้งหมด");
 
-  // State สำหรับ Modal เพิ่มนักเรียน
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -44,28 +43,44 @@ export default function CampResultsClient() {
     notes: "",
   });
 
-  useEffect(() => {
-    const saved = localStorage.getItem("ineedbio_posn_results");
-    if (saved) {
-      try {
-        setData(JSON.parse(saved));
-      } catch (e) {}
-    }
-  }, []);
+  const [deleteTarget, setDeleteTarget] = useState<{ item: any; name: string } | null>(null);
 
-  function updateItem(index: number, field: string, value: string) {
-    const next = [...data];
-    next[index][field] = value;
-    setData(next);
-    localStorage.setItem("ineedbio_posn_results", JSON.stringify(next));
+  // ซิงก์ข้อมูลจาก Neon DB
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+
+  // ฟังก์ชันยิงเซฟลง Neon DB
+  async function syncToNeon(updatedList: any[]) {
+    setData(updatedList);
+    localStorage.setItem("ineedbio_posn_results", JSON.stringify(updatedList));
+    try {
+      await fetch("/api/admin/posn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedList),
+      });
+    } catch (e) {}
   }
 
-  // ฟังก์ชันเพิ่มนักเรียนใหม่
+  function updateItem(targetItem: any, field: string, value: string) {
+    const next = data.map((d) => (d === targetItem ? { ...d, [field]: value } : d));
+    syncToNeon(next);
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const next = data.filter((d) => d !== deleteTarget.item);
+    syncToNeon(next);
+    setDeleteTarget(null);
+  }
+
   function handleAddStudent(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return;
 
     const newStudent = {
+      id: `posn-${Date.now()}`,
       name: form.name.trim(),
       nickname: form.nickname.trim() || "-",
       grade: form.grade.trim() || "-",
@@ -76,10 +91,8 @@ export default function CampResultsClient() {
     };
 
     const next = [newStudent, ...data];
-    setData(next);
-    localStorage.setItem("ineedbio_posn_results", JSON.stringify(next));
+    syncToNeon(next);
 
-    // ล้างฟอร์มและปิด Modal
     setForm({
       name: "",
       nickname: "",
@@ -102,6 +115,7 @@ export default function CampResultsClient() {
         const list = json["ติดตามผล"] || json["นักเรียน"] || json;
         if (Array.isArray(list)) {
           const formatted = list.map((item: any) => ({
+            id: item.id || `posn-${Date.now()}-${Math.random()}`,
             name: item["ชื่อ"] || item.name || "-",
             nickname: item["ชื่อเล่น"] || item.nickname || "-",
             grade: item["ชั้น"] || item.grade || "-",
@@ -110,9 +124,8 @@ export default function CampResultsClient() {
             camp1Result: item["ผลค่าย1"] || item.camp1Result || "ยังไม่ทราบผล",
             notes: item["บันทึก"] || item.notes || "",
           }));
-          setData(formatted);
-          localStorage.setItem("ineedbio_posn_results", JSON.stringify(formatted));
-          alert(`นำเข้าสำเร็จ ${formatted.length} รายการ!`);
+          syncToNeon(formatted);
+          alert(`นำเข้าและบันทึกลง Database สำเร็จ ${formatted.length} รายการ!`);
         }
       } catch (err) {
         alert("ไฟล์ JSON ไม่ถูกต้อง");
@@ -168,7 +181,40 @@ export default function CampResultsClient() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-8 flex flex-col gap-6">
-      {/* แถบสลับหน้า */}
+      {/* Delete Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] p-6 max-w-[340px] w-full shadow-2xl flex flex-col items-center text-center gap-3 border border-slate-100">
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-xl font-bold">
+              🗑️
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">ยืนยันการลบ</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                ต้องการลบ <strong className="text-slate-800">"{deleteTarget.name}"</strong> ออกจากระบบ สอวน. ใช่หรือไม่?
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 w-full mt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="h-10 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm"
+              >
+                ลบข้อมูล
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div className="flex gap-2 items-center">
           <Link
@@ -202,11 +248,11 @@ export default function CampResultsClient() {
       <div>
         <h1 className="text-2xl font-black text-slate-900">ทะเบียนติดตามผล สอวน. (ค่าย 1)</h1>
         <p className="text-xs text-slate-500 mt-1">
-          แยกตาม 17 ศูนย์ สอวน. และบันทึกผลการคัดเลือก
+          แยกตาม 17 ศูนย์ สอวน. และบันทึกผลการคัดเลือก (เชื่อมต่อ Neon DB)
         </p>
       </div>
 
-      {/* การ์ด 17 ศูนย์ สอวน. */}
+      {/* Cards 17 Centers */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
         {CENTERS.map((c) => {
           const count = centerCounts[c.name] || 0;
@@ -228,7 +274,7 @@ export default function CampResultsClient() {
         })}
       </div>
 
-      {/* ค้นหาและตาราง */}
+      {/* Search & Table */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3">
         <div className="flex gap-3 items-center">
           <input
@@ -250,7 +296,6 @@ export default function CampResultsClient() {
             ))}
           </select>
 
-          {/* ปุ่ม + เพิ่มนักเรียน */}
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
@@ -271,11 +316,12 @@ export default function CampResultsClient() {
                 <th className="py-3 px-4">ศูนย์ สอวน.</th>
                 <th className="py-3 px-4">ผลค่าย 1</th>
                 <th className="py-3 px-4">บันทึก</th>
+                <th className="py-3 px-3 text-center">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((item, idx) => (
-                <tr key={idx} className="hover:bg-slate-50 transition">
+                <tr key={item.id || idx} className="hover:bg-slate-50 transition">
                   <td className="py-3 px-4 font-bold text-slate-900">{item.name}</td>
                   <td className="py-3 px-3 text-slate-600">{item.nickname}</td>
                   <td className="py-3 px-3 text-slate-600">{item.grade}</td>
@@ -284,7 +330,7 @@ export default function CampResultsClient() {
                   <td className="py-3 px-4">
                     <select
                       value={item.camp1Result}
-                      onChange={(e) => updateItem(idx, "camp1Result", e.target.value)}
+                      onChange={(e) => updateItem(item, "camp1Result", e.target.value)}
                       className={`h-7 px-2 rounded-lg border text-xs font-semibold ${
                         item.camp1Result === "ผ่านค่าย 1"
                           ? "bg-emerald-50 text-emerald-700 border-emerald-300"
@@ -304,15 +350,25 @@ export default function CampResultsClient() {
                       type="text"
                       placeholder="โน้ต..."
                       value={item.notes}
-                      onChange={(e) => updateItem(idx, "notes", e.target.value)}
+                      onChange={(e) => updateItem(item, "notes", e.target.value)}
                       className="h-7 px-2 rounded-lg border border-slate-200 text-xs w-[140px] focus:outline-none"
                     />
+                  </td>
+                  <td className="py-3 px-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget({ item, name: item.name })}
+                      title="ลบนักเรียนนี้"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                    >
+                      🗑️
+                    </button>
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     ยังไม่มีข้อมูล (กดปุ่ม "+ เพิ่มนักเรียน" หรือ "นำเข้าไฟล์ JSON")
                   </td>
                 </tr>
@@ -322,7 +378,7 @@ export default function CampResultsClient() {
         </div>
       </div>
 
-      {/* Modal หน้าต่างเพิ่มนักเรียน สอวน. */}
+      {/* Add Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl space-y-4 border border-slate-100">
