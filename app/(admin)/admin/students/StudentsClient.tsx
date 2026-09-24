@@ -5,6 +5,28 @@ import Link from "next/link";
 
 const PAYMENT_STATUSES = ["ทั้งหมด", "ชำระแล้ว", "รอตรวจสอบ", "ยังไม่ชำระ"];
 
+const POSN_CENTERS = [
+  "ยังไม่ระบุ",
+  "ศูนย์โรงเรียน",
+  "ม.เทคโนโลยีสุรนารี",
+  "ม.ขอนแก่น",
+  "ม.สงขลานครินทร์",
+  "ม.นเรศวร",
+  "ม.อุบลราชธานี",
+  "ม.ศิลปากร",
+  "ม.เชียงใหม่",
+  "ม.ทักษิณ",
+  "ม.บูรพา",
+  "ม.เกษตรศาสตร์",
+  "ม.วลัยลักษณ์",
+  "ม.เทคโนโลยีพระจอมเกล้าพระนครเหนือ",
+  "จุฬาลงกรณ์มหาวิทยาลัย",
+  "ม.มหิดล",
+  "ม.ธรรมศาสตร์",
+];
+
+const POSN_SUBJECTS = ["ชีวะ", "เคมี", "ฟิสิกส์", "คอม", "คณิต", "ดาราศาสตร์"];
+
 export default function StudentsClient({
   initialStudents,
   allCourses,
@@ -27,6 +49,7 @@ export default function StudentsClient({
 
   // Add Student Modal State
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isPosn, setIsPosn] = useState(false);
   const [newStudent, setNewStudent] = useState({
     name: "",
     nickname: "",
@@ -38,6 +61,8 @@ export default function StudentsClient({
     amount: "490",
     paymentStatus: "ชำระแล้ว",
     notes: "",
+    posnSubject: "ชีวะ",
+    posnCenter: "ศูนย์โรงเรียน",
   });
 
   function showToast(message: string, type: "success" | "info" = "success") {
@@ -91,7 +116,6 @@ export default function StudentsClient({
     showToast("ยกเลิกและคืนค่าเดิมเรียบร้อยแล้ว", "info");
   }
 
-  // ยืนยันการลบใน Minimal Popup
   function confirmDelete() {
     if (!deleteTarget) return;
     setStudents((prev) => prev.filter((s) => s.id !== deleteTarget.id));
@@ -123,8 +147,28 @@ export default function StudentsClient({
 
     setStudents((prev) => [created, ...prev]);
     setHasChanges(true);
+
+    // ถ้าเป็นนักเรียน สอวน. ให้ส่งข้อมูลเข้าฐานข้อมูล สอวน. (หน้าผลค่าย สอวน.) ทันที
+    if (isPosn || newStudent.course.includes("สอวน")) {
+      try {
+        const savedPosn = localStorage.getItem("ineedbio_posn_results");
+        const posnList = savedPosn ? JSON.parse(savedPosn) : [];
+        posnList.unshift({
+          name: created.name,
+          nickname: created.nickname,
+          grade: created.grade,
+          subject: newStudent.posnSubject,
+          center: newStudent.posnCenter,
+          camp1Result: "ยังไม่ทราบผล",
+          notes: created.notes,
+        });
+        localStorage.setItem("ineedbio_posn_results", JSON.stringify(posnList));
+      } catch (err) {}
+    }
+
     setIsAddOpen(false);
     showToast(`เพิ่ม "${created.name}" เรียบร้อยแล้ว`);
+    setIsPosn(false);
     setNewStudent({
       name: "",
       nickname: "",
@@ -136,6 +180,8 @@ export default function StudentsClient({
       amount: "490",
       paymentStatus: "ชำระแล้ว",
       notes: "",
+      posnSubject: "ชีวะ",
+      posnCenter: "ศูนย์โรงเรียน",
     });
   }
 
@@ -194,7 +240,6 @@ export default function StudentsClient({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-8 flex flex-col gap-6 relative">
-      {/* 1. Minimal Toast Notification (ลอยแจ้งเตือนด้านล่างจอ) */}
       {toast && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-3 rounded-full bg-slate-900/90 backdrop-blur-md text-white text-xs font-semibold shadow-2xl transition-all duration-200">
           <span className={toast.type === "success" ? "text-emerald-400" : "text-sky-400"}>
@@ -204,7 +249,6 @@ export default function StudentsClient({
         </div>
       )}
 
-      {/* 2. Minimal Delete Confirmation Modal (ป๊อปอัปยืนยันลบ) */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[24px] p-6 max-w-[340px] w-full shadow-2xl flex flex-col items-center text-center gap-3 border border-slate-100">
@@ -395,70 +439,78 @@ export default function StudentsClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.map((s) => (
-              <tr key={s.id} className="hover:bg-slate-50/80 transition">
-                <td className="py-3.5 px-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center overflow-hidden flex-shrink-0 text-xs font-bold text-slate-700">
-                      {s.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={s.avatarUrl} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        (s.name[0] ?? "?").toUpperCase()
-                      )}
+            {filtered.map((s) => {
+              const avatar = s.avatarUrl || s.image || s.photoUrl || s.picture;
+              return (
+                <tr key={s.id} className="hover:bg-slate-50/80 transition">
+                  <td className="py-3.5 px-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center overflow-hidden flex-shrink-0 text-xs font-bold text-slate-700">
+                        {avatar ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={avatar}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          (s.name[0] ?? "?").toUpperCase()
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900">{s.name}</div>
+                        <div className="text-[11px] text-slate-400">({s.nickname})</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-bold text-slate-900">{s.name}</div>
-                      <div className="text-[11px] text-slate-400">({s.nickname})</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3.5 px-3 text-slate-600">{s.grade}</td>
-                <td className="py-3.5 px-4 text-slate-600">{s.school}</td>
-                <td className="py-3.5 px-4 font-medium text-emerald-700">{s.course}</td>
-                <td className="py-3.5 px-4">
-                  <div className="font-mono">{s.phone}</div>
-                  <div className="text-[10px] text-slate-400">{s.email}</div>
-                </td>
-                <td className="py-3.5 px-3 font-mono font-bold text-slate-900">฿{s.amount}</td>
-                <td className="py-3.5 px-3 text-slate-500 font-mono">{s.date}</td>
-                <td className="py-3.5 px-4">
-                  <select
-                    value={s.paymentStatus}
-                    onChange={(e) => updateStudent(s.id, "paymentStatus", e.target.value)}
-                    className={`h-8 px-2 rounded-lg border text-xs font-semibold focus:outline-none ${
-                      s.paymentStatus === "ชำระแล้ว"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : s.paymentStatus === "รอตรวจสอบ"
-                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                        : "bg-red-50 text-red-700 border-red-200"
-                    }`}
-                  >
-                    <option value="ชำระแล้ว">ชำระแล้ว</option>
-                    <option value="รอตรวจสอบ">รอตรวจสอบ</option>
-                    <option value="ยังไม่ชำระ">ยังไม่ชำระ</option>
-                  </select>
-                </td>
-                <td className="py-3.5 px-4">
-                  <input
-                    type="text"
-                    placeholder="พิมพ์โน้ต..."
-                    value={s.notes}
-                    onChange={(e) => updateStudent(s.id, "notes", e.target.value)}
-                    className="h-8 px-2 rounded-lg border border-slate-200 text-xs w-[120px] focus:outline-none focus:border-emerald-500"
-                  />
-                </td>
-                <td className="py-3.5 px-3 text-center">
-                  <button
-                    onClick={() => setDeleteTarget({ id: s.id, name: s.name })}
-                    title="ลบนักเรียนนี้"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
-                  >
-                    🗑️
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="py-3.5 px-3 text-slate-600">{s.grade}</td>
+                  <td className="py-3.5 px-4 text-slate-600">{s.school}</td>
+                  <td className="py-3.5 px-4 font-medium text-emerald-700">{s.course}</td>
+                  <td className="py-3.5 px-4">
+                    <div className="font-mono">{s.phone}</div>
+                    <div className="text-[10px] text-slate-400">{s.email}</div>
+                  </td>
+                  <td className="py-3.5 px-3 font-mono font-bold text-slate-900">฿{s.amount}</td>
+                  <td className="py-3.5 px-3 text-slate-500 font-mono">{s.date}</td>
+                  <td className="py-3.5 px-4">
+                    <select
+                      value={s.paymentStatus}
+                      onChange={(e) => updateStudent(s.id, "paymentStatus", e.target.value)}
+                      className={`h-8 px-2 rounded-lg border text-xs font-semibold focus:outline-none ${
+                        s.paymentStatus === "ชำระแล้ว"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : s.paymentStatus === "รอตรวจสอบ"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-red-50 text-red-700 border-red-200"
+                      }`}
+                    >
+                      <option value="ชำระแล้ว">ชำระแล้ว</option>
+                      <option value="รอตรวจสอบ">รอตรวจสอบ</option>
+                      <option value="ยังไม่ชำระ">ยังไม่ชำระ</option>
+                    </select>
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <input
+                      type="text"
+                      placeholder="พิมพ์โน้ต..."
+                      value={s.notes}
+                      onChange={(e) => updateStudent(s.id, "notes", e.target.value)}
+                      className="h-8 px-2 rounded-lg border border-slate-200 text-xs w-[120px] focus:outline-none focus:border-emerald-500"
+                    />
+                  </td>
+                  <td className="py-3.5 px-3 text-center">
+                    <button
+                      onClick={() => setDeleteTarget({ id: s.id, name: s.name })}
+                      title="ลบนักเรียนนี้"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                    >
+                      🗑️
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={10} className="py-12 text-center text-slate-400 text-xs">
@@ -473,7 +525,7 @@ export default function StudentsClient({
       {/* Modal เพิ่มนักเรียน */}
       {isAddOpen && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] p-6 max-w-[500px] w-full shadow-2xl flex flex-col gap-4 border border-slate-100">
+          <div className="bg-white rounded-[24px] p-6 max-w-[500px] w-full shadow-2xl flex flex-col gap-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <h2 className="text-base font-bold text-slate-900">+ เพิ่มนักเรียนใหม่</h2>
               <button onClick={() => setIsAddOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg">
@@ -566,6 +618,52 @@ export default function StudentsClient({
                   ))}
                   <option value="ทั่วไป">ทั่วไป</option>
                 </select>
+              </div>
+
+              {/* Checkbox เชื่อมโยงโครงการ สอวน. */}
+              <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 flex flex-col gap-2.5">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-emerald-900">
+                  <input
+                    type="checkbox"
+                    checked={isPosn}
+                    onChange={(e) => setIsPosn(e.target.checked)}
+                    className="w-4 h-4 text-emerald-600 rounded"
+                  />
+                  เป็นนักเรียนค่าย / โครงการ สอวน. (ส่งข้อมูลไปหน้า สอวน.)
+                </label>
+
+                {isPosn && (
+                  <div className="grid grid-cols-2 gap-2.5 pt-1">
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">วิชา สอวน.</label>
+                      <select
+                        value={newStudent.posnSubject}
+                        onChange={(e) => setNewStudent({ ...newStudent, posnSubject: e.target.value })}
+                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white"
+                      >
+                        {POSN_SUBJECTS.map((sub) => (
+                          <option key={sub} value={sub}>
+                            {sub}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">ศูนย์ สอวน.</label>
+                      <select
+                        value={newStudent.posnCenter}
+                        onChange={(e) => setNewStudent({ ...newStudent, posnCenter: e.target.value })}
+                        className="w-full h-8 px-2 rounded-lg border border-slate-200 bg-white"
+                      >
+                        {POSN_CENTERS.map((cen) => (
+                          <option key={cen} value={cen}>
+                            {cen}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
