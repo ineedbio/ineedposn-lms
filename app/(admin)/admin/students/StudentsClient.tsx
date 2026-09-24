@@ -70,9 +70,15 @@ export default function StudentsClient({
     setTimeout(() => setToast(null), 2500);
   }
 
-  // อัปเดตข้อมูลสดจาก Neon DB เสมอ ไม่โดน localStorage เขียนทับ
+  // ซิงก์ข้อมูลสดจาก Neon DB พร้อมนำโน้ตที่เคยบันทึกไว้มาประกบ
   useEffect(() => {
-    setStudents(initialStudents);
+    const savedNotes = JSON.parse(localStorage.getItem("ineedbio_students_notes") || "{}");
+    setStudents(
+      initialStudents.map((s) => ({
+        ...s,
+        notes: savedNotes[s.id] || s.notes || "",
+      }))
+    );
   }, [initialStudents]);
 
   useEffect(() => {
@@ -91,84 +97,150 @@ export default function StudentsClient({
     setHasChanges(true);
   }
 
-  function handleSaveAll() {
-    localStorage.setItem("ineedbio_students_admin_data", JSON.stringify(students));
-    setHasChanges(false);
-    showToast("บันทึกการเปลี่ยนแปลงทั้งหมดเรียบร้อยแล้ว");
+  // 1. บันทึกการเปลี่ยนแปลงทั้งหมดลง Neon DB จริง
+  async function handleSaveAll() {
+    try {
+      const updates = students.map((s) => ({
+        id: s.id,
+        paymentStatus: s.paymentStatus,
+      }));
+
+      const res = await fetch("/api/admin/students", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      });
+
+      if (!res.ok) throw new Error("บันทึกลงฐานข้อมูลไม่สำเร็จ");
+
+      // บันทึกโน้ตเก็บไว้ตาม ID นักเรียน
+      const notesMap: Record<string, string> = {};
+      students.forEach((s) => {
+        if (s.notes) notesMap[s.id] = s.notes;
+      });
+      localStorage.setItem("ineedbio_students_notes", JSON.stringify(notesMap));
+
+      setHasChanges(false);
+      showToast("บันทึกการเปลี่ยนแปลงลงฐานข้อมูลเรียบร้อย");
+    } catch (err: any) {
+      showToast(err.message || "บันทึกข้อมูลไม่สำเร็จ", "info");
+    }
   }
 
   function handleCancelAll() {
-    setStudents(initialStudents);
+    const savedNotes = JSON.parse(localStorage.getItem("ineedbio_students_notes") || "{}");
+    setStudents(
+      initialStudents.map((s) => ({
+        ...s,
+        notes: savedNotes[s.id] || s.notes || "",
+      }))
+    );
     setHasChanges(false);
     showToast("ยกเลิกและคืนค่าเดิมเรียบร้อยแล้ว", "info");
   }
 
-  function confirmDelete() {
+  // 2. ลบนักเรียนออกจาก Neon DB จริง
+  async function confirmDelete() {
     if (!deleteTarget) return;
-    setStudents((prev) => prev.filter((s) => s.id !== deleteTarget.id));
-    setHasChanges(true);
-    showToast(`ลบ "${deleteTarget.name}" ออกแล้ว`, "info");
+    const targetId = deleteTarget.id;
+    const targetName = deleteTarget.name;
     setDeleteTarget(null);
+
+    setStudents((prev) => prev.filter((s) => s.id !== targetId));
+
+    try {
+      const res = await fetch(`/api/admin/students?id=${targetId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("ลบไม่สำเร็จ");
+      showToast(`ลบ "${targetName}" ออกจากฐานข้อมูลเรียบร้อย`);
+    } catch (err) {
+      showToast("เกิดข้อผิดพลาดในการลบจากฐานข้อมูล", "info");
+      setStudents(initialStudents);
+    }
   }
 
-  function handleAddSubmit(e: React.FormEvent) {
+  // 3. เพิ่มนักเรียนลง Neon DB จริง
+  async function handleAddSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!newStudent.name) return;
 
-    const created = {
-      id: `manual-${Date.now()}`,
+    const payload = {
       name: newStudent.name,
-      nickname: newStudent.nickname || "-",
+      nickname: newStudent.nickname,
       grade: newStudent.grade,
-      school: newStudent.school || "-",
-      phone: newStudent.phone || "-",
-      email: newStudent.email || "-",
-      avatarUrl: null,
-      course: newStudent.course,
-      courseId: "MANUAL",
-      amount: Number(newStudent.amount) || 0,
-      date: new Date().toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }),
+      school: newStudent.school,
+      phone: newStudent.phone,
+      email: newStudent.email,
+      courseId: allCourses.find((c) => c.title === newStudent.course)?.id ?? "NONE",
       paymentStatus: newStudent.paymentStatus,
       notes: newStudent.notes,
     };
 
-    setStudents((prev) => [created, ...prev]);
-    setHasChanges(true);
+    try {
+      const res = await fetch("/api/admin/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    if (isPosn || newStudent.course.includes("สอวน")) {
-      try {
-        const savedPosn = localStorage.getItem("ineedbio_posn_results");
-        const posnList = savedPosn ? JSON.parse(savedPosn) : [];
-        posnList.unshift({
-          name: created.name,
-          nickname: created.nickname,
-          grade: created.grade,
-          subject: newStudent.posnSubject,
-          center: newStudent.posnCenter,
-          camp1Result: "ยังไม่ทราบผล",
-          notes: created.notes,
-        });
-        localStorage.setItem("ineedbio_posn_results", JSON.stringify(posnList));
-      } catch (err) {}
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+
+      const created = {
+        id: result.student.id,
+        name: `${result.student.firstName} ${result.student.lastName}`,
+        nickname: result.student.nickname || "-",
+        grade: result.student.gradeLevel || "-",
+        school: result.student.school || "-",
+        phone: result.student.phone || "-",
+        email: result.student.email,
+        avatarUrl: null,
+        course: newStudent.course,
+        courseId: payload.courseId,
+        amount: Number(newStudent.amount) || 0,
+        date: new Date().toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }),
+        paymentStatus: newStudent.paymentStatus,
+        notes: newStudent.notes,
+      };
+
+      setStudents((prev) => [created, ...prev]);
+
+      if (isPosn || newStudent.course.includes("สอวน")) {
+        try {
+          const savedPosn = localStorage.getItem("ineedbio_posn_results");
+          const posnList = savedPosn ? JSON.parse(savedPosn) : [];
+          posnList.unshift({
+            name: created.name,
+            nickname: created.nickname,
+            grade: created.grade,
+            subject: newStudent.posnSubject,
+            center: newStudent.posnCenter,
+            camp1Result: "ยังไม่ทราบผล",
+            notes: created.notes,
+          });
+          localStorage.setItem("ineedbio_posn_results", JSON.stringify(posnList));
+        } catch (err) {}
+      }
+
+      setIsAddOpen(false);
+      showToast(`เพิ่ม "${created.name}" ลงฐานข้อมูลเรียบร้อย`);
+      setIsPosn(false);
+      setNewStudent({
+        name: "",
+        nickname: "",
+        grade: "ม.4",
+        school: "",
+        phone: "",
+        email: "",
+        course: allCourses[0]?.title ?? "สอวน. ชีววิทยา",
+        amount: "490",
+        paymentStatus: "ชำระแล้ว",
+        notes: "",
+        posnSubject: "ชีวะ",
+        posnCenter: "ศูนย์โรงเรียน",
+      });
+    } catch (err: any) {
+      alert("เพิ่มข้อมูลไม่สำเร็จ: " + err.message);
     }
-
-    setIsAddOpen(false);
-    showToast(`เพิ่ม "${created.name}" เรียบร้อยแล้ว`);
-    setIsPosn(false);
-    setNewStudent({
-      name: "",
-      nickname: "",
-      grade: "ม.4",
-      school: "",
-      phone: "",
-      email: "",
-      course: allCourses[0]?.title ?? "สอวน. ชีววิทยา",
-      amount: "490",
-      paymentStatus: "ชำระแล้ว",
-      notes: "",
-      posnSubject: "ชีวะ",
-      posnCenter: "ศูนย์โรงเรียน",
-    });
   }
 
   const courseCounts = useMemo(() => {
@@ -606,7 +678,6 @@ export default function StudentsClient({
                 </select>
               </div>
 
-              {/* Checkbox เชื่อมโยงโครงการ สอวน. */}
               <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 flex flex-col gap-2.5">
                 <label className="flex items-center gap-2 cursor-pointer font-bold text-emerald-900">
                   <input
