@@ -11,6 +11,16 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  // 1. ดึงข้อมูลผู้ใช้สดๆ จาก Database
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { firstName: true, nickname: true },
+  });
+
+  // ใช้ชื่อเล่นก่อน ถ้าไม่มีใช้ชื่อจริง
+  const displayName = dbUser?.nickname || dbUser?.firstName || (user.name as string | undefined)?.split(" ")[0] || "";
+
+  // 2. ดึงคอร์สที่ลงทะเบียน
   const enrollments = await prisma.enrollment.findMany({
     where: { userId: user.id, status: "ACTIVE" },
     include: {
@@ -23,12 +33,10 @@ export default async function DashboardPage() {
     },
   });
 
-  const firstName = (user.name as string | undefined)?.split(" ")[0] ?? "";
-
   return (
     <div className="max-w-[1300px] mx-auto px-12 pt-14 pb-24">
       <div className="mb-12">
-        <h1 className="text-[36px] font-extrabold tracking-[-0.02em]">สวัสดี, {firstName} 👋</h1>
+        <h1 className="text-[36px] font-extrabold tracking-[-0.02em]">สวัสดี, {displayName} 👋</h1>
         <p className="text-[17px] text-secondary mt-2">เรียนต่อจากที่ค้างไว้ หรือเลือกบทเรียนใหม่</p>
       </div>
 
