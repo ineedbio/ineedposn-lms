@@ -20,7 +20,6 @@ export default async function AdminStudentsPage() {
       gradeLevel: true,
       phone: true,
       email: true,
-      image: true, // ดึงรูปโปรไฟล์จากฐานข้อมูล
       createdAt: true,
       enrollments: {
         select: {
@@ -44,7 +43,7 @@ export default async function AdminStudentsPage() {
       school: s.school || "-",
       phone: s.phone || "-",
       email: s.email,
-      avatarUrl: s.image || null, // ส่ง URL รูปไปให้ StudentsClient
+      avatarUrl: null, // ใช้ตัวอักษรย่อตัวแรกตามดีไซน์มาตรฐานของระบบ
       course: activeEnrollment?.course?.title ?? "ยังไม่ลงคอร์ส",
       courseId: activeEnrollment?.course?.id ?? "NONE",
       amount: activeEnrollment?.course?.price ?? 0,
