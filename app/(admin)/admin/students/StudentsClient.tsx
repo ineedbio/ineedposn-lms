@@ -18,8 +18,14 @@ export default function StudentsClient({
   const [selectedGrade, setSelectedGrade] = useState("ทุกชั้น");
   const [selectedStatus, setSelectedStatus] = useState("ทั้งหมด");
   const [hasChanges, setHasChanges] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Minimal Toast Popup State
+  const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
+
+  // Minimal Delete Modal State
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
+  // Add Student Modal State
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newStudent, setNewStudent] = useState({
     name: "",
@@ -33,6 +39,11 @@ export default function StudentsClient({
     paymentStatus: "ชำระแล้ว",
     notes: "",
   });
+
+  function showToast(message: string, type: "success" | "info" = "success") {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 2500);
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem("ineedbio_students_admin_data");
@@ -57,40 +68,36 @@ export default function StudentsClient({
   function updateStudent(id: string, field: string, value: string) {
     setStudents((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
     setHasChanges(true);
-    setSaveSuccess(false);
   }
 
-  // บันทึกการเปลี่ยนแปลง
   function handleSaveAll() {
     localStorage.setItem("ineedbio_students_admin_data", JSON.stringify(students));
     setHasChanges(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    showToast("บันทึกการเปลี่ยนแปลงทั้งหมดเรียบร้อยแล้ว");
   }
 
-  // ยกเลิกการเปลี่ยนแปลงทั้งหมด (คืนค่าเดิมก่อนหน้า)
   function handleCancelAll() {
-    if (confirm("ต้องการยกเลิกการเปลี่ยนแปลงทั้งหมด และย้อนกลับไปใช้ค่าที่บันทึกไว้ล่าสุดใช่หรือไม่?")) {
-      const saved = localStorage.getItem("ineedbio_students_admin_data");
-      if (saved) {
-        try {
-          setStudents(JSON.parse(saved));
-        } catch (e) {
-          setStudents(initialStudents);
-        }
-      } else {
+    const saved = localStorage.getItem("ineedbio_students_admin_data");
+    if (saved) {
+      try {
+        setStudents(JSON.parse(saved));
+      } catch (e) {
         setStudents(initialStudents);
       }
-      setHasChanges(false);
+    } else {
+      setStudents(initialStudents);
     }
+    setHasChanges(false);
+    showToast("ยกเลิกและคืนค่าเดิมเรียบร้อยแล้ว", "info");
   }
 
-  function handleDelete(id: string, name: string) {
-    if (confirm(`ต้องการลบ "${name}" ออกจากระบบใช่หรือไม่?`)) {
-      setStudents((prev) => prev.filter((s) => s.id !== id));
-      setHasChanges(true);
-      setSaveSuccess(false);
-    }
+  // ยืนยันการลบใน Minimal Popup
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    setStudents((prev) => prev.filter((s) => s.id !== deleteTarget.id));
+    setHasChanges(true);
+    showToast(`ลบ "${deleteTarget.name}" ออกแล้ว`, "info");
+    setDeleteTarget(null);
   }
 
   function handleAddSubmit(e: React.FormEvent) {
@@ -117,6 +124,7 @@ export default function StudentsClient({
     setStudents((prev) => [created, ...prev]);
     setHasChanges(true);
     setIsAddOpen(false);
+    showToast(`เพิ่ม "${created.name}" เรียบร้อยแล้ว`);
     setNewStudent({
       name: "",
       nickname: "",
@@ -181,11 +189,53 @@ export default function StudentsClient({
     a.download = `ineedbio-students-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    showToast("ดาวน์โหลดไฟล์ JSON เรียบร้อย");
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-8 flex flex-col gap-6">
-      {/* แถบหัวเว็บ พร้อมปุ่ม Save และ ยกเลิก */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-8 flex flex-col gap-6 relative">
+      {/* 1. Minimal Toast Notification (ลอยแจ้งเตือนด้านล่างจอ) */}
+      {toast && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-3 rounded-full bg-slate-900/90 backdrop-blur-md text-white text-xs font-semibold shadow-2xl transition-all duration-200">
+          <span className={toast.type === "success" ? "text-emerald-400" : "text-sky-400"}>
+            {toast.type === "success" ? "✓" : "ℹ"}
+          </span>
+          <span>{toast.message}</span>
+        </div>
+      )}
+
+      {/* 2. Minimal Delete Confirmation Modal (ป๊อปอัปยืนยันลบ) */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] p-6 max-w-[340px] w-full shadow-2xl flex flex-col items-center text-center gap-3 border border-slate-100">
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-xl font-bold">
+              🗑️
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">ยืนยันการลบรายชื่อ</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                ต้องการลบ <strong className="text-slate-800">"{deleteTarget.name}"</strong> ออกจากระบบใช่หรือไม่?
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 w-full mt-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="h-10 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm"
+              >
+                ลบข้อมูล
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* แถบสลับหน้า */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div className="flex gap-2 items-center">
           <Link
@@ -202,11 +252,7 @@ export default function StudentsClient({
           </Link>
         </div>
 
-        {/* โซน Action ปุ่มเซฟ ยกเลิก และเพิ่มคน */}
         <div className="flex items-center gap-3">
-          {saveSuccess && (
-            <span className="text-xs text-emerald-600 font-bold">✓ บันทึกสำเร็จแล้ว</span>
-          )}
           {hasChanges && (
             <div className="flex items-center gap-2">
               <button
@@ -404,7 +450,7 @@ export default function StudentsClient({
                 </td>
                 <td className="py-3.5 px-3 text-center">
                   <button
-                    onClick={() => handleDelete(s.id, s.name)}
+                    onClick={() => setDeleteTarget({ id: s.id, name: s.name })}
                     title="ลบนักเรียนนี้"
                     className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
                   >
@@ -426,11 +472,11 @@ export default function StudentsClient({
 
       {/* Modal เพิ่มนักเรียน */}
       {isAddOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-[500px] w-full shadow-2xl flex flex-col gap-4">
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] p-6 max-w-[500px] w-full shadow-2xl flex flex-col gap-4 border border-slate-100">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-900">+ เพิ่มนักเรียนใหม่</h2>
-              <button onClick={() => setIsAddOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl">
+              <h2 className="text-base font-bold text-slate-900">+ เพิ่มนักเรียนใหม่</h2>
+              <button onClick={() => setIsAddOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg">
                 ✕
               </button>
             </div>
