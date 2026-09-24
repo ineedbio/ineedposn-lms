@@ -30,7 +30,7 @@ export default async function AdminStudentsPage() {
         select: {
           id: true,
           status: true,
-          createdAt: true,
+          // เอา createdAt ออกแล้ว
           course: {
             select: {
               id: true,
@@ -76,7 +76,6 @@ export default async function AdminStudentsPage() {
     }),
   }));
 
-  // ดึงรายชื่อคอร์สทั้งหมดไว้สำหรับ Dropdown ตัวกรอง
   const allCourses = await prisma.course.findMany({
     select: { id: true, title: true },
     orderBy: { title: "asc" },
