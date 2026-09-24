@@ -1,15 +1,14 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react"; // <-- 1. เพิ่ม import signIn
+import { useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 
 const inputClass =
   "h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-ink transition";
 const labelClass = "text-[13px] font-semibold text-ink";
 
 function VerifyOtpForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const email = params.get("email") ?? "";
   const [otp, setOtp] = useState("");
@@ -22,7 +21,7 @@ function VerifyOtpForm() {
     setLoading(true);
     setError("");
 
-    // 2. เรียก signIn ด้วย email + otp โดยตรง
+    // สั่งล็อกอินด้วย OTP ตรงๆ
     const res = await signIn("credentials", {
       email,
       otp,
@@ -40,9 +39,8 @@ function VerifyOtpForm() {
       return;
     }
 
-    // 3. ผ่านแล้ว เด้งเข้า dashboard ทันที
-    router.push("/dashboard");
-    router.refresh();
+    // ล็อกอินผ่านแล้ว บังคับเปิด dashboard ตรงๆ ทันที ไม่ใช้ router.push เพื่อให้คุกกี้เซสชันทำงาน
+    window.location.href = "/dashboard";
   }
 
   async function resend() {
