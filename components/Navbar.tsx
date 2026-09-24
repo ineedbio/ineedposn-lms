@@ -20,6 +20,9 @@ export default async function Navbar() {
             <Link href="/" className="text-[15px] font-medium text-ink hover:text-secondary transition">
               คอร์สทั้งหมด
             </Link>
+            <Link href="/dashboard" className="text-[15px] font-medium text-ink hover:text-secondary transition">
+              ห้องเรียน
+            </Link>
             {user.role === "ADMIN" && (
               <Link href="/admin/payments" className="text-[15px] font-medium text-ink hover:text-secondary transition">
                 Admin
@@ -27,7 +30,8 @@ export default async function Navbar() {
             )}
             <LogoutButton className="text-[15px] font-medium text-secondary hover:text-ink transition active:scale-95" />
             <Link
-              href="/dashboard"
+              href="/settings"
+              title="ตั้งค่าโปรไฟล์"
               className="w-[38px] h-[38px] rounded-full bg-ink text-white flex items-center justify-center text-sm font-bold flex-shrink-0 overflow-hidden transition-transform duration-150 hover:scale-110 active:scale-95"
             >
               {user.avatarUrl ? (
