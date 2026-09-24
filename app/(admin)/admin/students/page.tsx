@@ -7,12 +7,9 @@ import StudentsClient from "./StudentsClient";
 export default async function AdminStudentsPage() {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
-  if (!user || user.role !== "ADMIN") {
-    redirect("/dashboard");
-  }
+  if (!user || user.role !== "ADMIN") redirect("/dashboard");
 
-  // ดึงนักเรียนทั้งหมด พร้อมคอร์สและประวัติการเรียนจบ
-  const students = await prisma.user.findMany({
+  const dbStudents = await prisma.user.findMany({
     where: { role: "STUDENT" },
     select: {
       id: true,
@@ -23,67 +20,42 @@ export default async function AdminStudentsPage() {
       gradeLevel: true,
       phone: true,
       email: true,
-      avatarUrl: true,
       createdAt: true,
       enrollments: {
-        where: { status: "ACTIVE" },
         select: {
           id: true,
           status: true,
-          // เอา createdAt ออกแล้ว
-          course: {
-            select: {
-              id: true,
-              title: true,
-              lessons: {
-                select: {
-                  id: true,
-                  progress: true,
-                },
-              },
-            },
-          },
+          course: { select: { id: true, title: true, price: true } },
         },
       },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  // คำนวณ % ความคืบหน้าของแต่ละคอร์ส
-  const formattedStudents = students.map((s) => ({
-    id: s.id,
-    name: `${s.firstName} ${s.lastName}`,
-    nickname: s.nickname ?? "-",
-    school: s.school ?? "-",
-    gradeLevel: s.gradeLevel ?? "-",
-    phone: s.phone ?? "-",
-    email: s.email,
-    avatarUrl: s.avatarUrl,
-    createdAt: s.createdAt.toISOString(),
-    courses: s.enrollments.map((e) => {
-      const totalLessons = e.course.lessons.length;
-      const completedLessons = e.course.lessons.filter((l) =>
-        l.progress.some((p) => p.userId === s.id && p.isCompleted)
-      ).length;
-      const percent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
-      return {
-        id: e.course.id,
-        title: e.course.title,
-        percent,
-        completedLessons,
-        totalLessons,
-      };
-    }),
-  }));
+  const formatted = dbStudents.map((s) => {
+    const activeEnrollment = s.enrollments[0];
+    const statusText = activeEnrollment?.status === "ACTIVE" ? "ชำระแล้ว" : "ยังไม่ชำระ";
+    return {
+      id: s.id,
+      name: `${s.firstName} ${s.lastName}`,
+      nickname: s.nickname || "-",
+      grade: s.gradeLevel || "-",
+      school: s.school || "-",
+      phone: s.phone || "-",
+      email: s.email,
+      course: activeEnrollment?.course?.title ?? "ยังไม่ลงคอร์ส",
+      courseId: activeEnrollment?.course?.id ?? "NONE",
+      amount: activeEnrollment?.course?.price ?? 0,
+      date: s.createdAt.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }),
+      paymentStatus: statusText,
+      notes: "",
+    };
+  });
 
-  const allCourses = await prisma.course.findMany({
+  const courses = await prisma.course.findMany({
     select: { id: true, title: true },
     orderBy: { title: "asc" },
   });
 
-  return (
-    <div className="max-w-[1300px] mx-auto px-8 py-10">
-      <StudentsClient initialStudents={formattedStudents} allCourses={allCourses} />
-    </div>
-  );
+  return <StudentsClient initialStudents={formatted} allCourses={courses} />;
 }
