@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
 
 const GRADE_OPTIONS = ["มัธยมศึกษาปีที่ 4", "มัธยมศึกษาปีที่ 5", "มัธยมศึกษาปีที่ 6", "อื่น ๆ"];
 const inputClass =
@@ -9,7 +8,6 @@ const inputClass =
 const labelClass = "text-[13px] font-semibold text-ink";
 
 export default function SettingsPage() {
-  const { data: session, update } = useSession();
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -28,27 +26,36 @@ export default function SettingsPage() {
 
   useEffect(() => {
     async function loadProfile() {
-      const res = await fetch("/api/user/profile");
-      if (res.ok) {
-        const data = await res.json();
-        const isStandardGrade = GRADE_OPTIONS.slice(0, 3).includes(data.gradeLevel);
-        setForm({
-          firstName: data.firstName ?? "",
-          lastName: data.lastName ?? "",
-          nickname: data.nickname ?? "",
-          school: data.school ?? "",
-          gradeLevel: isStandardGrade ? data.gradeLevel : "อื่น ๆ",
-          phone: data.phone ?? "",
-          email: data.email ?? "",
-        });
-        if (!isStandardGrade && data.gradeLevel) {
-          setCustomGrade(data.gradeLevel);
+      try {
+        const res = await fetch("/api/user/profile");
+        if (res.status === 401) {
+          window.location.href = "/login";
+          return;
         }
-        if (data.avatarUrl) {
-          setAvatarPreview(data.avatarUrl);
+        if (res.ok) {
+          const data = await res.json();
+          const isStandardGrade = GRADE_OPTIONS.slice(0, 3).includes(data.gradeLevel);
+          setForm({
+            firstName: data.firstName ?? "",
+            lastName: data.lastName ?? "",
+            nickname: data.nickname ?? "",
+            school: data.school ?? "",
+            gradeLevel: isStandardGrade ? data.gradeLevel : "อื่น ๆ",
+            phone: data.phone ?? "",
+            email: data.email ?? "",
+          });
+          if (!isStandardGrade && data.gradeLevel) {
+            setCustomGrade(data.gradeLevel);
+          }
+          if (data.avatarUrl) {
+            setAvatarPreview(data.avatarUrl);
+          }
         }
+      } catch (err) {
+        console.error("Failed to load profile", err);
+      } finally {
+        setFetching(false);
       }
-      setFetching(false);
     }
     loadProfile();
   }, []);
@@ -70,26 +77,30 @@ export default function SettingsPage() {
     });
     if (avatar) formData.append("avatar", avatar);
 
-    const res = await fetch("/api/user/profile", {
-      method: "PATCH",
-      body: formData,
-    });
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PATCH",
+        body: formData,
+      });
 
-    const data = await res.json();
-    setLoading(false);
+      const data = await res.json();
+      setLoading(false);
 
-    if (!res.ok) {
-      setMessage({ type: "error", text: data.error ?? "บันทึกข้อมูลไม่สำเร็จ" });
-      return;
+      if (!res.ok) {
+        setMessage({ type: "error", text: data.error ?? "บันทึกข้อมูลไม่สำเร็จ" });
+        return;
+      }
+
+      setMessage({ type: "success", text: "บันทึกเรียบร้อย กำลังรีเฟรชหน้า..." });
+
+      // รีเฟรชหน้าเพื่อให้ Navbar อัปเดตรูปใหม่จากเซิร์ฟเวอร์
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err) {
+      setLoading(false);
+      setMessage({ type: "error", text: "เกิดข้อผิดพลาดในการเชื่อมต่อ" });
     }
-
-    // อัปเดต NextAuth Session ทันที (ให้รูปและชื่อบน Navbar เปลี่ยนตาม)
-    await update({
-      name: data.user.name,
-      avatarUrl: data.user.avatarUrl,
-    });
-
-    setMessage({ type: "success", text: "บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว" });
   }
 
   if (fetching) return <div className="p-12 text-center text-secondary">กำลังโหลด...</div>;
@@ -111,7 +122,6 @@ export default function SettingsPage() {
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6 bg-panel p-8 rounded-[24px]">
-        {/* ส่วนรูปโปรไฟล์ */}
         <div className="flex items-center gap-6 pb-6 border-b border-border">
           <label className="relative w-20 h-20 rounded-full bg-white border-[1.5px] border-dashed border-border flex items-center justify-center cursor-pointer overflow-hidden hover:border-ink transition">
             {avatarPreview ? (
@@ -129,11 +139,10 @@ export default function SettingsPage() {
           </label>
           <div>
             <div className="text-sm font-bold text-ink">รูปโปรไฟล์</div>
-            <div className="text-xs text-secondary mt-1">คลิกที่รูปเพื่อเปลี่ยนรูปใหม่ (เก็บที่ Cloudflare R2)</div>
+            <div className="text-xs text-secondary mt-1">คลิกที่รูปเพื่อเปลี่ยนรูปใหม่ (บันทึกขึ้น Cloudflare R2)</div>
           </div>
         </div>
 
-        {/* ชื่อจริง - นามสกุล */}
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className={labelClass}>ชื่อจริง</label>
@@ -157,7 +166,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ชื่อเล่น - ระดับชั้น */}
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className={labelClass}>ชื่อเล่น</label>
@@ -196,7 +204,6 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* โรงเรียน - เบอร์โทร */}
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className={labelClass}>โรงเรียน / สถาบัน</label>
@@ -218,7 +225,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* อีเมล (อ่านอย่างเดียว) */}
         <div className="flex flex-col gap-1.5">
           <label className={labelClass}>อีเมล (ใช้เข้าสู่ระบบ)</label>
           <input
