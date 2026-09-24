@@ -24,12 +24,25 @@ const CENTERS = [
 ];
 
 const CAMP_RESULTS = ["ทั้งหมด", "ยังไม่ทราบผล", "ผ่านค่าย 1", "ตัวสำรอง", "ไม่ผ่าน"];
+const SUBJECTS = ["ชีวะ", "เคมี", "ฟิสิกส์", "คอม", "คณิต", "ดาราศาสตร์"];
 
 export default function CampResultsClient() {
   const [data, setData] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [selectedCenter, setSelectedCenter] = useState<string | null>(null);
   const [selectedResult, setSelectedResult] = useState("ทั้งหมด");
+
+  // State สำหรับ Modal เพิ่มนักเรียน
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    nickname: "",
+    grade: "",
+    subject: "ชีวะ",
+    center: "ศูนย์โรงเรียน",
+    camp1Result: "ยังไม่ทราบผล",
+    notes: "",
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem("ineedbio_posn_results");
@@ -45,6 +58,38 @@ export default function CampResultsClient() {
     next[index][field] = value;
     setData(next);
     localStorage.setItem("ineedbio_posn_results", JSON.stringify(next));
+  }
+
+  // ฟังก์ชันเพิ่มนักเรียนใหม่
+  function handleAddStudent(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+
+    const newStudent = {
+      name: form.name.trim(),
+      nickname: form.nickname.trim() || "-",
+      grade: form.grade.trim() || "-",
+      subject: form.subject,
+      center: form.center,
+      camp1Result: form.camp1Result,
+      notes: form.notes.trim(),
+    };
+
+    const next = [newStudent, ...data];
+    setData(next);
+    localStorage.setItem("ineedbio_posn_results", JSON.stringify(next));
+
+    // ล้างฟอร์มและปิด Modal
+    setForm({
+      name: "",
+      nickname: "",
+      grade: "",
+      subject: "ชีวะ",
+      center: "ศูนย์โรงเรียน",
+      camp1Result: "ยังไม่ทราบผล",
+      notes: "",
+    });
+    setIsAddModalOpen(false);
   }
 
   function handleImportJson(e: React.ChangeEvent<HTMLInputElement>) {
@@ -123,7 +168,7 @@ export default function CampResultsClient() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-8 flex flex-col gap-6">
-      {/* แถบสลับหน้า (เอาปุ่มกลับหน้าหลักออกแล้ว) */}
+      {/* แถบสลับหน้า */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div className="flex gap-2 items-center">
           <Link
@@ -185,7 +230,7 @@ export default function CampResultsClient() {
 
       {/* ค้นหาและตาราง */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3">
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
           <input
             type="text"
             placeholder="🔍 ค้นหา ชื่อ, ศูนย์ สอวน..."
@@ -204,6 +249,15 @@ export default function CampResultsClient() {
               </option>
             ))}
           </select>
+
+          {/* ปุ่ม + เพิ่มนักเรียน */}
+          <button
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+            className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <span>+</span> เพิ่มนักเรียน
+          </button>
         </div>
 
         <div className="overflow-hidden rounded-xl border border-slate-200">
@@ -259,7 +313,7 @@ export default function CampResultsClient() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
-                    ยังไม่มีข้อมูล (กดปุ่ม "นำเข้าไฟล์ JSON" ด้านบนเพื่อโหลดข้อมูล สอวน.)
+                    ยังไม่มีข้อมูล (กดปุ่ม "+ เพิ่มนักเรียน" หรือ "นำเข้าไฟล์ JSON")
                   </td>
                 </tr>
               )}
@@ -267,6 +321,135 @@ export default function CampResultsClient() {
           </table>
         </div>
       </div>
+
+      {/* Modal หน้าต่างเพิ่มนักเรียน สอวน. */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl space-y-4 border border-slate-100">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900">เพิ่มนักเรียนในทะเบียน สอวน.</h3>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddStudent} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ชื่อ - นามสกุล *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น สุรพงษ์ เตี้ยเนตร"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="w-full h-9 px-3 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อเล่น</label>
+                  <input
+                    type="text"
+                    placeholder="เช่น แนบฝัน"
+                    value={form.nickname}
+                    onChange={(e) => setForm({ ...form, nickname: e.target.value })}
+                    className="w-full h-9 px-3 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ชั้น</label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ม.3"
+                    value={form.grade}
+                    onChange={(e) => setForm({ ...form, grade: e.target.value })}
+                    className="w-full h-9 px-3 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">วิชา สอวน.</label>
+                  <select
+                    value={form.subject}
+                    onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                    className="w-full h-9 px-2.5 border border-slate-200 rounded-xl text-xs bg-white text-slate-800 focus:outline-none"
+                  >
+                    {SUBJECTS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ศูนย์ สอวน.</label>
+                  <select
+                    value={form.center}
+                    onChange={(e) => setForm({ ...form, center: e.target.value })}
+                    className="w-full h-9 px-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-800 focus:outline-none"
+                  >
+                    {CENTERS.map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">ผลค่าย 1</label>
+                <select
+                  value={form.camp1Result}
+                  onChange={(e) => setForm({ ...form, camp1Result: e.target.value })}
+                  className="w-full h-9 px-2.5 border border-slate-200 rounded-xl text-xs bg-white text-slate-800 focus:outline-none"
+                >
+                  <option value="ยังไม่ทราบผล">ยังไม่ทราบผล</option>
+                  <option value="ผ่านค่าย 1">ผ่านค่าย 1</option>
+                  <option value="ตัวสำรอง">ตัวสำรอง</option>
+                  <option value="ไม่ผ่าน">ไม่ผ่าน</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">บันทึกเพิ่มเติม</label>
+                <input
+                  type="text"
+                  placeholder="โน้ต..."
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  className="w-full h-9 px-3 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition"
+                >
+                  บันทึก
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
