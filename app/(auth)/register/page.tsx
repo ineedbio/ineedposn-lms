@@ -13,6 +13,7 @@ const labelClass = "text-[13px] font-semibold text-ink";
 export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState<Record<string, string>>({ gradeLevel: GRADE_OPTIONS[0] });
+  const [customGrade, setCustomGrade] = useState("");
   const [avatar, setAvatar] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -32,8 +33,13 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
 
+    // ถ้าระดับชั้นเป็น "อื่น ๆ" ให้นำข้อความที่พิมพ์เองไปใช้
+    const finalGrade = form.gradeLevel === "อื่น ๆ" ? (customGrade.trim() || "อื่น ๆ") : form.gradeLevel;
+
     const formData = new FormData();
-    Object.entries(form).forEach(([k, v]) => formData.append(k, v));
+    Object.entries(form).forEach(([k, v]) => {
+      formData.append(k, k === "gradeLevel" ? finalGrade : v);
+    });
     if (avatar) formData.append("avatar", avatar);
 
     const res = await fetch("/api/auth/register", { method: "POST", body: formData });
@@ -122,6 +128,22 @@ export default function RegisterPage() {
               </select>
             </div>
           </div>
+
+          {/* แสดงช่องกรอกเพิ่มเมื่อเลือก "อื่น ๆ" */}
+          {form.gradeLevel === "อื่น ๆ" && (
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass}>โปรดระบุระดับชั้น</label>
+              <input
+                type="text"
+                required
+                placeholder="เช่น ปริญญาตรี, บุคคลทั่วไป, มัธยมต้น"
+                value={customGrade}
+                onChange={(e) => setCustomGrade(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+          )}
+
           <div className="flex flex-col gap-1.5">
             <label className={labelClass}>โรงเรียน</label>
             <input
