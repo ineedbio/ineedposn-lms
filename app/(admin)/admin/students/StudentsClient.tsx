@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 
 const PAYMENT_STATUSES = ["ทั้งหมด", "ชำระแล้ว", "รอตรวจสอบ", "ยังไม่ชำระ"];
@@ -17,10 +17,100 @@ export default function StudentsClient({
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
   const [selectedGrade, setSelectedGrade] = useState("ทุกชั้น");
   const [selectedStatus, setSelectedStatus] = useState("ทั้งหมด");
-  const [copied, setCopied] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [newStudent, setNewStudent] = useState({
+    name: "",
+    nickname: "",
+    grade: "ม.4",
+    school: "",
+    phone: "",
+    email: "",
+    course: allCourses[0]?.title ?? "สอวน. ชีววิทยา",
+    amount: "490",
+    paymentStatus: "ชำระแล้ว",
+    notes: "",
+  });
+
+  useEffect(() => {
+    const saved = localStorage.getItem("ineedbio_students_admin_data");
+    if (saved) {
+      try {
+        setStudents(JSON.parse(saved));
+      } catch (e) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasChanges]);
 
   function updateStudent(id: string, field: string, value: string) {
     setStudents((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
+    setHasChanges(true);
+    setSaveSuccess(false);
+  }
+
+  function handleSaveAll() {
+    localStorage.setItem("ineedbio_students_admin_data", JSON.stringify(students));
+    setHasChanges(false);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  }
+
+  function handleDelete(id: string, name: string) {
+    if (confirm(`ต้องการลบ "${name}" ออกจากระบบใช่หรือไม่?`)) {
+      setStudents((prev) => prev.filter((s) => s.id !== id));
+      setHasChanges(true);
+      setSaveSuccess(false);
+    }
+  }
+
+  function handleAddSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newStudent.name) return;
+
+    const created = {
+      id: `manual-${Date.now()}`,
+      name: newStudent.name,
+      nickname: newStudent.nickname || "-",
+      grade: newStudent.grade,
+      school: newStudent.school || "-",
+      phone: newStudent.phone || "-",
+      email: newStudent.email || "-",
+      avatarUrl: null,
+      course: newStudent.course,
+      courseId: "MANUAL",
+      amount: Number(newStudent.amount) || 0,
+      date: new Date().toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }),
+      paymentStatus: newStudent.paymentStatus,
+      notes: newStudent.notes,
+    };
+
+    setStudents((prev) => [created, ...prev]);
+    setHasChanges(true);
+    setIsAddOpen(false);
+    setNewStudent({
+      name: "",
+      nickname: "",
+      grade: "ม.4",
+      school: "",
+      phone: "",
+      email: "",
+      course: allCourses[0]?.title ?? "สอวน. ชีววิทยา",
+      amount: "490",
+      paymentStatus: "ชำระแล้ว",
+      notes: "",
+    });
   }
 
   const courseCounts = useMemo(() => {
@@ -75,51 +165,11 @@ export default function StudentsClient({
     URL.revokeObjectURL(url);
   }
 
-  function handleImportJson(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        const list = json["ทะเบียนนักเรียน"] || json["นักเรียน"] || json;
-        if (Array.isArray(list)) {
-          const imported = list.map((item: any, idx: number) => ({
-            id: `import-${idx}`,
-            name: item["ชื่อ"] || "ไม่ระบุชื่อ",
-            nickname: item["ชื่อเล่น"] || "-",
-            grade: item["ชั้น"] || "-",
-            school: item["โรงเรียน"] || "-",
-            phone: item["เบอร์โทร"] || "-",
-            email: item["อีเมล"] || "-",
-            course: item["คอร์ส"] || "ทั่วไป",
-            courseId: "IMPORTED",
-            amount: item["ยอดโอน"] || 0,
-            date: "นำเข้า",
-            paymentStatus: item["สถานะชำระเงิน"] || "ชำระแล้ว",
-            notes: item["บันทึก"] || "",
-          }));
-          setStudents((prev) => [...imported, ...prev]);
-          alert(`นำเข้าสำเร็จ ${imported.length} คน!`);
-        }
-      } catch (err) {
-        alert("ไฟล์ JSON ไม่ถูกต้อง");
-      }
-    };
-    reader.readAsText(file);
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-8 flex flex-col gap-6">
-      {/* แถบสลับหน้า พร้อมปุ่มกลับหน้าหลัก */}
+      {/* แถบสลับหน้า (เอาปุ่มกลับหน้าหลักออกแล้ว) */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div className="flex gap-2 items-center">
-          <Link
-            href="/dashboard"
-            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition flex items-center gap-1.5 mr-2"
-          >
-            ← กลับหน้าหลัก
-          </Link>
           <Link
             href="/admin/students"
             className="px-4 py-2 rounded-xl bg-white text-emerald-700 font-bold shadow-sm border border-slate-200 text-sm"
@@ -134,14 +184,27 @@ export default function StudentsClient({
           </Link>
         </div>
 
-        <div className="flex gap-3">
-          <label className="cursor-pointer text-xs font-semibold px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm transition">
-            📂 นำเข้าไฟล์ JSON
-            <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
-          </label>
+        <div className="flex items-center gap-3">
+          {saveSuccess && (
+            <span className="text-xs text-emerald-600 font-bold">✓ บันทึกสำเร็จแล้ว</span>
+          )}
+          {hasChanges && (
+            <button
+              onClick={handleSaveAll}
+              className="text-xs font-bold px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md animate-pulse transition"
+            >
+              💾 บันทึกการเปลี่ยนแปลง
+            </button>
+          )}
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="text-xs font-bold px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white shadow-sm transition"
+          >
+            + เพิ่มนักเรียน
+          </button>
           <button
             onClick={exportJson}
-            className="text-xs font-semibold px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
+            className="text-xs font-semibold px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm transition"
           >
             📥 ดาวน์โหลด JSON
           </button>
@@ -151,7 +214,7 @@ export default function StudentsClient({
       <div>
         <h1 className="text-2xl font-black text-slate-900">ทะเบียนนักเรียน & การสมัครคอร์ส</h1>
         <p className="text-xs text-slate-500 mt-1">
-          รายชื่อนักเรียนและคอร์สเรียน พร้อมตรวจสอบสถานะการชำระเงิน
+          จัดการรายชื่อ อนุมัติสถานะชำระเงิน และตรวจสอบข้อมูลนักเรียน
         </p>
       </div>
 
@@ -224,17 +287,6 @@ export default function StudentsClient({
             แสดง <strong className="text-slate-800">{filtered.length}</strong> / {students.length} คน
           </span>
           <div className="flex gap-2">
-            <button
-              onClick={() => {
-                const text = filtered.map((s) => `${s.name} (${s.nickname}) - ${s.phone}`).join("\n");
-                navigator.clipboard.writeText(text);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              }}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
-            >
-              {copied ? "✓ คัดลอกแล้ว" : "คัดลอกรายชื่อที่กรอง"}
-            </button>
             {(selectedCourse || search || selectedGrade !== "ทุกชั้น" || selectedStatus !== "ทั้งหมด") && (
               <button
                 onClick={() => {
@@ -257,7 +309,7 @@ export default function StudentsClient({
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
-              <th className="py-3.5 px-4">ชื่อ - นามสกุล</th>
+              <th className="py-3.5 px-4">รูป & ชื่อนักเรียน</th>
               <th className="py-3.5 px-3">ชั้น</th>
               <th className="py-3.5 px-4">โรงเรียน</th>
               <th className="py-3.5 px-4">คอร์สที่สมัคร</th>
@@ -266,14 +318,27 @@ export default function StudentsClient({
               <th className="py-3.5 px-3">สมัครเมื่อ</th>
               <th className="py-3.5 px-4">สถานะเงิน</th>
               <th className="py-3.5 px-4">บันทึก</th>
+              <th className="py-3.5 px-3 text-center">จัดการ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.map((s) => (
               <tr key={s.id} className="hover:bg-slate-50/80 transition">
-                <td className="py-3.5 px-4 font-bold text-slate-900">
-                  {s.name}
-                  <span className="text-[11px] text-slate-400 font-normal ml-1">({s.nickname})</span>
+                <td className="py-3.5 px-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center overflow-hidden flex-shrink-0 text-xs font-bold text-slate-700">
+                      {s.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        (s.name[0] ?? "?").toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900">{s.name}</div>
+                      <div className="text-[11px] text-slate-400">({s.nickname})</div>
+                    </div>
+                  </div>
                 </td>
                 <td className="py-3.5 px-3 text-slate-600">{s.grade}</td>
                 <td className="py-3.5 px-4 text-slate-600">{s.school}</td>
@@ -307,14 +372,23 @@ export default function StudentsClient({
                     placeholder="พิมพ์โน้ต..."
                     value={s.notes}
                     onChange={(e) => updateStudent(s.id, "notes", e.target.value)}
-                    className="h-8 px-2 rounded-lg border border-slate-200 text-xs w-[140px] focus:outline-none focus:border-emerald-500"
+                    className="h-8 px-2 rounded-lg border border-slate-200 text-xs w-[120px] focus:outline-none focus:border-emerald-500"
                   />
+                </td>
+                <td className="py-3.5 px-3 text-center">
+                  <button
+                    onClick={() => handleDelete(s.id, s.name)}
+                    title="ลบนักเรียนนี้"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                  >
+                    🗑️
+                  </button>
                 </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-12 text-center text-slate-400 text-xs">
+                <td colSpan={10} className="py-12 text-center text-slate-400 text-xs">
                   ไม่พบข้อมูลนักเรียน
                 </td>
               </tr>
@@ -322,6 +396,148 @@ export default function StudentsClient({
           </tbody>
         </table>
       </div>
+
+      {/* Modal เพิ่มนักเรียน */}
+      {isAddOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-[500px] w-full shadow-2xl flex flex-col gap-4">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h2 className="text-lg font-bold text-slate-900">+ เพิ่มนักเรียนใหม่</h2>
+              <button onClick={() => setIsAddOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSubmit} className="flex flex-col gap-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700">ชื่อ - นามสกุล *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="สมชาย ใจดี"
+                    value={newStudent.name}
+                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700">ชื่อเล่น</label>
+                  <input
+                    type="text"
+                    placeholder="ชาย"
+                    value={newStudent.nickname}
+                    onChange={(e) => setNewStudent({ ...newStudent, nickname: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700">ระดับชั้น</label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ม.4"
+                    value={newStudent.grade}
+                    onChange={(e) => setNewStudent({ ...newStudent, grade: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700">โรงเรียน</label>
+                  <input
+                    type="text"
+                    placeholder="ชื่อโรงเรียน"
+                    value={newStudent.school}
+                    onChange={(e) => setNewStudent({ ...newStudent, school: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700">เบอร์โทร</label>
+                  <input
+                    type="tel"
+                    placeholder="08X-XXX-XXXX"
+                    value={newStudent.phone}
+                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700">อีเมล</label>
+                  <input
+                    type="email"
+                    placeholder="email@example.com"
+                    value={newStudent.email}
+                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700">คอร์สที่สมัคร</label>
+                <select
+                  value={newStudent.course}
+                  onChange={(e) => setNewStudent({ ...newStudent, course: e.target.value })}
+                  className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none bg-white"
+                >
+                  {allCourses.map((c) => (
+                    <option key={c.id} value={c.title}>
+                      {c.title}
+                    </option>
+                  ))}
+                  <option value="ทั่วไป">ทั่วไป</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700">ยอดเงิน (฿)</label>
+                  <input
+                    type="number"
+                    value={newStudent.amount}
+                    onChange={(e) => setNewStudent({ ...newStudent, amount: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700">สถานะชำระเงิน</label>
+                  <select
+                    value={newStudent.paymentStatus}
+                    onChange={(e) => setNewStudent({ ...newStudent, paymentStatus: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none bg-white"
+                  >
+                    <option value="ชำระแล้ว">ชำระแล้ว</option>
+                    <option value="รอตรวจสอบ">รอตรวจสอบ</option>
+                    <option value="ยังไม่ชำระ">ยังไม่ชำระ</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                >
+                  บันทึกข้อมูล
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
