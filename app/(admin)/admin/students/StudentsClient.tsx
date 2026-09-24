@@ -60,11 +60,29 @@ export default function StudentsClient({
     setSaveSuccess(false);
   }
 
+  // บันทึกการเปลี่ยนแปลง
   function handleSaveAll() {
     localStorage.setItem("ineedbio_students_admin_data", JSON.stringify(students));
     setHasChanges(false);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
+  }
+
+  // ยกเลิกการเปลี่ยนแปลงทั้งหมด (คืนค่าเดิมก่อนหน้า)
+  function handleCancelAll() {
+    if (confirm("ต้องการยกเลิกการเปลี่ยนแปลงทั้งหมด และย้อนกลับไปใช้ค่าที่บันทึกไว้ล่าสุดใช่หรือไม่?")) {
+      const saved = localStorage.getItem("ineedbio_students_admin_data");
+      if (saved) {
+        try {
+          setStudents(JSON.parse(saved));
+        } catch (e) {
+          setStudents(initialStudents);
+        }
+      } else {
+        setStudents(initialStudents);
+      }
+      setHasChanges(false);
+    }
   }
 
   function handleDelete(id: string, name: string) {
@@ -167,7 +185,7 @@ export default function StudentsClient({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-8 flex flex-col gap-6">
-      {/* แถบสลับหน้า (เอาปุ่มกลับหน้าหลักออกแล้ว) */}
+      {/* แถบหัวเว็บ พร้อมปุ่ม Save และ ยกเลิก */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div className="flex gap-2 items-center">
           <Link
@@ -184,17 +202,26 @@ export default function StudentsClient({
           </Link>
         </div>
 
+        {/* โซน Action ปุ่มเซฟ ยกเลิก และเพิ่มคน */}
         <div className="flex items-center gap-3">
           {saveSuccess && (
             <span className="text-xs text-emerald-600 font-bold">✓ บันทึกสำเร็จแล้ว</span>
           )}
           {hasChanges && (
-            <button
-              onClick={handleSaveAll}
-              className="text-xs font-bold px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md animate-pulse transition"
-            >
-              💾 บันทึกการเปลี่ยนแปลง
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCancelAll}
+                className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleSaveAll}
+                className="text-xs font-bold px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md animate-pulse transition"
+              >
+                💾 บันทึกการเปลี่ยนแปลง
+              </button>
+            </div>
           )}
           <button
             onClick={() => setIsAddOpen(true)}
