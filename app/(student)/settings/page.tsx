@@ -181,7 +181,7 @@ export default function SettingsPage() {
             </label>
             <div>
               <div className="text-sm font-bold text-ink">รูปโปรไฟล์</div>
-              <div className="text-xs text-secondary mt-1">คลิกที่รูปเพื่อเปลี่ยนรูปใหม่ (บันทึกขึ้น Cloudflare R2)</div>
+              <div className="text-xs text-secondary mt-1">คลิกที่รูปเพื่อเปลี่ยนรูปใหม่</div>
             </div>
           </div>
 

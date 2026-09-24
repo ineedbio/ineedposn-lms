@@ -2,11 +2,23 @@ import Link from "next/link";
 import Image from "next/image";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import LogoutButton from "./LogoutButton";
 
 export default async function Navbar() {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
+
+  // ดึงรูปโปรไฟล์และชื่อสดจาก Database
+  const dbUser = user?.id
+    ? await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { firstName: true, avatarUrl: true },
+      })
+    : null;
+
+  const avatarUrl = dbUser?.avatarUrl || user?.avatarUrl;
+  const initial = (dbUser?.firstName?.[0] || user?.name?.[0] || "?").toUpperCase();
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between px-12 py-5 bg-white/85 backdrop-blur-md border-b border-border-light">
@@ -34,11 +46,11 @@ export default async function Navbar() {
               title="ตั้งค่าโปรไฟล์"
               className="w-[38px] h-[38px] rounded-full bg-ink text-white flex items-center justify-center text-sm font-bold flex-shrink-0 overflow-hidden transition-transform duration-150 hover:scale-110 active:scale-95"
             >
-              {user.avatarUrl ? (
+              {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={user.avatarUrl} alt={user.name ?? ""} className="w-full h-full object-cover" />
+                <img src={avatarUrl} alt="รูปโปรไฟล์" className="w-full h-full object-cover" />
               ) : (
-                (user.name?.[0] ?? "?").toUpperCase()
+                initial
               )}
             </Link>
           </>
