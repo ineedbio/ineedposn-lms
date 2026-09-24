@@ -66,7 +66,14 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) { // <-- เพิ่ม trigger, session
+      // เมื่อ client เรียก update() ให้ดึงค่าใหม่เข้า token ทันที
+      if (trigger === "update" && session) {
+        if (session.name) token.name = session.name;
+        if (session.avatarUrl !== undefined) token.avatarUrl = session.avatarUrl;
+      }
+
+      // First sign-in: copy role + sessionId onto the token.
       if (user) {
         token.role = (user as any).role;
         token.sessionId = (user as any).sessionId;
@@ -74,6 +81,7 @@ export const authOptions: NextAuthOptions = {
         token.avatarUrl = (user as any).avatarUrl;
       }
 
+      // Every subsequent request: verify this token's sessionId
       if (token.uid && token.sessionId) {
         const stillValid = await isSessionStillValid(
           token.uid as string,
