@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react"; // <-- 1. เพิ่ม import signIn
 
 const inputClass =
   "h-12 rounded-xl border-[1.5px] border-border px-4 text-[15px] focus:outline-none focus:border-ink transition";
@@ -20,27 +21,44 @@ function VerifyOtpForm() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const res = await fetch("/api/auth/verify-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, otp }),
+
+    // 2. เรียก signIn ด้วย email + otp โดยตรง
+    const res = await signIn("credentials", {
+      email,
+      otp,
+      redirect: false,
     });
+
     setLoading(false);
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "ยืนยันไม่สำเร็จ");
+
+    if (!res || res.error) {
+      setError(
+        res?.error && res.error !== "CredentialsSignin"
+          ? res.error
+          : "รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว"
+      );
       return;
     }
-    router.push("/login?verified=1");
+
+    // 3. ผ่านแล้ว เด้งเข้า dashboard ทันที
+    router.push("/dashboard");
+    router.refresh();
   }
 
   async function resend() {
     setResent(false);
-    await fetch("/api/auth/verify-otp", {
+    setError("");
+    const res = await fetch("/api/auth/verify-otp", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
+
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error ?? "ส่งรหัสใหม่ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+      return;
+    }
     setResent(true);
   }
 

@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { issueNewSession, isSessionStillValid } from "./device-lock";
+import { verifyOtp } from "./otp"; // <-- 1. เพิ่ม import นี้
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -15,26 +16,42 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        otp: { label: "OTP", type: "text" }, // <-- 2. เพิ่มช่อง otp
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email) return null;
 
+        const email = credentials.email.toLowerCase();
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          where: { email },
         });
         if (!user) return null;
 
-        const valid = await bcrypt.compare(credentials.password, user.password);
-        if (!valid) return null;
+        // --- กรณีที่ 1: ล็อกอินด้วย OTP (Auto-login หลังสมัคร) ---
+        if (credentials.otp) {
+          const result = await verifyOtp(user.id, "EMAIL_VERIFY", String(credentials.otp));
+          if (!result.ok) {
+            throw new Error("รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว");
+          }
+          if (!user.emailVerified) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { emailVerified: true },
+            });
+          }
+        }
+        // --- กรณีที่ 2: ล็อกอินปกติด้วย Password ---
+        else if (credentials.password) {
+          const valid = await bcrypt.compare(credentials.password, user.password);
+          if (!valid) return null;
 
-        if (!user.emailVerified) {
-          // NextAuth surfaces thrown errors as ?error=<message> on redirect;
-          // the login page checks for this and sends the student to verify-otp.
-          throw new Error("EMAIL_NOT_VERIFIED");
+          if (!user.emailVerified) {
+            throw new Error("EMAIL_NOT_VERIFIED");
+          }
+        } else {
+          return null;
         }
 
-        // Device-lock: every successful login mints a new session id and
-        // invalidates whatever device was previously signed in.
         const sessionId = await issueNewSession(user.id, "unknown-device");
 
         return {
@@ -50,7 +67,6 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // First sign-in: copy role + sessionId onto the token.
       if (user) {
         token.role = (user as any).role;
         token.sessionId = (user as any).sessionId;
@@ -58,9 +74,6 @@ export const authOptions: NextAuthOptions = {
         token.avatarUrl = (user as any).avatarUrl;
       }
 
-      // Every subsequent request: verify this token's sessionId still
-      // matches the DB. If another device logged in since, this token is
-      // stale — mark it invalid so the session callback can force sign-out.
       if (token.uid && token.sessionId) {
         const stillValid = await isSessionStillValid(
           token.uid as string,
@@ -74,9 +87,6 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (token.invalidated) {
-        // Returning an empty session forces next-auth's client hooks to
-        // treat the user as signed out; middleware also independently
-        // rejects the request (see middleware.ts).
         return { ...session, user: undefined, expires: session.expires } as any;
       }
       if (session.user) {
