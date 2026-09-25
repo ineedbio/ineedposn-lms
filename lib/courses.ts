@@ -11,6 +11,9 @@ type WithTile = {
   title: string;
   description: string;
   price: number;
+  fullPrice: number | null;
+  subtitle: string | null;
+  level: string | null;
   coverImage: string | null;
   subject: { slug: string; name: string };
   lessons: { duration: number | null }[];
@@ -20,8 +23,10 @@ export function toTile(c: WithTile): TileCourse {
   return {
     slug: c.slug,
     title: c.title,
-    description: c.description,
+    description: c.subtitle || c.description,
     price: c.price,
+    fullPrice: c.fullPrice && c.fullPrice > c.price ? c.fullPrice : null,
+    level: c.level,
     coverImage: c.coverImage,
     subject: c.subject,
     lessonCount: c.lessons.length,

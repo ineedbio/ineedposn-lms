@@ -12,6 +12,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (decision !== "APPROVE" && decision !== "REJECT") {
       return NextResponse.json({ error: "Invalid decision" }, { status: 400 });
     }
+    if (decision === "REJECT" && !String(reason ?? "").trim()) {
+      return NextResponse.json({ error: "ใส่เหตุผลก่อนปฏิเสธ นักเรียนจะเห็นเหตุผลในอีเมล" }, { status: 400 });
+    }
 
     const payment = await prisma.payment.findUnique({
       where: { id: params.id },

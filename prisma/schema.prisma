@@ -39,6 +39,7 @@ model User {
   currentDeviceInfo String?
   lastLoginAt       DateTime?
   avatarUrl         String?
+  isBanned          Boolean   @default(false) // admin "ระงับบัญชี": blocks login and ends the current session
 
   createdAt DateTime @default(now())
 
@@ -81,7 +82,8 @@ model Subject {
 
   categories  Category[]
   courses     Course[]
-  promoBlocks PageBlock[] @relation("SubjectPromoBlocks")
+  promoBlocks PageBlock[]     @relation("SubjectPromoBlocks")
+  results     StudentResult[]
 }
 
 model Category {
@@ -101,6 +103,20 @@ model Course {
   price        Int // 0 = free trial course
   isPublished  Boolean @default(false)
   paymentQrUrl String? // admin-uploaded PromptPay QR image — each course can settle to a different account
+
+  // Sales-page content edited from the admin course modal (all optional; empty = section hidden)
+  subtitle        String?
+  fullPrice       Int? // struck-through "was" price
+  level           String? // e.g. "สอวน.", "A-Level"
+  sortOrder       Int     @default(0)
+  highlights      String? // one per line
+  audience        String? // one per line
+  instructorName  String?
+  instructorTitle String?
+  instructorBio   String? // one per line
+  instructorPhoto String?
+  faq             String? // blocks separated by a blank line: first line question, rest answer
+  trailerYoutube  String? // 11-char YouTube id
 
   subjectId  String
   subject    Subject  @relation(fields: [subjectId], references: [id])
@@ -130,6 +146,7 @@ model Lesson {
   content    String?
   duration   Int? // seconds
   isPreview  Boolean    @default(false) // free "ทดลองเรียน" lesson, viewable without enrollment
+  chapter    String? // groups lessons into chapters ("บทที่ 1 เซลล์") in the syllabus and admin list
 
   courseId String
   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -246,6 +263,7 @@ model Payment {
   slipImageUrl String?
   status       PayStatus @default(PENDING)
   rejectReason String?
+  note         String? // admin note, e.g. "โอนผ่าน IG" for a manually granted enrollment
   reviewedBy   String?
   reviewedAt   DateTime?
   createdAt    DateTime  @default(now())
@@ -300,4 +318,29 @@ model RateLimitHit {
   expiresAt DateTime
 
   @@index([expiresAt])
+}
+
+// ============= SITE SETTINGS / HALL OF FAME =============
+
+// Key/value site settings edited from หลังบ้าน → ตั้งค่า (hero text, contact, PromptPay, legal text…).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// "ผลงานนักเรียน": students who passed POSN camp, shown on the home page and /results.
+model StudentResult {
+  id          String   @id @default(cuid())
+  nickname    String
+  year        String // Buddhist year, e.g. "2569"
+  subjectId   String?
+  subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  school      String?
+  center      String?
+  review      String?
+  photoUrl    String?
+  isPublished Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
 }

@@ -1,17 +1,23 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, ApiError } from "@/lib/rbac";
+import { parseCourseFields } from "@/lib/course-fields";
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
     await requireAdmin();
-    const body = await req.json();
-    const data: any = {};
-    if (typeof body.title === "string") data.title = body.title;
-    if (typeof body.description === "string") data.description = body.description;
-    if (typeof body.price === "number") data.price = body.price;
-    if (typeof body.subjectId === "string") data.subjectId = body.subjectId;
-    if (typeof body.isPublished === "boolean") data.isPublished = body.isPublished;
+    const { data, error } = parseCourseFields(await req.json());
+    if (error) return NextResponse.json({ error }, { status: 400 });
+    if (typeof data.subjectId === "string") {
+      // Keep the course's category consistent with its (possibly new) subject.
+      const current = await prisma.course.findUnique({ where: { id: params.id }, select: { subjectId: true } });
+      if (current && current.subjectId !== data.subjectId) {
+        const category =
+          (await prisma.category.findFirst({ where: { subjectId: data.subjectId } })) ??
+          (await prisma.category.create({ data: { name: "ทั่วไป", subjectId: data.subjectId } }));
+        data.categoryId = category.id;
+      }
+    }
 
     const course = await prisma.course.update({ where: { id: params.id }, data });
     return NextResponse.json(course);

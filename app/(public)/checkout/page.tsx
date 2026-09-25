@@ -1,3 +1,4 @@
+import { getSettings } from "@/lib/settings";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -47,7 +48,7 @@ export default async function CheckoutPage({
 
   let qrDataUrl: string | null = course.paymentQrUrl ?? null;
   if (!qrDataUrl) {
-    const promptpayId = process.env.PROMPTPAY_ID;
+    const promptpayId = (await getSettings()).promptpay_id;
     qrDataUrl = promptpayId ? await generatePromptPayQR(promptpayId, course.price) : null;
   }
 

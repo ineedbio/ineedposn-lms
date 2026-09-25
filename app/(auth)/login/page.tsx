@@ -27,6 +27,10 @@ function LoginForm() {
         router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
         return;
       }
+      if (res.error.includes("ACCOUNT_BANNED")) {
+        setError("บัญชีนี้ถูกระงับ กรุณาติดต่อแอดมินทาง IG");
+        return;
+      }
       if (res.error.includes("TOO_MANY_ATTEMPTS")) {
         setError("เข้าสู่ระบบผิดหลายครั้งเกินไป กรุณาลองใหม่อีกครั้งในภายหลัง");
         return;

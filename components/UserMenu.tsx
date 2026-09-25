@@ -51,7 +51,7 @@ export default function UserMenu({ name, email, avatarUrl, isAdmin }: Props) {
           </div>
           <Link href="/dashboard" className={item} onClick={() => setOpen(false)}>คอร์สของฉัน</Link>
           <Link href="/settings" className={item} onClick={() => setOpen(false)}>ข้อมูลส่วนตัว</Link>
-          {isAdmin && <Link href="/admin/payments" className={item} onClick={() => setOpen(false)}>หลังบ้าน</Link>}
+          {isAdmin && <Link href="/admin" className={item} onClick={() => setOpen(false)}>หลังบ้าน</Link>}
           <button type="button" className={`${item} text-no`} onClick={() => signOut({ callbackUrl: "/" })}>ออกจากระบบ</button>
         </div>
       )}

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, ApiError } from "@/lib/rbac";
 import { uploadFile } from "@/lib/storage";
 
-const ALLOWED_FOLDERS = ["covers", "page-blocks"] as const;
+const ALLOWED_FOLDERS = ["covers", "page-blocks", "instructors", "results"] as const;
 
 export async function POST(req: Request) {
   try {

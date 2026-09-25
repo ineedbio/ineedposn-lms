@@ -3,7 +3,9 @@ import { LinkButton } from "@/components/Button";
 import CourseCover from "@/components/CourseCover";
 import CourseGrid from "@/components/CourseGrid";
 import { tileInclude, toTile } from "@/lib/courses";
-import { SITE, baht, subjectKey } from "@/lib/site";
+import { baht, subjectKey } from "@/lib/site";
+import { getSettings } from "@/lib/settings";
+import HallOfFame from "@/components/HallOfFame";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +22,12 @@ function SectionHead({ kicker, title }: { kicker: string; title: string }) {
 }
 
 export default async function HomePage() {
-  const [rows, blocks] = await Promise.all([
-    prisma.course.findMany({ where: { isPublished: true }, include: tileInclude, orderBy: { createdAt: "desc" } }),
+  const [rows, blocks, cfg] = await Promise.all([
+    prisma.course.findMany({ where: { isPublished: true }, include: tileInclude, orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }] }),
     prisma.pageBlock.findMany({ where: { page: "home", isPublished: true }, orderBy: { order: "asc" } }),
+    getSettings(),
   ]);
+  const [titleA, titleB] = cfg.hero_title.split("|");
   const courses = rows.map(toTile);
   const feat = courses[0];
 
@@ -34,17 +38,21 @@ export default async function HomePage() {
         <section className="grid items-center gap-10 pb-7 pt-11 md:grid-cols-[1.05fr_0.95fr]">
           <div>
             <span className="flex items-center gap-2.5 text-[12.5px] font-semibold uppercase tracking-[0.12em] text-accent before:h-0.5 before:w-7 before:bg-accent">
-              {SITE.heroEyebrow}
+              {cfg.hero_eyebrow}
             </span>
             <h1 className="mb-4 mt-3.5 text-[clamp(38px,6.4vw,68px)] font-extrabold leading-[1.08] tracking-[-0.03em]">
-              {SITE.heroTitle}
-              <br />
-              <em className="not-italic text-accent">{SITE.heroTitleAccent}</em>
+              {titleA}
+              {titleB && (
+                <>
+                  <br />
+                  <em className="not-italic text-accent">{titleB}</em>
+                </>
+              )}
             </h1>
-            <p className="max-w-[42ch] text-[clamp(16px,1.8vw,18px)] text-secondary">{SITE.heroSubtitle}</p>
+            <p className="max-w-[42ch] text-[clamp(16px,1.8vw,18px)] text-secondary">{cfg.hero_subtitle}</p>
             <div className="mt-[22px] flex flex-wrap gap-2.5">
               <LinkButton href="#courses" size="sm" className="px-[18px] py-2 text-[14.5px]">เลือกคอร์สเลย</LinkButton>
-              <LinkButton href={`https://www.instagram.com/${SITE.instagram}`} target="_blank" rel="noopener" variant="outline" size="sm" className="px-[18px] py-2 text-[14.5px]">
+              <LinkButton href={`https://www.instagram.com/${cfg.contact_ig}`} target="_blank" rel="noopener" variant="outline" size="sm" className="px-[18px] py-2 text-[14.5px]">
                 ปรึกษาแอดมินฟรี
               </LinkButton>
             </div>
@@ -118,6 +126,8 @@ export default async function HomePage() {
           </section>
         )}
 
+        <HallOfFame />
+
         {/* ===== Course grid ===== */}
         <section id="courses" className="scroll-mt-20 py-8">
           <SectionHead kicker="All courses" title="คอร์สทั้งหมด" />
@@ -151,7 +161,7 @@ export default async function HomePage() {
           <SectionHead kicker="Contact" title="มีคำถาม ทักพี่ได้เลย" />
           <div className="grid gap-3.5 md:grid-cols-2">
             <a
-              href={`https://www.instagram.com/${SITE.instagram}`}
+              href={`https://www.instagram.com/${cfg.contact_ig}`}
               target="_blank"
               rel="noopener"
               className="flex items-center gap-4 rounded-card bg-[linear-gradient(120deg,#f58529,#dd2a7b_55%,#8134af)] px-6 py-5 text-snow no-underline transition-transform hover:-translate-y-0.5"
@@ -163,15 +173,15 @@ export default async function HomePage() {
               </svg>
               <span className="grid">
                 <b className="text-lg">Instagram</b>
-                <span className="text-[13px] opacity-85">@{SITE.instagram} · ช่องทางหลัก สอบถาม/ส่งสลิป</span>
+                <span className="text-[13px] opacity-85">@{cfg.contact_ig} · ช่องทางหลัก สอบถาม/ส่งสลิป</span>
               </span>
             </a>
-            <a href={`tel:${SITE.phone.replace(/-/g, "")}`} className="flex items-center gap-4 rounded-card bg-ink px-6 py-5 text-white no-underline transition-transform hover:-translate-y-0.5">
+            <a href={`tel:${cfg.contact_phone.replace(/-/g, "")}`} className="flex items-center gap-4 rounded-card bg-ink px-6 py-5 text-white no-underline transition-transform hover:-translate-y-0.5">
               <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                 <path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2" />
               </svg>
               <span className="grid">
-                <b className="text-lg">{SITE.phone}</b>
+                <b className="text-lg">{cfg.contact_phone}</b>
                 <span className="text-[13px] opacity-80">เฉพาะเรื่องด่วน 10:00–18:00</span>
               </span>
             </a>
