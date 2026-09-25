@@ -1,38 +1,29 @@
-import type { Metadata, Viewport } from 'next';
-import Script from 'next/script';
-import './ineedbio.css';
+import { Anuphan, IBM_Plex_Mono } from "next/font/google";
+import "./globals.css";
+import "./z1.css";
+import type { Metadata } from "next";
+import ChunkErrorRecovery from "@/components/ChunkErrorRecovery";
+
+const anuphan = Anuphan({ subsets: ["thai", "latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-anuphan" });
+const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-plex-mono" });
 
 export const metadata: Metadata = {
-  title: 'INeedBio Classroom',
-  description: 'ติวเข้ม ม.ปลาย กับ INeedBio — ชีวะ เคมี ฟิสิกส์ คณิต สอวน.',
-  icons: { icon: '/ineedbio/logo.webp' },
+  title: "INeedBio",
+  description: "Online tutoring platform for Thai POSN and university entrance exam prep",
 };
 
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  viewportFit: 'cover',
-};
+// Applies the saved light/dark choice before first paint so the page never flashes the wrong theme.
+const themeScript = `try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    // suppressHydrationWarning: app.js ตั้ง data-theme บน <html> เอง (สว่าง/มืด)
-    <html lang="th" suppressHydrationWarning>
+    <html lang="th" suppressHydrationWarning className={`${anuphan.variable} ${plexMono.variable}`}>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
-        />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body suppressHydrationWarning>
+      <body className="font-sans">
+        <ChunkErrorRecovery />
         {children}
-        {/* ใช้สร้าง QR พร้อมเพย์ตอนชำระเงิน */}
-        <Script
-          src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"
-          strategy="afterInteractive"
-        />
       </body>
     </html>
   );
