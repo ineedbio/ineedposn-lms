@@ -95,6 +95,7 @@ function publicUser(u: User) {
 const hashPw = (pw: string) => bcrypt.hash(pw, 10);
 const isSuperAdmin = (u: User) => u.role === "ADMIN";
 const isStaff = (u: User) => u.role === "ADMIN" || u.role === "INSTRUCTOR";
+const isAdmin = isStaff;
 const instructorSubject = (u: User) => (u.role === "INSTRUCTOR" ? (u as any).instructorSubjectKey || "bio" : null);
 
 /** Sign-up goals: dream faculty/university for everyone, current ones for "เด็กซิ่ว" (finished ม.6). */
