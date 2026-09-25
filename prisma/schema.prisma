@@ -57,6 +57,8 @@ model User {
   quizAttempts QuizAttempt[]
   otpTokens    OtpToken[]
   ibSessions   IbSession[]
+  instructorSubjectKey String? // "bio" | "chem" | "phys" | "math" (when role is INSTRUCTOR)
+  recordedExpenses     Expense[]  @relation("RecordedExpenses")
 }
 
 // Login sessions of the INeedBio web app (public/ineedbio/app.js → /api/ib).
@@ -152,6 +154,7 @@ model Course {
   lessons     Lesson[]
   enrollments Enrollment[]
   payments    Payment[]
+  expenses    Expense[]
 
   createdAt DateTime @default(now())
 }
@@ -379,4 +382,28 @@ model FileBlob {
   data      Bytes
   isPublic  Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// ============= FINANCIALS & EXPENSES =============
+
+model Expense {
+  id           String   @id @default(cuid())
+  title        String
+  amount       Int
+  category     String?
+  date         DateTime @default(now())
+  note         String?
+  slipImageUrl String?  // "blob:<id>" stored in FileBlob
+  subjectKey   String?  // "bio" | "chem" | "phys" | "math"
+  courseId     String?
+  course       Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  recordedById String
+  recordedBy   User     @relation("RecordedExpenses", fields: [recordedById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([subjectKey])
+  @@index([date])
+  @@index([courseId])
+  @@index([recordedById])
 }
