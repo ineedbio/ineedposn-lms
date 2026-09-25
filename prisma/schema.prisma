@@ -57,6 +57,8 @@ model User {
   quizAttempts QuizAttempt[]
   otpTokens    OtpToken[]
   ibSessions   IbSession[]
+  shopOrders   ShopOrder[]
+  bills        Bill[]
 }
 
 // Login sessions of the INeedBio web app (public/ineedbio/app.js → /api/ib).
@@ -131,18 +133,23 @@ model Course {
   paymentQrUrl String? // admin-uploaded PromptPay QR image — each course can settle to a different account
 
   // Sales-page content edited from the admin course modal (all optional; empty = section hidden)
-  subtitle        String?
-  fullPrice       Int? // struck-through "was" price
-  level           String? // e.g. "สอวน.", "A-Level"
-  sortOrder       Int     @default(0)
-  highlights      String? // one per line
-  audience        String? // one per line
-  instructorName  String?
-  instructorTitle String?
-  instructorBio   String? // one per line
-  instructorPhoto String?
-  faq             String? // blocks separated by a blank line: first line question, rest answer
-  trailerYoutube  String? // 11-char YouTube id
+  subtitle         String?
+  fullPrice        Int? // struck-through "was" price
+  level            String? // e.g. "สอวน.", "A-Level"
+  sortOrder        Int     @default(0)
+  highlights       String? // one per line
+  audience         String? // one per line
+  instructorName   String?
+  instructorTitle  String?
+  instructorBio    String? // one per line
+  instructorPhoto  String?
+  faq              String? // blocks separated by a blank line: first line question, rest answer
+  trailerYoutube   String? // 11-char YouTube id
+  payAccountId     String? // PayAccount.id that receives payment for this course (else by subject, else the main PromptPay)
+  instructor2Name  String?
+  instructor2Title String?
+  instructor2Bio   String?
+  instructor2Photo String?
 
   subjectId  String
   subject    Subject  @relation(fields: [subjectId], references: [id])
@@ -379,4 +386,103 @@ model FileBlob {
   data      Bytes
   isPublic  Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// ============= SHOP (web app cart → orders → one bill per receiving account) =============
+
+// Bank / PromptPay accounts that receive payment. A course uses its own payAccountId, else the
+// first active account listing its subject, else the main PromptPay in Settings.
+model PayAccount {
+  id          String   @id // "AC…"
+  label       String // internal name, admins only
+  method      String   @default("promptpay") // "promptpay" | "bank"
+  promptpayId String   @default("")
+  bank        String   @default("")
+  accountNo   String   @default("")
+  accountName String
+  qrUrl       String   @default("")
+  note        String   @default("")
+  ig          String   @default("")
+  subjects    String   @default("") // comma-separated subject keys: bio,chem,phys,math
+  status      String   @default("active") // "active" | "inactive"
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+// Several courses sold together for a special price.
+model Bundle {
+  id        String   @id // "BD…"
+  title     String
+  subtitle  String   @default("")
+  courseIds String // comma-separated Course.slug
+  price     Int
+  coverUrl  String   @default("")
+  status    String   @default("active")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Coupon {
+  code        String    @id // upper-case
+  kind        String    @default("percent") // "percent" | "fixed"
+  value       Float
+  maxDiscount Int?
+  scope       String    @default("all") // "all" | "subject" | "course"
+  targets     String    @default("") // comma-separated subject keys or Course.slug
+  minTotal    Int?
+  maxUses     Int?
+  perUser     Int?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  status      String    @default("active")
+  note        String    @default("")
+  createdAt   DateTime  @default(now())
+}
+
+model ShopOrder {
+  id              String   @id // "OD…"
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subtotal        Int
+  discount        Int
+  total           Int
+  couponCode      String?
+  payTermsHash    String // which version of the payment terms the student accepted
+  termsAcceptedAt DateTime
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime
+  bills           Bill[]
+
+  @@index([userId])
+  @@index([couponCode])
+}
+
+// One bill per receiving account in an order. Approving it gives access to its courses
+// (a Payment + ACTIVE Enrollment per course).
+model Bill {
+  id          String    @id // "<order id>-<n>"
+  orderId     String
+  order       ShopOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     Json // { label, pub } snapshot of the receiving account when ordered
+  items       Json // [{ course_id, title, subject, price, discount, net, bundle, bundle_discount, coupon_discount }]
+  subtotal    Int
+  discount    Int
+  total       Int
+  status      String // awaiting_payment | reviewing | rejected | approved | expired | cancelled
+  proof       Json?
+  slipBlobId  String?
+  slipHash    String?
+  submittedAt DateTime?
+  note        String    @default("")
+  decidedBy   String?
+  decidedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@index([slipHash])
 }

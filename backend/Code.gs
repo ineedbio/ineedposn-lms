@@ -28,16 +28,24 @@ var SCHEMA = {
                 'current_faculty','current_university','dream_faculty','dream_university','terms_version','terms_accepted_at'],
   Sessions:    ['token_hash','user_id','device_id','device_info','created_at','expires_at'],
   Courses:     ['course_id','subject','title','subtitle','description','cover_url','price','status','sort_order','created_at',
-                'trailer_youtube','highlights','audience','instructor_name','instructor_title','instructor_bio','instructor_photo','faq','full_price','level'],
+                'trailer_youtube','highlights','audience','instructor_name','instructor_title','instructor_bio','instructor_photo','faq','full_price','level','pay_account_id',
+                'instructor2_name','instructor2_title','instructor2_bio','instructor2_photo'],
   Lessons:     ['lesson_id','course_id','chapter','title','youtube_id','duration_min','attachment_url','is_preview','sort_order'],
   Enrollments: ['enroll_id','user_id','course_id','status','amount','slip_file_id','note','created_at','decided_by','decided_at'],
   Progress:    ['user_id','course_id','lesson_id','completed_at'],
   AdminLog:    ['time','admin_id','action','detail'],
   Settings:    ['key','value'],
-  Results:     ['result_id','year','subject','nickname','school','center','review','photo_url','status','sort_order','created_at']
+  Results:     ['result_id','year','subject','nickname','school','center','review','photo_url','status','sort_order','created_at'],
+  PayAccounts: ['account_id','label','method','promptpay_id','bank','account_no','account_name','qr_url','note','ig','subjects','status','sort_order','created_at'],
+  Bundles:     ['bundle_id','title','subtitle','course_ids','price','cover_url','status','sort_order','created_at'],
+  Coupons:     ['code','kind','value','max_discount','scope','targets','min_total','max_uses','per_user','starts_at','ends_at','status','note','created_at'],
+  Orders:      ['order_id','user_id','subtotal','discount','total','coupon_code','pay_terms_hash','terms_accepted_at','created_at','expires_at'],
+  Bills:       ['bill_id','order_id','user_id','account_id','account','items','subtotal','discount','total','status','proof','slip_file_id','slip_hash',
+                'submitted_at','note','decided_by','decided_at','created_at','expires_at']
 };
 
-var PUBLIC_SETTINGS = ['terms_text','privacy_text','hero_eyebrow','hero_title','hero_subtitle','announcement','promptpay_id','promptpay_name','contact_ig','contact_phone'];
+var PUBLIC_SETTINGS = ['terms_text','privacy_text','hero_eyebrow','hero_title','hero_subtitle','announcement','promptpay_id','promptpay_name','contact_ig',
+  'pay_terms_text','order_expire_hours','proof_paid_at','proof_amount','proof_from_bank','proof_payer_name','proof_extra'];
 var DEFAULT_SETTINGS = {
   hero_eyebrow: 'INeedBio Online',
   hero_title: 'ติวเข้ม ม.ปลาย|กับ INeedBio',
@@ -46,10 +54,18 @@ var DEFAULT_SETTINGS = {
   promptpay_id: '0910256171',
   promptpay_name: 'INeedBio',
   contact_ig: 'ineedbiochem',
-  contact_phone: '091-025-6171',
   admin_emails: '',
   terms_text: '',
-  privacy_text: ''
+  privacy_text: '',
+  // การชำระเงิน — {account} = ชื่อและเลขบัญชีของบิลนั้น, {ig} = IG ติดต่อ
+  pay_terms_text: '- ชำระเงินโดยโอนเข้าบัญชี {account} ที่แสดงในหน้าชำระเงินของบิลนี้เท่านั้น\n' +
+    '- INeedBio ไม่รับผิดชอบทุกกรณี หากโอนเข้าบัญชีอื่นที่ไม่ได้แสดงในหน้านี้ แม้จะมีผู้อ้างว่าเป็นทีมงาน\n' +
+    '- ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว\n' +
+    '- โอนแล้วแนบสลิปและกรอกข้อมูลการโอนให้ครบ แล้วแจ้งการชำระเงินทาง IG @{ig} อีกครั้ง\n' +
+    '- สิทธิ์เข้าเรียนจะเปิดหลังแอดมินตรวจยอดเงินแล้ว',
+  order_expire_hours: '48',
+  proof_paid_at: 'required', proof_amount: 'required', proof_from_bank: 'required', proof_payer_name: 'required',
+  proof_extra: ''
 };
 
 // ───────────────────────── Entry points ─────────────────────────
@@ -81,6 +97,8 @@ var ROUTES = {
   'password.forgot':   passwordForgot_,
   'password.reset':    passwordReset_,
   'courses.list':      function () { return publishedCourses_(); },
+  'bundles.list':      function () { return publicBundles_(); },
+  'bundle.detail':     bundleDetail_,
   'course.detail':     courseDetail_,
   // นักเรียน
   'me':                function (d, p) { return publicUser_(auth_(p)); },
@@ -91,6 +109,11 @@ var ROUTES = {
   'learn.get':         learnGet_,
   'progress.set':      progressSet_,
   'enroll.request':    enrollRequest_,
+  'cart.quote':        cartQuote_,
+  'order.create':      orderCreate_,
+  'my.orders':         myOrders_,
+  'bill.proof':        billProof_,
+  'bill.cancel':       billCancel_,
   // แอดมิน
   'admin.stats':       adminOnly_(adminStats_),
   'admin.enrollments': adminOnly_(adminEnrollments_),
@@ -102,6 +125,7 @@ var ROUTES = {
   'admin.lessons':     adminOnly_(adminLessons_),
   'admin.lesson.save': adminOnly_(adminLessonSave_),
   'admin.lesson.delete': adminOnly_(adminLessonDelete_),
+  'admin.lessons.bulk': adminOnly_(adminLessonsBulk_),
   'admin.lessons.reorder': adminOnly_(adminLessonsReorder_),
   'admin.users':       adminOnly_(adminUsers_),
   'admin.user.update': adminOnly_(adminUserUpdate_),
@@ -112,7 +136,19 @@ var ROUTES = {
   'admin.results':     adminOnly_(adminResults_),
   'admin.result.save': adminOnly_(adminResultSave_),
   'admin.result.delete': adminOnly_(adminResultDelete_),
-  'admin.upload':      adminOnly_(adminUpload_)
+  'admin.upload':      adminOnly_(adminUpload_),
+  'admin.bills':       adminOnly_(adminBills_),
+  'admin.bill.slip':   adminOnly_(adminBillSlip_),
+  'admin.bill.decide': adminOnly_(adminBillDecide_),
+  'admin.accounts':    adminOnly_(adminAccounts_),
+  'admin.account.save': adminOnly_(adminAccountSave_),
+  'admin.account.delete': adminOnly_(adminAccountDelete_),
+  'admin.bundles':     adminOnly_(adminBundles_),
+  'admin.bundle.save': adminOnly_(adminBundleSave_),
+  'admin.bundle.delete': adminOnly_(adminBundleDelete_),
+  'admin.coupons':     adminOnly_(adminCoupons_),
+  'admin.coupon.save': adminOnly_(adminCouponSave_),
+  'admin.coupon.delete': adminOnly_(adminCouponDelete_)
 };
 
 // ───────────────────────── Setup (รันเองใน editor) ─────────────────────────
@@ -152,6 +188,7 @@ function cleanup() {
   withLock_(function () {
     var rows = read_('Sessions').filter(function (s) { return new Date(s.expires_at).getTime() < t; });
     deleteRows_('Sessions', rows);
+    expireBills_();
   });
 }
 function installTriggers() {
@@ -351,6 +388,29 @@ function courseCard_(x, lessons) {
   };
 }
 
+function instructors_(x) {
+  return [['instructor_name', 'instructor_title', 'instructor_bio', 'instructor_photo'], ['instructor2_name', 'instructor2_title', 'instructor2_bio', 'instructor2_photo']]
+    .filter(function (k) { return x[k[0]]; }).map(function (k) { return { name: x[k[0]], title: x[k[1]] || '', bio: x[k[2]] || '', photo: x[k[3]] || '' }; });
+}
+function bundleDetail_(d) {
+  var b = publicBundles_().filter(function (x) { return x.bundle_id === d.bundle_id; })[0];
+  if (!b) throw err_('NOT_FOUND', 'ไม่พบแพ็กเกจนี้ หรือยังไม่เปิดขาย');
+  var courses = read_('Courses'), lessons = read_('Lessons'), seen = {};
+  b.items = b.course_ids.map(function (id) {
+    var x = courses.filter(function (c) { return c.course_id === id; })[0];
+    var card = courseCard_(x, lessons);
+    card.instructors = instructors_(x);
+    card.highlights = lines_(x.highlights, 12, 200);
+    card.chapters = chapters_(lessons.filter(function (l) { return l.course_id === id; }), function () { return 1; }).map(function (ch) { return { title: ch.title, count: ch.lessons.length }; });
+    return card;
+  });
+  b.instructors = [];
+  b.items.forEach(function (c) { c.instructors.forEach(function (t) { if (!seen[t.name]) { seen[t.name] = 1; b.instructors.push(t); } }); });
+  b.lesson_count = b.items.reduce(function (a, c) { return a + c.lesson_count; }, 0);
+  b.total_min = b.items.reduce(function (a, c) { return a + c.total_min; }, 0);
+  return b;
+}
+
 function courseDetail_(d, p) {
   var x = findOne_('Courses', function (r) { return r.course_id === d.course_id; });
   if (!x || x.status !== 'published') throw err_('NOT_FOUND', 'ไม่พบคอร์สนี้');
@@ -363,11 +423,17 @@ function courseDetail_(d, p) {
   out.trailer_id = x.trailer_youtube || '';
   out.highlights = lines_(x.highlights, 12, 200);
   out.audience = lines_(x.audience, 10, 200);
-  out.instructor = x.instructor_name ? { name: x.instructor_name, title: x.instructor_title || '', bio: x.instructor_bio || '', photo: x.instructor_photo || '' } : null;
+  out.instructors = instructors_(x);
+  out.instructor = out.instructors[0] || null;
   out.faq = parseFaq_(x.faq);
+  out.bundles = publicBundles_().filter(function (b) { return b.course_ids.indexOf(x.course_id) >= 0; });
   out.enrollment = null;
   if (p.token) {
-    try { var u = auth_(p); var e = latestEnroll_(u.user_id, x.course_id); out.enrollment = e ? e.status : null; out.note = e ? e.note : ''; } catch (ignore) {}
+    try {
+      var u = auth_(p); var e = latestEnroll_(u.user_id, x.course_id); out.enrollment = e ? e.status : null; out.note = e ? e.note : '';
+      var bl = read_('Bills').filter(function (b) { return b.user_id === u.user_id && BILL_OPEN.indexOf(billStatus_(b)) >= 0 && jsonParse_(b.items, []).some(function (i) { return i.course_id === x.course_id; }); })[0];
+      out.bill = bl ? { bill_id: bl.bill_id, order_id: bl.order_id, status: billStatus_(bl) } : null;
+    } catch (ignore) {}
   }
   return out;
 }
@@ -456,9 +522,597 @@ function enrollRequest_(d, p) {
   return { enroll_id: enrollId, status: 'pending' };
 }
 
+// ───────────────────────── ร้านค้า: ตะกร้า · บิล · บัญชีรับเงิน · โค้ดส่วนลด ─────────────────────────
+var BILL_OPEN = ['awaiting_payment', 'reviewing', 'rejected'];      // บิลที่ยังค้างอยู่ (คอร์สในบิลนี้ใส่ตะกร้าซ้ำไม่ได้)
+var BILL_LIVE = ['awaiting_payment', 'reviewing', 'rejected', 'approved']; // นับว่าใช้โค้ดส่วนลดแล้ว
+var PROOF_KEYS = ['paid_at', 'amount', 'from_bank', 'payer_name'];
+var BANKS = ['กสิกรไทย', 'ไทยพาณิชย์', 'กรุงเทพ', 'กรุงไทย', 'กรุงศรีอยุธยา', 'ทหารไทยธนชาต (ttb)', 'ออมสิน', 'ธ.ก.ส.', 'ยูโอบี', 'ซีไอเอ็มบี ไทย', 'เกียรตินาคินภัทร', 'แลนด์ แอนด์ เฮ้าส์', 'ทิสโก้', 'อาคารสงเคราะห์', 'TrueMoney Wallet', 'อื่นๆ'];
+
+function jsonParse_(s, dflt) { try { return s ? JSON.parse(s) : dflt; } catch (e) { return dflt; } }
+function csv_(v) { return (Array.isArray(v) ? v : String(v || '').split(',')).map(trim_).filter(String); }
+function money_(v) { var n = Math.round(Number(v)); return n >= 0 ? n : 0; }
+function expireHours_() { var h = Number(getSetting_('order_expire_hours')); return h > 0 ? Math.min(h, 720) : 48; }
+
+/** บัญชีหลัก (ใช้เมื่อวิชา/คอร์สไม่ได้ผูกบัญชี) มาจาก ตั้งค่า → พร้อมเพย์ */
+function defaultAccount_() {
+  return { account_id: 'DEFAULT', label: 'บัญชีหลัก', method: 'promptpay', promptpay_id: String(getSetting_('promptpay_id') || '').replace(/\D/g, ''),
+    bank: '', account_no: '', account_name: getSetting_('promptpay_name') || APP.NAME, qr_url: '', note: '', ig: '', subjects: '', status: 'active' };
+}
+function activeAccounts_() { return read_('PayAccounts').filter(function (a) { return a.status !== 'inactive'; }).sort(bySort_); }
+function accountFor_(c, accs) {
+  if (c.pay_account_id) { var own = accs.filter(function (a) { return a.account_id === c.pay_account_id; })[0]; if (own) return own; }
+  return accs.filter(function (a) { return csv_(a.subjects).indexOf(c.subject) >= 0; })[0] || defaultAccount_();
+}
+/** ข้อมูลบัญชีที่นักเรียนเห็น (ไม่มีชื่อเรียกภายใน) */
+function accountPublic_(a) {
+  return { account_id: a.account_id, method: a.method === 'bank' ? 'bank' : 'promptpay', promptpay_id: a.promptpay_id || '', bank: a.bank || '',
+    account_no: a.account_no || '', account_name: a.account_name || '', qr_url: a.qr_url || '', note: a.note || '', ig: a.ig || getSetting_('contact_ig') || '' };
+}
+
+/** เปลี่ยนบิลที่เลยเวลาเป็น expired — ต้องเรียกภายใน lock */
+function expireBills_() {
+  var t = Date.now();
+  read_('Bills').forEach(function (b) {
+    if ((b.status === 'awaiting_payment' || b.status === 'rejected') && b.expires_at && new Date(b.expires_at).getTime() < t) update_('Bills', b._row, { status: 'expired' });
+  });
+}
+function isExpired_(b) { return (b.status === 'awaiting_payment' || b.status === 'rejected') && b.expires_at && new Date(b.expires_at).getTime() < Date.now(); }
+function billStatus_(b) { return isExpired_(b) ? 'expired' : b.status; }
+
+/** คอร์สที่ผู้ใช้มีสิทธิ์แล้ว หรืออยู่ในบิลที่ค้างอยู่ */
+function ownedMap_(uid) {
+  var o = {};
+  read_('Enrollments').forEach(function (e) { if (e.user_id === uid && (e.status === 'approved' || e.status === 'pending')) o[e.course_id] = e.status === 'approved' ? 'owned' : 'pending'; });
+  read_('Bills').forEach(function (b) {
+    if (b.user_id !== uid || BILL_OPEN.indexOf(billStatus_(b)) < 0) return;
+    jsonParse_(b.items, []).forEach(function (it) { if (!o[it.course_id]) o[it.course_id] = 'in_bill'; });
+  });
+  return o;
+}
+
+// ── โค้ดส่วนลด ──
+function normCode_(c) { return String(c || '').trim().toUpperCase().replace(/\s+/g, ''); }
+function couponUses_(code, uid) {
+  var orders = {};
+  read_('Bills').forEach(function (b) { if (BILL_LIVE.indexOf(billStatus_(b)) >= 0) orders[b.order_id] = 1; });
+  return read_('Orders').filter(function (o) { return o.coupon_code === code && orders[o.order_id] && (!uid || o.user_id === uid); }).length;
+}
+/** คืน { discount per course_id, total discount } หรือ throw ถ้าใช้ไม่ได้ */
+function applyCoupon_(code, items, u) {
+  var cp = findOne_('Coupons', function (r) { return r.code === code; });
+  if (!cp || cp.status !== 'active') throw err_('COUPON', 'ไม่พบโค้ด ' + code + ' หรือโค้ดนี้ปิดใช้งานแล้ว');
+  var t = Date.now();
+  if (cp.starts_at && new Date(cp.starts_at).getTime() > t) throw err_('COUPON', 'โค้ดนี้ยังไม่เริ่มใช้');
+  if (cp.ends_at && new Date(cp.ends_at).getTime() < t) throw err_('COUPON', 'โค้ดนี้หมดอายุแล้ว');
+  var targets = csv_(cp.targets);
+  var elig = items.filter(function (it) { return cp.scope === 'subject' ? targets.indexOf(it.subject) >= 0 : cp.scope === 'course' ? targets.indexOf(it.course_id) >= 0 : true; });
+  if (!elig.length) throw err_('COUPON', 'โค้ดนี้ใช้กับคอร์สในตะกร้าไม่ได้');
+  var base = elig.reduce(function (a, it) { return a + it.base; }, 0);
+  if (Number(cp.min_total) > 0 && base < Number(cp.min_total)) throw err_('COUPON', 'โค้ดนี้ใช้ได้เมื่อซื้อคอร์สที่ร่วมรายการครบ ฿' + Number(cp.min_total).toLocaleString());
+  if (Number(cp.max_uses) > 0 && couponUses_(code) >= Number(cp.max_uses)) throw err_('COUPON', 'โค้ดนี้ถูกใช้ครบจำนวนแล้ว');
+  if (u && Number(cp.per_user) > 0 && couponUses_(code, u.user_id) >= Number(cp.per_user)) throw err_('COUPON', 'คุณใช้โค้ดนี้ครบจำนวนครั้งแล้ว');
+  var v = Number(cp.value) || 0;
+  var raw = cp.kind === 'percent' ? base * Math.min(v, 100) / 100 : v;
+  if (cp.kind === 'percent' && Number(cp.max_discount) > 0) raw = Math.min(raw, Number(cp.max_discount));
+  var total = Math.min(Math.floor(raw), base);
+  // แบ่งส่วนลดตามสัดส่วนราคา (เป็นบาทเต็ม) เศษไปลงคอร์สที่แพงสุด
+  var per = {}, given = 0;
+  elig.forEach(function (it) { per[it.course_id] = base ? Math.floor(total * it.base / base) : 0; given += per[it.course_id]; });
+  var top = elig.slice().sort(function (a, b) { return b.base - a.base; })[0];
+  per[top.course_id] += total - given;
+  return { per: per, total: total, label: cp.kind === 'percent' ? 'ลด ' + v + '%' + (Number(cp.max_discount) > 0 ? ' (สูงสุด ฿' + Number(cp.max_discount).toLocaleString() + ')' : '') : 'ลด ฿' + v.toLocaleString() };
+}
+
+/** คำนวณตะกร้า: แยกบิลตามบัญชีรับเงิน + ส่วนลด */
+function priceCart_(ids, code, u) {
+  ids = (Array.isArray(ids) ? ids : []).map(String).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).slice(0, 30);
+  var courses = read_('Courses'), accs = activeAccounts_(), own = u ? ownedMap_(u.user_id) : {};
+  var items = [], missing = [];
+  ids.forEach(function (id) {
+    var c = courses.filter(function (x) { return x.course_id === id && x.status === 'published'; })[0];
+    if (!c) { missing.push(id); return; }
+    var a = accountFor_(c, accs);
+    items.push({ course_id: c.course_id, title: c.title, subject: c.subject, subject_name: APP.SUBJECTS[c.subject] || c.subject, cover_url: c.cover_url,
+      price: money_(c.price), discount: 0, bundle_discount: 0, coupon_discount: 0, bundle: '', net: money_(c.price), account_id: a.account_id, blocked: own[c.course_id] || '' });
+  });
+  var ok = items.filter(function (it) { return !it.blocked; });
+  var bd = applyBundles_(ok, u);
+  ok.forEach(function (it) { it.base = it.price - it.bundle_discount; it.discount = it.bundle_discount; it.net = it.base; });
+  var coupon = null;
+  code = normCode_(code);
+  if (code && ok.length) {
+    try {
+      var r = applyCoupon_(code, ok, u);
+      ok.forEach(function (it) { it.coupon_discount = r.per[it.course_id] || 0; it.discount = it.bundle_discount + it.coupon_discount; it.net = it.price - it.discount; });
+      coupon = { code: code, ok: true, label: r.label, discount: r.total };
+    } catch (e) { if (e.code !== 'COUPON') throw e; coupon = { code: code, ok: false, message: e.message }; }
+  }
+  var groups = {}, order = [];
+  ok.forEach(function (it) {
+    if (!groups[it.account_id]) { var a = it.account_id === 'DEFAULT' ? defaultAccount_() : accs.filter(function (x) { return x.account_id === it.account_id; })[0]; groups[it.account_id] = { account: accountPublic_(a), items: [] }; order.push(it.account_id); }
+    groups[it.account_id].items.push(it);
+  });
+  var bills = order.map(function (k) {
+    var g = groups[k], sub = 0, dis = 0;
+    g.items.forEach(function (it) { sub += it.price; dis += it.discount; });
+    return { account: g.account, items: g.items, subtotal: sub, discount: dis, total: sub - dis };
+  });
+  var subtotal = ok.reduce(function (a, it) { return a + it.price; }, 0), discount = ok.reduce(function (a, it) { return a + it.discount; }, 0);
+  return { items: items, missing: missing, bills: bills, subtotal: subtotal, discount: discount, total: subtotal - discount, coupon: coupon,
+    bundles: bd.applied, bundle_discount: ok.reduce(function (a, it) { return a + it.bundle_discount; }, 0), suggest: bd.suggest };
+}
+
+function cartQuote_(d, p) {
+  var u = null;
+  if (p.token) { try { u = auth_(p); } catch (e) { if (e.code === 'BANNED' || e.code === 'SESSION_REPLACED') throw e; } }
+  return priceCart_(d.course_ids, d.coupon, u);
+}
+
+function orderCreate_(d, p) {
+  var u = auth_(p);
+  if (d.accept_pay_terms !== true && d.accept_pay_terms !== 'true') throw err_('BAD_INPUT', 'กรุณาติ๊กยอมรับข้อตกลงการชำระเงินก่อน');
+  rate_('order:' + u.user_id, 10, 3600, 'สร้างคำสั่งซื้อบ่อยเกินไป ลองใหม่ภายหลัง');
+  return withLock_(function () {
+    ['Orders', 'Bills'].forEach(ensureCols_);
+    expireBills_();
+    var q = priceCart_(d.course_ids, d.coupon, u);
+    if (q.missing.length) throw err_('BAD_INPUT', 'มีคอร์สที่ปิดขายแล้วในตะกร้า ลบออกแล้วลองใหม่');
+    var bad = q.items.filter(function (it) { return it.blocked; })[0];
+    if (bad) throw err_('ALREADY', bad.blocked === 'owned' ? 'คุณมีคอร์ส ' + bad.title + ' แล้ว ลบออกจากตะกร้าก่อน' : 'คอร์ส ' + bad.title + ' อยู่ในคำสั่งซื้อที่ยังไม่เสร็จ ดูได้ที่หน้าคำสั่งซื้อ');
+    if (!q.items.length) throw err_('BAD_INPUT', 'ตะกร้าว่าง');
+    if (q.coupon && !q.coupon.ok) throw err_('COUPON', q.coupon.message);
+    var now = now_(), exp = new Date(Date.now() + expireHours_() * 36e5).toISOString();
+    var oid = 'OD' + id_().slice(-8);
+    append_('Orders', { order_id: oid, user_id: u.user_id, subtotal: q.subtotal, discount: q.discount, total: q.total, coupon_code: q.coupon ? q.coupon.code : '',
+      pay_terms_hash: sha256_(getSetting_('pay_terms_text') || '').slice(0, 12), terms_accepted_at: now, created_at: now, expires_at: exp });
+    var accs = read_('PayAccounts');
+    q.bills.forEach(function (b, i) {
+      var full = b.account.account_id === 'DEFAULT' ? defaultAccount_() : accs.filter(function (a) { return a.account_id === b.account.account_id; })[0];
+      append_('Bills', { bill_id: oid + '-' + (i + 1), order_id: oid, user_id: u.user_id, account_id: b.account.account_id,
+        account: JSON.stringify({ label: full.label || '', pub: b.account }),
+        items: JSON.stringify(b.items.map(function (it) { return { course_id: it.course_id, title: it.title, subject: it.subject, price: it.price, discount: it.discount, net: it.net, bundle: it.bundle, bundle_discount: it.bundle_discount, coupon_discount: it.coupon_discount }; })),
+        subtotal: b.subtotal, discount: b.discount, total: b.total, status: b.total > 0 ? 'awaiting_payment' : 'approved', proof: '', slip_file_id: '', slip_hash: '',
+        submitted_at: '', note: b.total > 0 ? '' : 'ยอด 0 บาท เปิดสิทธิ์อัตโนมัติ', decided_by: b.total > 0 ? '' : 'SYSTEM', decided_at: b.total > 0 ? '' : now, created_at: now, expires_at: exp });
+      if (!(b.total > 0)) b.items.forEach(function (it) {
+        append_('Enrollments', { enroll_id: 'E' + id_(), user_id: u.user_id, course_id: it.course_id, status: 'approved', amount: '0', slip_file_id: '',
+          note: 'บิล ' + oid + '-' + (i + 1) + ' (0 บาท)', created_at: now, decided_by: 'SYSTEM', decided_at: now });
+      });
+    });
+    return { order_id: oid };
+  });
+}
+
+function billPublic_(b) {
+  var acc = jsonParse_(b.account, {});
+  return { bill_id: b.bill_id, order_id: b.order_id, status: billStatus_(b), items: jsonParse_(b.items, []), subtotal: Number(b.subtotal) || 0,
+    discount: Number(b.discount) || 0, total: Number(b.total) || 0, account: acc.pub || {}, proof: jsonParse_(b.proof, null), has_slip: !!b.slip_file_id,
+    note: b.note, created_at: b.created_at, expires_at: b.expires_at, submitted_at: b.submitted_at, decided_at: b.decided_at };
+}
+
+function myOrders_(d, p) {
+  var u = auth_(p);
+  var bills = read_('Bills').filter(function (b) { return b.user_id === u.user_id; });
+  return read_('Orders').filter(function (o) { return o.user_id === u.user_id && (!d.order_id || o.order_id === d.order_id); })
+    .sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 30).map(function (o) {
+      return { order_id: o.order_id, created_at: o.created_at, subtotal: Number(o.subtotal) || 0, discount: Number(o.discount) || 0, total: Number(o.total) || 0,
+        coupon_code: o.coupon_code, bills: bills.filter(function (b) { return b.order_id === o.order_id; }).sort(function (a, b) { return a.bill_id < b.bill_id ? -1 : 1; }).map(billPublic_) };
+    });
+}
+
+/** ฟิลด์แจ้งโอนที่แอดมินตั้งไว้: required / optional / hidden */
+function proofModes_() {
+  var o = {};
+  PROOF_KEYS.forEach(function (k) { var v = getSetting_('proof_' + k); o[k] = v === 'optional' || v === 'hidden' ? v : 'required'; });
+  return o;
+}
+function proofExtra_() {
+  return String(getSetting_('proof_extra') || '').split(/\r?\n/).map(trim_).filter(String).slice(0, 6).map(function (l, i) {
+    var p = l.split('|'); return { key: 'x' + (i + 1), label: clip_(p[0], 60), required: /^(required|บังคับ)$/i.test(trim_(p[1])) };
+  });
+}
+
+function billProof_(d, p) {
+  var u = auth_(p);
+  var s = d.slip || {};
+  if (!/^image\/(jpeg|png|webp)$/.test(s.mime || '')) throw err_('BAD_INPUT', 'แนบรูปสลิป (JPG หรือ PNG)');
+  if (!s.base64 || s.base64.length * 0.75 > APP.SLIP_MAX_BYTES) throw err_('BAD_INPUT', 'รูปสลิปใหญ่เกิน 3 MB');
+  var modes = proofModes_(), proof = {};
+  var need = function (k, label) { var v = clip_(d[k], 120); if (modes[k] === 'required' && !v) throw err_('BAD_INPUT', 'กรอก' + label); return modes[k] === 'hidden' ? '' : v; };
+  var paid = need('paid_at', 'วันและเวลาที่โอน');
+  if (paid) {
+    var pt = new Date(paid).getTime();
+    if (isNaN(pt)) throw err_('BAD_INPUT', 'วันเวลาที่โอนไม่ถูกต้อง');
+    if (pt > Date.now() + 10 * 60000) throw err_('BAD_INPUT', 'วันเวลาที่โอนอยู่ในอนาคต ตรวจอีกครั้ง');
+    proof.paid_at = new Date(pt).toISOString();
+  }
+  var amt = need('amount', 'ยอดที่โอน');
+  if (amt) { var n = Number(String(amt).replace(/[,฿\s]/g, '')); if (!(n > 0)) throw err_('BAD_INPUT', 'ยอดที่โอนต้องเป็นตัวเลข'); proof.amount = Math.round(n * 100) / 100; }
+  proof.from_bank = need('from_bank', 'ธนาคารที่โอนออก');
+  proof.payer_name = need('payer_name', 'ชื่อเจ้าของบัญชีที่โอน');
+  proof.payer_relation = clip_(d.payer_relation, 60);
+  proofExtra_().forEach(function (x) { var v = clip_(d[x.key], 200); if (x.required && !v) throw err_('BAD_INPUT', 'กรอก' + x.label); if (v) proof[x.label] = v; });
+  rate_('slip:' + u.user_id, 8, 3600, 'ส่งสลิปบ่อยเกินไป ลองใหม่ภายหลัง');
+  var hash = sha256_(s.base64);
+  var out = withLock_(function () {
+    ensureCols_('Bills');
+    var b = findOne_('Bills', function (r) { return r.bill_id === d.bill_id && r.user_id === u.user_id; });
+    if (!b) throw err_('NOT_FOUND', 'ไม่พบบิลนี้');
+    if (isExpired_(b)) { update_('Bills', b._row, { status: 'expired' }); throw err_('EXPIRED', 'บิลนี้หมดเวลาชำระแล้ว ใส่คอร์สลงตะกร้าแล้วสั่งซื้อใหม่ได้'); }
+    if (b.status === 'reviewing') throw err_('ALREADY', 'ส่งหลักฐานแล้ว กำลังรอแอดมินตรวจ');
+    if (b.status !== 'awaiting_payment' && b.status !== 'rejected') throw err_('ALREADY', 'บิลนี้ปิดแล้ว');
+    var dup = findOne_('Bills', function (r) { return r.slip_hash === hash && r.bill_id !== b.bill_id; });
+    if (dup) throw err_('SLIP_USED', 'สลิปนี้เคยถูกใช้ส่งแล้ว ถ้าคิดว่าผิดพลาด ทักแอดมินทาง IG');
+    var folder = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('SLIP_FOLDER_ID'));
+    var file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(s.base64), s.mime, b.bill_id + '_' + u.user_id + (s.mime === 'image/png' ? '.png' : '.jpg')));
+    update_('Bills', b._row, { status: 'reviewing', proof: JSON.stringify(proof), slip_file_id: file.getId(), slip_hash: hash, submitted_at: now_(), note: '' });
+    return findOne_('Bills', function (r) { return r.bill_id === b.bill_id; });
+  });
+  var acc = jsonParse_(out.account, {});
+  notifyAdmins_('แจ้งโอนใหม่ ' + out.bill_id + ' · ฿' + Number(out.total).toLocaleString(),
+    [['นักเรียน', u.first_name + ' ' + u.last_name + ' (' + u.nickname + ')'], ['อีเมล', u.email], ['เบอร์', u.phone],
+     ['คอร์ส', jsonParse_(out.items, []).map(function (i) { return i.title; }).join(', ')], ['ยอดบิล', '฿' + Number(out.total).toLocaleString()],
+     ['ยอดที่แจ้ง', proof.amount != null ? '฿' + proof.amount.toLocaleString() : '-'], ['บัญชีรับ', acc.label || ''], ['ผู้โอน', (proof.payer_name || '-') + (proof.payer_relation ? ' (' + proof.payer_relation + ')' : '')]],
+    'เข้าหลังบ้าน → คำสั่งซื้อ เพื่อตรวจยอดและอนุมัติ');
+  return billPublic_(out);
+}
+
+function billCancel_(d, p) {
+  var u = auth_(p);
+  withLock_(function () {
+    var b = findOne_('Bills', function (r) { return r.bill_id === d.bill_id && r.user_id === u.user_id; });
+    if (!b) throw err_('NOT_FOUND', 'ไม่พบบิลนี้');
+    if (b.status !== 'awaiting_payment' && b.status !== 'rejected') throw err_('ALREADY', b.status === 'reviewing' ? 'ส่งหลักฐานแล้ว ยกเลิกเองไม่ได้ ทักแอดมินทาง IG' : 'บิลนี้ปิดแล้ว');
+    update_('Bills', b._row, { status: 'cancelled', decided_at: now_() });
+  });
+  return true;
+}
+
+// ── แพ็กเกจ (ซื้อหลายคอร์สรวมกันในราคาพิเศษ) ──
+function activeBundles_() {
+  return read_('Bundles').filter(function (b) { return b.status !== 'inactive' && csv_(b.course_ids).length >= 2; }).sort(bySort_);
+}
+function bundleOut_(b, courses) {
+  var ids = csv_(b.course_ids), cs = ids.map(function (id) { return courses.filter(function (c) { return c.course_id === id; })[0]; }).filter(Boolean);
+  return { bundle_id: b.bundle_id, title: b.title, subtitle: b.subtitle || '', cover_url: b.cover_url || '', price: money_(b.price), status: b.status || 'active',
+    course_ids: ids, courses: cs.map(function (c) { return { course_id: c.course_id, title: c.title, price: money_(c.price), status: c.status, subject: c.subject }; }),
+    normal: cs.reduce(function (a, c) { return a + money_(c.price); }, 0), sort_order: Number(b.sort_order) || 0,
+    subject: cs.length ? cs[0].subject : '' };
+}
+function publicBundles_() {
+  var c = cache_().get('pub_bundles'); if (c) return JSON.parse(c);
+  var courses = read_('Courses');
+  var list = activeBundles_().map(function (b) { return bundleOut_(b, courses); })
+    .filter(function (b) { return b.courses.length === b.course_ids.length && b.courses.every(function (x) { return x.status === 'published'; }); });
+  try { cache_().put('pub_bundles', JSON.stringify(list), 300); } catch (e) {}
+  return list;
+}
+/** ยอดที่ผู้ใช้จ่ายไปแล้วต่อคอร์ส (คอร์สที่อนุมัติแล้ว) — ใช้คิดส่วนต่างเมื่ออัปเกรดเป็นแพ็กเกจ */
+function paidMap_(uid) {
+  var o = {};
+  if (!uid) return o;
+  read_('Enrollments').forEach(function (e) { if (e.user_id === uid && e.status === 'approved') o[e.course_id] = Math.max(o[e.course_id] || 0, Number(e.amount) || 0); });
+  return o;
+}
+/** เลือกชุดแพ็กเกจที่ไม่ทับกันและประหยัดที่สุดสำหรับคอร์สในตะกร้า แล้วใส่ส่วนลดให้แต่ละคอร์ส */
+function solveBundles_(prices, paid, bundles) {
+  var cands = bundles.map(function (b) {
+    var ids = csv_(b.course_ids), cart = ids.filter(function (id) { return id in prices; });
+    if (!cart.length || !ids.every(function (id) { return id in prices || id in paid; })) return null;
+    var owned = ids.filter(function (id) { return !(id in prices); });
+    var cost = Math.max(0, money_(b.price) - owned.reduce(function (a, id) { return a + paid[id]; }, 0));
+    var normal = cart.reduce(function (a, id) { return a + prices[id]; }, 0);
+    return cost < normal ? { b: b, cart: cart, owned: owned, cost: cost, save: normal - cost } : null;
+  }).filter(Boolean).slice(0, 14);
+  var best = [], bestSave = 0;
+  (function walk(i, used, pick, save) {
+    if (save > bestSave) { bestSave = save; best = pick.slice(); }
+    for (var j = i; j < cands.length; j++) {
+      if (cands[j].cart.some(function (id) { return used[id]; })) continue;
+      var u2 = Object.assign({}, used); cands[j].cart.forEach(function (id) { u2[id] = 1; });
+      pick.push(cands[j]); walk(j + 1, u2, pick, save + cands[j].save); pick.pop();
+    }
+  })(0, {}, [], 0);
+  var total = Object.keys(prices).reduce(function (a, id) { return a + prices[id]; }, 0) - bestSave;
+  return { best: best, total: total };
+}
+/** เลือกชุดแพ็กเกจที่ไม่ทับกันและประหยัดที่สุดสำหรับคอร์สในตะกร้า แล้วใส่ส่วนลดให้แต่ละคอร์ส + แนะนำแพ็กเกจที่ขาดอีกนิด */
+function applyBundles_(ok, u) {
+  var paid = paidMap_(u && u.user_id), inCart = {}, prices = {}, bundles = activeBundles_();
+  ok.forEach(function (it) { inCart[it.course_id] = it; prices[it.course_id] = it.price; });
+  var sol = solveBundles_(prices, paid, bundles);
+  var applied = sol.best.map(function (x) {
+    var normal = x.cart.reduce(function (a, id) { return a + inCart[id].price; }, 0), given = 0;
+    x.cart.forEach(function (id) { var it = inCart[id]; it.bundle_discount = Math.floor(x.save * it.price / normal); given += it.bundle_discount; it.bundle = x.b.title; });
+    inCart[x.cart[0]].bundle_discount += x.save - given;
+    return { bundle_id: x.b.bundle_id, title: x.b.title, save: x.save, cost: x.cost, upgrade: x.owned.length > 0 };
+  });
+  var courses = read_('Courses'), own = u ? ownedMap_(u.user_id) : {}, seen = {};
+  var suggest = bundles.map(function (b) {
+    var ids = csv_(b.course_ids);
+    if (!ids.some(function (id) { return inCart[id]; })) return null;
+    var missing = ids.filter(function (id) { return !inCart[id] && !(id in paid); });
+    if (!missing.length || seen[missing.join(',')]) return null;
+    var mc = missing.map(function (id) { return courses.filter(function (c) { return c.course_id === id && c.status === 'published'; })[0]; });
+    if (mc.some(function (c) { return !c || own[c.course_id]; })) return null;
+    var p2 = Object.assign({}, prices); mc.forEach(function (c) { p2[c.course_id] = money_(c.price); });
+    var extra = solveBundles_(p2, paid, bundles).total - sol.total, full = mc.reduce(function (a, c) { return a + money_(c.price); }, 0);
+    if (extra >= full) return null;
+    seen[missing.join(',')] = 1;
+    return { bundle_id: b.bundle_id, title: b.title, add_ids: missing, add_titles: mc.map(function (c) { return c.title; }), extra: extra, save: full - extra };
+  }).filter(Boolean).sort(function (a, b) { return a.extra - b.extra; }).slice(0, 2);
+  return { applied: applied, suggest: suggest };
+}
+function adminBundles_() { var courses = read_('Courses'); return read_('Bundles').sort(bySort_).map(function (b) { return bundleOut_(b, courses); }); }
+function adminBundleSave_(d, p, admin) {
+  var ids = csv_(d.course_ids);
+  if (ids.length < 2) throw err_('BAD_INPUT', 'แพ็กเกจต้องมีอย่างน้อย 2 คอร์ส');
+  var courses = read_('Courses');
+  var miss = ids.filter(function (id) { return !courses.some(function (c) { return c.course_id === id; }); });
+  if (miss.length) throw err_('BAD_INPUT', 'ไม่พบคอร์ส ' + miss.join(', '));
+  var price = Number(d.price); if (!(price >= 0)) throw err_('BAD_INPUT', 'ใส่ราคาแพ็กเกจ');
+  var cover = clip_(d.cover_url, 500); if (cover && !/^https:\/\//.test(cover)) throw err_('BAD_INPUT', 'ลิงก์รูปต้องขึ้นต้นด้วย https://');
+  var patch = { title: req_(d.title, 'ชื่อแพ็กเกจ', 120), subtitle: clip_(d.subtitle, 200), course_ids: ids.join(','), price: String(money_(price)),
+    cover_url: cover, status: d.status === 'inactive' ? 'inactive' : 'active', sort_order: String(Number(d.sort_order) || 0) };
+  var id = withLock_(function () {
+    ensureCols_('Bundles');
+    if (d.bundle_id) {
+      var b = findOne_('Bundles', function (r) { return r.bundle_id === d.bundle_id; });
+      if (!b) throw err_('NOT_FOUND', 'ไม่พบแพ็กเกจ');
+      update_('Bundles', b._row, patch); log_(admin, 'bundle.edit', d.bundle_id); return d.bundle_id;
+    }
+    patch.bundle_id = 'BD' + id_().slice(-6); patch.created_at = now_();
+    append_('Bundles', patch); log_(admin, 'bundle.create', patch.bundle_id + ' ' + patch.title); return patch.bundle_id;
+  });
+  cache_().remove('pub_bundles');
+  return { bundle_id: id };
+}
+function adminBundleDelete_(d, p, admin) {
+  withLock_(function () {
+    var rows = read_('Bundles').filter(function (r) { return r.bundle_id === d.bundle_id; });
+    if (!rows.length) throw err_('NOT_FOUND', 'ไม่พบแพ็กเกจ');
+    deleteRows_('Bundles', rows); log_(admin, 'bundle.delete', d.bundle_id);
+  });
+  cache_().remove('pub_bundles');
+  return true;
+}
+
+/**
+ * สร้างคอร์สคณิตแยกเทอม ม.4–ม.6 (6 คอร์ส เทอมละ 490) + แพ็กเกจ (ม.ละ 690, ครบ 3 ม. 1890)
+ * รันครั้งเดียวใน editor: setupMathCourses()  — คอร์สที่มีรหัสอยู่แล้วจะข้าม ไม่เขียนทับ
+ * คอร์สที่สร้างใหม่เป็น "ฉบับร่าง" ใส่คลิปแล้วค่อยเปลี่ยนเป็น "เปิดขาย" ในหลังบ้าน
+ * baseUrl = ที่อยู่รูปปก เช่น 'https://ineedbio.shop/images/courses/'
+ */
+function setupMathCourses(baseUrl) {
+  baseUrl = baseUrl || 'https://ineedbio.shop/images/courses/';
+  var T = [
+    ['MATH-M4-T1', 'ม.4', 1, 'เซต · ตรรกศาสตร์ · จำนวนจริง', ['เซต', 'ตรรกศาสตร์', 'จำนวนจริง']],
+    ['MATH-M4-T2', 'ม.4', 2, 'ความสัมพันธ์และฟังก์ชัน · เอกซ์โพเนนเชียลและลอการิทึม', ['ความสัมพันธ์และฟังก์ชัน', 'ฟังก์ชันเอกซ์โพเนนเชียลและฟังก์ชันลอการิทึม']],
+    ['MATH-M5-T1', 'ม.5', 1, 'ฟังก์ชันตรีโกณมิติ · เมทริกซ์ · เวกเตอร์', ['ฟังก์ชันตรีโกณมิติ', 'เมทริกซ์', 'เวกเตอร์']],
+    ['MATH-M5-T2', 'ม.5', 2, 'จำนวนเชิงซ้อน · หลักการนับเบื้องต้น · ความน่าจะเป็น', ['จำนวนเชิงซ้อน', 'หลักการนับเบื้องต้น', 'ความน่าจะเป็น']],
+    ['MATH-M6-T1', 'ม.6', 1, 'ลำดับและอนุกรม · แคลคูลัสเบื้องต้น', ['ลำดับและอนุกรม', 'แคลคูลัสเบื้องต้น']],
+    ['MATH-M6-T2', 'ม.6', 2, 'สถิติและข้อมูล · ตัวแปรสุ่มและการแจกแจงความน่าจะเป็น', ['สถิติและข้อมูล', 'ตัวแปรสุ่มและการแจกแจงความน่าจะเป็น']]
+  ];
+  var made = [];
+  withLock_(function () {
+    ['Courses', 'Bundles'].forEach(ensureCols_);
+    T.forEach(function (t, i) {
+      if (findOne_('Courses', function (r) { return r.course_id === t[0]; })) return;
+      append_('Courses', { course_id: t[0], subject: 'math', title: 'คณิต ' + t[1] + ' เทอม ' + t[2], subtitle: t[3],
+        description: 'คณิตศาสตร์ ' + t[1] + ' เทอม ' + t[2] + ' เรียนตามหลักสูตรโรงเรียน ปูพื้นให้แน่นแล้วฝึกโจทย์ทุกบท ใช้เก็บเกรดและต่อยอดสอบ A-Level ได้',
+        cover_url: baseUrl + 'math-' + t[0].slice(5).toLowerCase() + '.webp', price: '490', status: 'draft', sort_order: String(100 + i), created_at: now_(),
+        highlights: t[4].map(function (x) { return 'ครบบท ' + x; }).concat(['ซื้อคู่ 2 เทอมของชั้นเดียวกัน เหลือ 690']).join('\n'),
+        audience: 'นักเรียน ' + t[1] + ' ที่อยากเข้าใจเนื้อหาเทอมนี้ให้ครบ\nคนที่อยากทบทวนก่อนสอบกลางภาคและปลายภาค\nคนที่ปูพื้นเพื่อสอบ A-Level คณิต',
+        level: t[1] });
+      var P = { instructor_name: 'พี่พร้อม', instructor_title: 'ภวัต เศรษฐเสถียร', instructor_photo: baseUrl + 'pprom.webp',
+        instructor_bio: 'นักศึกษาคณะวิศวกรรมศาสตร์ สาขาหุ่นยนต์และปัญญาประดิษฐ์ มหาวิทยาลัยเชียงใหม่\nสอวน. ชีววิทยา ศูนย์มหาวิทยาลัยนเรศวร\nนักเรียนดีเด่น GPAX 4.00 (2566)\nเหรียญเงินการแข่งขันหุ่นยนต์ระดับอาเซียน' };
+      var N = { instructor_name: 'พี่น้ำแข็ง', instructor_title: 'ศุภณัฐ กล้าจริง', instructor_photo: baseUrl + 'pnk.webp', instructor_bio: '' };
+      var who = t[1] === 'ม.4' ? [P] : t[1] === 'ม.5' ? [N] : [P, N], patch = {};
+      who.forEach(function (w, k) { Object.keys(w).forEach(function (f) { patch[k ? f.replace('instructor_', 'instructor2_') : f] = w[f]; }); });
+      var row = findOne_('Courses', function (r) { return r.course_id === t[0]; }); update_('Courses', row._row, patch);
+      made.push(t[0]);
+    });
+    var B = [['คณิต ม.4 ทั้งปี (เทอม 1 + 2)', 'MATH-M4-T1,MATH-M4-T2', 690, 'math-m4.webp', 'สอนโดย พี่พร้อม · ซื้อแยกเทอมละ 490'],
+      ['คณิต ม.5 ทั้งปี (เทอม 1 + 2)', 'MATH-M5-T1,MATH-M5-T2', 690, 'math-m5.webp', 'สอนโดย พี่น้ำแข็ง · ซื้อแยกเทอมละ 490'],
+      ['คณิต ม.6 ทั้งปี (เทอม 1 + 2)', 'MATH-M6-T1,MATH-M6-T2', 690, 'math-m6.webp', 'สอนโดย พี่พร้อม และพี่น้ำแข็ง · ซื้อแยกเทอมละ 490'],
+      ['คณิตครบ ม.4–ม.6 (6 เทอม)', T.map(function (t) { return t[0]; }).join(','), 1890, 'math-all.webp', 'สอนโดย พี่พร้อม และพี่น้ำแข็ง · ครบ 6 เล่ม ประหยัดกว่าซื้อแยก 1,050']];
+    B.forEach(function (b, i) {
+      if (read_('Bundles').some(function (r) { return r.course_ids === b[1]; })) return;
+      append_('Bundles', { bundle_id: 'BD' + id_().slice(-6), title: b[0], subtitle: b[4], course_ids: b[1], price: String(b[2]), cover_url: baseUrl + b[3],
+        status: 'active', sort_order: String(i + 1), created_at: now_() });
+    });
+  });
+  cache_().remove('pub_courses'); cache_().remove('pub_bundles');
+  console.log('สร้างคอร์สใหม่: ' + (made.join(', ') || 'ไม่มี (มีอยู่แล้ว)') + ' — เข้าหลังบ้านใส่คลิปแล้วเปลี่ยนเป็น "เปิดขาย"');
+  return made;
+}
+
+// ── แอดมิน: คำสั่งซื้อ ──
+function billChecks_(b, u) {
+  var pr = jsonParse_(b.proof, {}) || {}, out = [], total = Number(b.total) || 0;
+  if (pr.amount != null && pr.amount !== '') out.push({ ok: Number(pr.amount) === total, label: Number(pr.amount) === total ? 'ยอดที่แจ้งตรงกับยอดบิล' : 'ยอดที่แจ้ง ฿' + Number(pr.amount).toLocaleString() + ' ไม่ตรงกับยอดบิล ฿' + total.toLocaleString() });
+  if (pr.paid_at) { var okT = new Date(pr.paid_at).getTime() >= new Date(b.created_at).getTime() - 30 * 60000; out.push({ ok: okT, label: okT ? 'โอนหลังสร้างคำสั่งซื้อ' : 'เวลาโอนก่อนสร้างคำสั่งซื้อ (อาจเป็นสลิปเก่า)' }); }
+  if (pr.payer_name) {
+    var nm = String(pr.payer_name).replace(/\s+/g, '').toLowerCase(), fn = String(u.first_name || '').replace(/\s+/g, '').toLowerCase();
+    var same = fn && nm.indexOf(fn) >= 0;
+    out.push({ ok: same || !!pr.payer_relation, warn: !same, label: same ? 'ชื่อผู้โอนตรงกับชื่อที่สมัคร' : pr.payer_relation ? 'ผู้โอนไม่ใช่ตัวนักเรียน (' + pr.payer_relation + ')' : 'ชื่อผู้โอนไม่ตรงกับชื่อที่สมัคร' });
+  }
+  return out;
+}
+function adminBills_(d) {
+  var st = d.status || 'reviewing';
+  var users = read_('Users');
+  return read_('Bills').filter(function (b) {
+    var s = billStatus_(b);
+    if (d.account_id && b.account_id !== d.account_id) return false;
+    if (d.q) { var u0 = users.filter(function (x) { return x.user_id === b.user_id; })[0] || {}; if ([b.bill_id, u0.email, u0.first_name, u0.last_name, u0.nickname, u0.phone].join(' ').toLowerCase().indexOf(String(d.q).toLowerCase()) < 0) return false; }
+    return st === 'closed' ? (s === 'expired' || s === 'cancelled') : st === 'all' ? true : s === st;
+  }).sort(function (a, b) {
+    var ka = a.submitted_at || a.created_at, kb = b.submitted_at || b.created_at;
+    return st === 'reviewing' ? (ka < kb ? -1 : 1) : (ka < kb ? 1 : -1);
+  }).slice(0, 200).map(function (b) {
+    var u = users.filter(function (x) { return x.user_id === b.user_id; })[0] || {};
+    var o = billPublic_(b), acc = jsonParse_(b.account, {});
+    o.account_label = acc.label || ''; o.user_id = b.user_id;
+    o.name = (u.first_name || '') + ' ' + (u.last_name || ''); o.nickname = u.nickname || ''; o.email = u.email || ''; o.phone = u.phone || '';
+    o.checks = billChecks_(b, u);
+    return o;
+  });
+}
+function adminBillSlip_(d) {
+  var b = findOne_('Bills', function (r) { return r.bill_id === d.bill_id; });
+  if (!b || !b.slip_file_id) throw err_('NOT_FOUND', 'ไม่พบสลิป');
+  var blob = DriveApp.getFileById(b.slip_file_id).getBlob();
+  return { mime: blob.getContentType(), base64: Utilities.base64Encode(blob.getBytes()) };
+}
+function adminBillDecide_(d, p, admin) {
+  var decision = d.decision === 'approve' ? 'approved' : d.decision === 'reject' ? 'rejected' : '';
+  if (!decision) throw err_('BAD_INPUT', 'เลือกอนุมัติหรือไม่อนุมัติ');
+  var note = clip_(d.note, 300);
+  if (decision === 'rejected' && !note) throw err_('BAD_INPUT', 'ใส่เหตุผลที่ไม่อนุมัติ นักเรียนจะเห็นข้อความนี้');
+  var b = withLock_(function () {
+    var x = findOne_('Bills', function (r) { return r.bill_id === d.bill_id; });
+    if (!x) throw err_('NOT_FOUND', 'ไม่พบบิลนี้');
+    var s = billStatus_(x);
+    if (decision === 'rejected' && s !== 'reviewing') throw err_('ALREADY', 'บิลนี้ไม่ได้อยู่ในสถานะรอตรวจ');
+    if (decision === 'approved' && ['reviewing', 'awaiting_payment', 'rejected', 'expired'].indexOf(s) < 0) throw err_('ALREADY', 'บิลนี้ถูกตัดสินไปแล้ว');
+    var patch = { status: decision, note: note, decided_by: admin.user_id, decided_at: now_() };
+    if (decision === 'rejected') patch.expires_at = new Date(Date.now() + expireHours_() * 36e5).toISOString();
+    update_('Bills', x._row, patch);
+    if (decision === 'approved') {
+      var have = read_('Enrollments').filter(function (e) { return e.user_id === x.user_id && e.status === 'approved'; }).map(function (e) { return e.course_id; });
+      jsonParse_(x.items, []).forEach(function (it) {
+        if (have.indexOf(it.course_id) >= 0) return;
+        append_('Enrollments', { enroll_id: 'E' + id_(), user_id: x.user_id, course_id: it.course_id, status: 'approved', amount: String(it.net), slip_file_id: x.slip_file_id,
+          note: 'บิล ' + x.bill_id, created_at: x.created_at, decided_by: admin.user_id, decided_at: now_() });
+      });
+    }
+    log_(admin, 'bill.' + decision, x.bill_id);
+    return x;
+  });
+  var u = findOne_('Users', function (r) { return r.user_id === b.user_id; });
+  if (u) sendBillEmail_(u, b, decision, note);
+  return { bill_id: b.bill_id, status: decision };
+}
+function sendBillEmail_(u, b, decision, note) {
+  if (MailApp.getRemainingDailyQuota() < 1) return;
+  var ok = decision === 'approved', items = jsonParse_(b.items, []);
+  var list = '<ul style="margin:0 0 14px;padding-left:18px;color:#0c0c0c;">' + items.map(function (i) { return '<li style="margin:4px 0;">' + esc_(i.title) + '</li>'; }).join('') + '</ul>';
+  var inner = '<tr><td style="padding:0 32px 26px;"><p style="margin:0 0 12px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc_(u.nickname) + '<br>' +
+    (ok ? 'แอดมินตรวจยอดเงินบิล <b style="color:#0c0c0c;">' + esc_(b.bill_id) + '</b> แล้ว เข้าเรียนคอร์สเหล่านี้ได้เลยที่เมนู “คอร์สของฉัน”' : 'หลักฐานการโอนของบิล <b style="color:#0c0c0c;">' + esc_(b.bill_id) + '</b> ยังไม่ผ่านการตรวจ') + '</p>' + list +
+    (!ok && note ? '<p style="margin:0 0 14px;padding:12px 14px;background:#fafafa;border-radius:10px;font-size:14px;color:#0c0c0c;">เหตุผล: ' + esc_(note) + '</p>' : '') +
+    (!ok ? '<p style="margin:0;font-size:14px;color:#525252;">แก้ไขแล้วส่งหลักฐานใหม่ได้ที่หน้า “คำสั่งซื้อ” หรือทัก IG แอดมินเพื่อสอบถาม</p>' : '') + '</td></tr>';
+  MailApp.sendEmail({ to: u.email, name: APP.NAME, subject: ok ? 'เข้าเรียนได้แล้ว · บิล ' + b.bill_id : 'หลักฐานการโอนยังไม่ผ่าน · บิล ' + b.bill_id,
+    body: (ok ? 'เข้าเรียนได้แล้ว: ' : 'หลักฐานการโอนยังไม่ผ่าน: ') + items.map(function (i) { return i.title; }).join(', ') + (note ? '\nเหตุผล: ' + note : ''),
+    htmlBody: mailShell_(ok ? 'เข้าเรียนได้แล้ว' : 'หลักฐานการโอนยังไม่ผ่าน', inner) });
+}
+
+// ── แอดมิน: บัญชีรับเงิน ──
+function adminAccounts_() {
+  var bills = read_('Bills'), courses = read_('Courses');
+  return read_('PayAccounts').sort(bySort_).map(function (a) {
+    var o = {}; SCHEMA.PayAccounts.forEach(function (k) { o[k] = a[k] || ''; });
+    o.subjects = csv_(a.subjects);
+    o.courses = courses.filter(function (c) { return c.pay_account_id === a.account_id; }).map(function (c) { return c.title; });
+    o.pending = bills.filter(function (b) { return b.account_id === a.account_id && billStatus_(b) === 'reviewing'; }).length;
+    return o;
+  });
+}
+function adminAccountSave_(d, p, admin) {
+  var method = d.method === 'bank' ? 'bank' : 'promptpay';
+  var patch = { label: req_(d.label, 'ชื่อเรียกบัญชี', 60), method: method, account_name: req_(d.account_name, 'ชื่อบัญชี', 100),
+    promptpay_id: String(d.promptpay_id || '').replace(/\D/g, ''), bank: clip_(d.bank, 60), account_no: clip_(d.account_no, 30),
+    qr_url: clip_(d.qr_url, 500), note: clip_(d.note, 300), ig: clip_(String(d.ig || '').replace(/^@/, ''), 40),
+    subjects: csv_(d.subjects).filter(function (s) { return APP.SUBJECTS[s]; }).join(','), status: d.status === 'inactive' ? 'inactive' : 'active',
+    sort_order: String(Number(d.sort_order) || 0) };
+  if (method === 'promptpay' && !/^(\d{10}|\d{13}|\d{15})$/.test(patch.promptpay_id)) throw err_('BAD_INPUT', 'เลขพร้อมเพย์ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตร/เลขผู้เสียภาษี 13 หลัก');
+  if (method === 'bank' && (!patch.bank || !patch.account_no)) throw err_('BAD_INPUT', 'กรอกธนาคารและเลขบัญชี');
+  if (patch.qr_url && !/^https:\/\//.test(patch.qr_url)) throw err_('BAD_INPUT', 'ลิงก์รูป QR ต้องขึ้นต้นด้วย https://');
+  var id = withLock_(function () {
+    ensureCols_('PayAccounts');
+    if (d.account_id) {
+      var a = findOne_('PayAccounts', function (r) { return r.account_id === d.account_id; });
+      if (!a) throw err_('NOT_FOUND', 'ไม่พบบัญชีนี้');
+      update_('PayAccounts', a._row, patch); log_(admin, 'account.edit', d.account_id); return d.account_id;
+    }
+    patch.account_id = 'AC' + id_().slice(-6); patch.created_at = now_();
+    append_('PayAccounts', patch); log_(admin, 'account.create', patch.account_id + ' ' + patch.label); return patch.account_id;
+  });
+  return { account_id: id };
+}
+function adminAccountDelete_(d, p, admin) {
+  withLock_(function () {
+    var rows = read_('PayAccounts').filter(function (r) { return r.account_id === d.account_id; });
+    if (!rows.length) throw err_('NOT_FOUND', 'ไม่พบบัญชีนี้');
+    if (read_('Bills').some(function (b) { return b.account_id === d.account_id && BILL_OPEN.indexOf(billStatus_(b)) >= 0; })) throw err_('IN_USE', 'ยังมีบิลที่ค้างอยู่กับบัญชีนี้ ตั้งเป็น "ปิดใช้งาน" แทน แล้วลบทีหลัง');
+    deleteRows_('PayAccounts', rows);
+    read_('Courses').forEach(function (c) { if (c.pay_account_id === d.account_id) update_('Courses', c._row, { pay_account_id: '' }); });
+    log_(admin, 'account.delete', d.account_id);
+  });
+  cache_().remove('pub_courses');
+  return true;
+}
+
+// ── แอดมิน: โค้ดส่วนลด ──
+function adminCoupons_() {
+  var orders = read_('Orders'), bills = read_('Bills');
+  return read_('Coupons').sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).map(function (c) {
+    var o = {}; SCHEMA.Coupons.forEach(function (k) { o[k] = c[k] || ''; });
+    o.targets = csv_(c.targets);
+    var ids = orders.filter(function (x) { return x.coupon_code === c.code; }).map(function (x) { return x.order_id; });
+    var live = {}, paid = 0, disc = 0;
+    bills.forEach(function (b) { if (ids.indexOf(b.order_id) < 0) return; var s = billStatus_(b); if (BILL_LIVE.indexOf(s) >= 0) live[b.order_id] = 1; if (s === 'approved') { paid += Number(b.total) || 0; disc += jsonParse_(b.items, []).reduce(function (a, it) { return a + (it.coupon_discount != null ? Number(it.coupon_discount) || 0 : Number(it.discount) || 0); }, 0); } });
+    o.used = Object.keys(live).length; o.revenue = paid; o.discount_given = disc;
+    return o;
+  });
+}
+function adminCouponSave_(d, p, admin) {
+  var code = normCode_(d.code);
+  if (!/^[A-Z0-9_-]{3,30}$/.test(code)) throw err_('BAD_INPUT', 'โค้ดใช้ได้เฉพาะ A-Z 0-9 - _ ยาว 3–30 ตัว');
+  var kind = d.kind === 'fixed' ? 'fixed' : 'percent', value = Number(d.value);
+  if (!(value > 0)) throw err_('BAD_INPUT', 'ใส่มูลค่าส่วนลด');
+  if (kind === 'percent' && value > 100) throw err_('BAD_INPUT', 'ส่วนลดเปอร์เซ็นต์ต้องไม่เกิน 100');
+  var scope = d.scope === 'subject' || d.scope === 'course' ? d.scope : 'all';
+  var targets = scope === 'all' ? [] : csv_(d.targets);
+  if (scope !== 'all' && !targets.length) throw err_('BAD_INPUT', scope === 'subject' ? 'เลือกวิชาที่ใช้โค้ดได้' : 'เลือกคอร์สที่ใช้โค้ดได้');
+  var dt = function (v, label) { if (!v) return ''; var t = new Date(v).getTime(); if (isNaN(t)) throw err_('BAD_INPUT', label + 'ไม่ถูกต้อง'); return new Date(t).toISOString(); };
+  var patch = { code: code, kind: kind, value: String(value), max_discount: kind === 'percent' && Number(d.max_discount) > 0 ? String(money_(d.max_discount)) : '',
+    scope: scope, targets: targets.join(','), min_total: Number(d.min_total) > 0 ? String(money_(d.min_total)) : '',
+    max_uses: Number(d.max_uses) > 0 ? String(money_(d.max_uses)) : '', per_user: Number(d.per_user) > 0 ? String(money_(d.per_user)) : '',
+    starts_at: dt(d.starts_at, 'วันเริ่ม'), ends_at: dt(d.ends_at, 'วันหมดอายุ'), status: d.status === 'inactive' ? 'inactive' : 'active', note: clip_(d.note, 200) };
+  if (patch.starts_at && patch.ends_at && patch.ends_at <= patch.starts_at) throw err_('BAD_INPUT', 'วันหมดอายุต้องหลังวันเริ่ม');
+  withLock_(function () {
+    ensureCols_('Coupons');
+    var orig = normCode_(d.orig_code);
+    var same = findOne_('Coupons', function (r) { return r.code === code; });
+    if (orig) {
+      var c = findOne_('Coupons', function (r) { return r.code === orig; });
+      if (!c) throw err_('NOT_FOUND', 'ไม่พบโค้ดนี้');
+      if (orig !== code) {
+        if (same) throw err_('BAD_INPUT', 'มีโค้ด ' + code + ' อยู่แล้ว');
+        if (read_('Orders').some(function (o) { return o.coupon_code === orig; })) throw err_('IN_USE', 'โค้ดนี้ถูกใช้ไปแล้ว เปลี่ยนชื่อโค้ดไม่ได้ สร้างโค้ดใหม่แทน');
+      }
+      update_('Coupons', c._row, patch); log_(admin, 'coupon.edit', code);
+    } else {
+      if (same) throw err_('BAD_INPUT', 'มีโค้ด ' + code + ' อยู่แล้ว');
+      patch.created_at = now_(); append_('Coupons', patch); log_(admin, 'coupon.create', code);
+    }
+  });
+  return { code: code };
+}
+function adminCouponDelete_(d, p, admin) {
+  var code = normCode_(d.code);
+  withLock_(function () {
+    var rows = read_('Coupons').filter(function (r) { return r.code === code; });
+    if (!rows.length) throw err_('NOT_FOUND', 'ไม่พบโค้ดนี้');
+    if (read_('Orders').some(function (o) { return o.coupon_code === code; })) throw err_('IN_USE', 'โค้ดนี้ถูกใช้ไปแล้ว ลบไม่ได้ ตั้งเป็น "ปิดใช้งาน" แทน');
+    deleteRows_('Coupons', rows); log_(admin, 'coupon.delete', code);
+  });
+  return true;
+}
+
 // ───────────────────────── แอดมิน ─────────────────────────
 function adminStats_() {
-  var users = read_('Users'), en = read_('Enrollments'), courses = read_('Courses');
+  var users = read_('Users'), en = read_('Enrollments'), courses = read_('Courses'), bills = read_('Bills');
   var today = now_().slice(0, 10), month = now_().slice(0, 7);
   var subj = {};
   Object.keys(APP.SUBJECTS).forEach(function (k) { subj[k] = { subject: k, name: APP.SUBJECTS[k], count: 0, revenue: 0 }; });
@@ -474,8 +1128,11 @@ function adminStats_() {
     dream_top: topCount_(users.map(function (u) { return u.dream_faculty && u.dream_university ? u.dream_faculty + ' · ' + u.dream_university : ''; }), 6),
     repeat_count: users.filter(function (u) { return isRepeat_(u.grade); }).length,
     users_today: users.filter(function (u) { return String(u.created_at).slice(0, 10) === today; }).length,
-    pending: en.filter(function (e) { return e.status === 'pending'; }).length,
-    oldest_pending: en.filter(function (e) { return e.status === 'pending'; }).map(function (e) { return e.created_at; }).sort()[0] || '',
+    pending: en.filter(function (e) { return e.status === 'pending'; }).length + bills.filter(function (b) { return b.status === 'reviewing'; }).length,
+    pending_legacy: en.filter(function (e) { return e.status === 'pending'; }).length,
+    awaiting: bills.filter(function (b) { return billStatus_(b) === 'awaiting_payment'; }).length,
+    oldest_pending: en.filter(function (e) { return e.status === 'pending'; }).map(function (e) { return e.created_at; })
+      .concat(bills.filter(function (b) { return b.status === 'reviewing'; }).map(function (b) { return b.submitted_at; })).sort()[0] || '',
     month_revenue: revenue, month_count: monthCount,
     by_subject: Object.keys(subj).map(function (k) { return subj[k]; }),
     email_quota: MailApp.getRemainingDailyQuota()
@@ -542,7 +1199,7 @@ function adminCourses_() {
   return read_('Courses').sort(bySort_).map(function (x) {
     var card = courseCard_(x, lessons);
     card.sort_order = Number(x.sort_order) || 0;
-    ['trailer_youtube','highlights','audience','instructor_name','instructor_title','instructor_bio','instructor_photo','faq'].forEach(function (k) { card[k] = x[k] || ''; });
+    ['trailer_youtube','highlights','audience','instructor_name','instructor_title','instructor_bio','instructor_photo','faq','pay_account_id','instructor2_name','instructor2_title','instructor2_bio','instructor2_photo'].forEach(function (k) { card[k] = x[k] || ''; });
     card.students = en.filter(function (e) { return e.course_id === x.course_id && e.status === 'approved'; }).length;
     return card;
   });
@@ -560,12 +1217,14 @@ function adminCourseSave_(d, p, admin) {
     full_price: d.full_price === '' || d.full_price == null ? '' : String(Math.max(0, Number(d.full_price) || 0)),
     highlights: lines_(d.highlights, 12, 200).join('\n'), audience: lines_(d.audience, 10, 200).join('\n'),
     instructor_name: clip_(d.instructor_name, 80), instructor_title: clip_(d.instructor_title, 160),
-    instructor_bio: clip_(d.instructor_bio, 1500), instructor_photo: clip_(d.instructor_photo, 500), faq: clip_(d.faq, 5000)
+    instructor_bio: clip_(d.instructor_bio, 1500), instructor_photo: clip_(d.instructor_photo, 500), faq: clip_(d.faq, 5000),
+    instructor2_name: clip_(d.instructor2_name, 80), instructor2_title: clip_(d.instructor2_title, 160), instructor2_bio: clip_(d.instructor2_bio, 1500), instructor2_photo: clip_(d.instructor2_photo, 500),
+    pay_account_id: clip_(d.pay_account_id, 20)
   };
   var tr = String(d.trailer_youtube || '').trim();
   patch.trailer_youtube = tr ? youtubeId_(tr) : '';
   if (tr && !patch.trailer_youtube) throw err_('BAD_INPUT', 'ลิงก์คลิปแนะนำคอร์สไม่ใช่ลิงก์ YouTube');
-  ['cover_url', 'instructor_photo'].forEach(function (k) { if (patch[k] && !/^https:\/\//.test(patch[k])) throw err_('BAD_INPUT', 'ลิงก์รูปต้องขึ้นต้นด้วย https://'); });
+  ['cover_url', 'instructor_photo', 'instructor2_photo'].forEach(function (k) { if (patch[k] && !/^https:\/\//.test(patch[k])) throw err_('BAD_INPUT', 'ลิงก์รูปต้องขึ้นต้นด้วย https://'); });
   var id = withLock_(function () {
     ensureCols_('Courses');
     if (d.course_id) {
@@ -578,7 +1237,7 @@ function adminCourseSave_(d, p, admin) {
     patch.course_id = cid; patch.created_at = now_();
     append_('Courses', patch); log_(admin, 'course.create', cid); return cid;
   });
-  cache_().remove('pub_courses');
+  cache_().remove('pub_courses'); cache_().remove('pub_bundles');
   return { course_id: id };
 }
 
@@ -614,6 +1273,36 @@ function adminLessonSave_(d, p, admin) {
   });
   cache_().remove('pub_courses');
   return { lesson_id: id, youtube_id: yt };
+}
+
+/** เพิ่มหลายตอนพร้อมกัน: items = [{ chapter, title, youtube, duration_min, is_preview }] (ต่อท้ายตอนเดิม) */
+function adminLessonsBulk_(d, p, admin) {
+  var items = Array.isArray(d.items) ? d.items.slice(0, 300) : [];
+  if (!items.length) throw err_('BAD_INPUT', 'ไม่มีรายการตอน');
+  var rows = items.map(function (it, i) {
+    var yt = youtubeId_(it.youtube), n = 'แถวที่ ' + (i + 1) + ': ';
+    if (!yt) throw err_('BAD_INPUT', n + 'ลิงก์ YouTube ไม่ถูกต้อง');
+    var title = clip_(it.title, 160), chapter = clip_(it.chapter, 120);
+    if (!title) throw err_('BAD_INPUT', n + 'ไม่มีชื่อตอน');
+    if (!chapter) throw err_('BAD_INPUT', n + 'ไม่มีชื่อบท (ใส่บรรทัด # ชื่อบท ไว้ก่อน)');
+    return { chapter: chapter, title: title, youtube_id: yt, duration_min: String(Math.max(0, Math.round(Number(it.duration_min) || 0))), attachment_url: '', is_preview: it.is_preview ? 'TRUE' : 'FALSE' };
+  });
+  var n = withLock_(function () {
+    if (!findOne_('Courses', function (r) { return r.course_id === d.course_id; })) throw err_('NOT_FOUND', 'ไม่พบคอร์ส');
+    var max = read_('Lessons').filter(function (r) { return r.course_id === d.course_id; }).reduce(function (m, r) { return Math.max(m, Number(r.sort_order) || 0); }, 0);
+    var sh = sheet_('Lessons'), head = headers_('Lessons');
+    var vals = rows.map(function (r, i) {
+      r.lesson_id = 'L' + id_() + i; r.course_id = d.course_id; r.sort_order = String(max + (i + 1) * 10);
+      return head.map(function (h) { return r[h] == null ? '' : String(r[h]); });
+    });
+    var start = sh.getLastRow() + 1;
+    sh.getRange(start, 1, vals.length, head.length).setNumberFormat('@').setValues(vals);
+    delete _cache.Lessons;
+    log_(admin, 'lesson.bulk', d.course_id + ' +' + vals.length);
+    return vals.length;
+  });
+  cache_().remove('pub_courses');
+  return { added: n };
 }
 
 function adminLessonDelete_(d, p, admin) {
@@ -884,6 +1573,8 @@ function publicSettings_() {
   o.levels = APP.LEVELS;
   o.repeat_grades = APP.REPEAT_GRADES;
   o.terms_version = APP.TERMS_VERSION;
+  o.banks = BANKS;
+  o.proof_extra_fields = proofExtra_();
   cache_().put('settings', JSON.stringify(o), 300);
   return o;
 }

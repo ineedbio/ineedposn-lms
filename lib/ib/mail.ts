@@ -112,6 +112,30 @@ export async function sendDecisionEmail(
   }
 }
 
+export async function sendBillEmail(
+  u: { email: string; nickname: string | null; firstName: string },
+  billId: string,
+  titles: string[],
+  approved: boolean,
+  note: string,
+  ig: string
+) {
+  if ((await remainingQuota()) < 1) return;
+  const list = '<ul style="margin:0 0 14px;padding-left:18px;color:#0c0c0c;">' + titles.map((t) => '<li style="margin:4px 0;">' + esc(t) + "</li>").join("") + "</ul>";
+  const inner =
+    '<tr><td style="padding:0 32px 26px;"><p style="margin:0 0 12px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc(u.nickname || u.firstName) + "<br>" +
+    (approved
+      ? 'แอดมินตรวจยอดเงินบิล <b style="color:#0c0c0c;">' + esc(billId) + "</b> แล้ว เข้าเรียนคอร์สเหล่านี้ได้เลยที่เมนู “คอร์สของฉัน”"
+      : 'หลักฐานการโอนของบิล <b style="color:#0c0c0c;">' + esc(billId) + "</b> ยังไม่ผ่านการตรวจ") + "</p>" + list +
+    (!approved && note ? '<p style="margin:0 0 14px;padding:12px 14px;background:#fafafa;border-radius:10px;font-size:14px;color:#0c0c0c;">เหตุผล: ' + esc(note) + "</p>" : "") +
+    (!approved ? '<p style="margin:0;font-size:14px;color:#525252;">แก้ไขแล้วส่งหลักฐานใหม่ได้ที่หน้า “คำสั่งซื้อ” หรือทัก IG แอดมินเพื่อสอบถาม</p>' : "") + "</td></tr>";
+  try {
+    await send(u.email, approved ? "เข้าเรียนได้แล้ว · บิล " + billId : "หลักฐานการโอนยังไม่ผ่าน · บิล " + billId, shell(approved ? "เข้าเรียนได้แล้ว" : "หลักฐานการโอนยังไม่ผ่าน", inner, ig));
+  } catch (e) {
+    console.error("[mail] bill decision send failed", e);
+  }
+}
+
 export async function notifyAdmins(to: string[], subject: string, rows: [string, string][], footer: string, ig: string) {
   if (!to.length || (await remainingQuota()) < to.length) return;
   const inner =
