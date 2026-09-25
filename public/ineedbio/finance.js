@@ -136,11 +136,11 @@
   }, 400);
 
   function setupAdminUI() {
-    var nav = document.querySelector('nav.ad-nav, nav.tabs, .ad-tabs, [role="tablist"], .adnav, .ad-side, .adside');
+    var nav = document.querySelector('.adm .aside, nav.ad-nav, nav.tabs, .ad-tabs, [role="tablist"], .adnav, .ad-side, .adside');
     if (!nav) {
       var links = document.querySelectorAll('a, button');
       for (var i = 0; i < links.length; i++) {
-        if (links[i].textContent && links[i].textContent.indexOf('คำขอเข้าเรียน') >= 0) {
+        if (links[i].textContent && (links[i].textContent.indexOf('คำขอเข้าเรียน') >= 0 || links[i].textContent.indexOf('สิทธิ์เข้าเรียน') >= 0)) {
           nav = links[i].parentElement;
           break;
         }
@@ -189,7 +189,7 @@
         nav.children[k].addEventListener('click', function () {
           var p = document.getElementById('ib-finance-container');
           if (p) p.style.display = 'none';
-          var defaultContent = document.querySelector('.ad-body, .ad-content, .adcontent, .ad-main');
+          var defaultContent = document.querySelector('.adm .amain, .ad-body, .ad-content, .adcontent, .ad-main');
           if (defaultContent) defaultContent.style.display = '';
           tabBtn.classList.remove('active', 'on');
         });
@@ -203,7 +203,7 @@
     }
     tabBtn.classList.add('active', 'on');
 
-    var defaultContent = document.querySelector('.ad-body, .ad-content, .adcontent, .ad-main');
+    var defaultContent = document.querySelector('.adm .amain, .ad-body, .ad-content, .adcontent, .ad-main');
     if (defaultContent) defaultContent.style.display = 'none';
 
     var container = document.getElementById('ib-finance-container');
