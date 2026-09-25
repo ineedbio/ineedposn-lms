@@ -2,7 +2,7 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
-import { issueNewSession, isSessionStillValid } from "./device-lock";
+import { issueNewSession, getSessionState } from "./device-lock";
 import { rateLimit, peekRateLimit, clientIp } from "./rate-limit";
 import { verifyOtp } from "./otp";
 
@@ -90,6 +90,10 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        // Checked only after the password/OTP is verified, so this never reveals
+        // to a stranger whether an account exists or is banned.
+        if (user.isBanned) throw new Error("ACCOUNT_BANNED");
+
         const sessionId = await issueNewSession(user.id, "unknown-device");
 
         return {
@@ -121,12 +125,11 @@ export const authOptions: NextAuthOptions = {
 
       // Every subsequent request:
       if (token.uid && token.sessionId) {
-        const stillValid = await isSessionStillValid(
-          token.uid as string,
-          token.sessionId as string
-        );
-        if (!stillValid) {
+        const state = await getSessionState(token.uid as string, token.sessionId as string);
+        if (!state.valid) {
           token.invalidated = true;
+        } else if (state.role) {
+          token.role = state.role;
         }
       }
       return token;

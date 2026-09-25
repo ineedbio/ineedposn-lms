@@ -27,9 +27,22 @@ export async function issueNewSession(userId: string, deviceInfo: string) {
 }
 
 export async function isSessionStillValid(userId: string, sessionId: string) {
+  return (await getSessionState(userId, sessionId)).valid;
+}
+
+/**
+ * Per-request check used by the JWT callback: the session is dead if another
+ * device logged in, an admin cleared the device, or the account is banned.
+ * Also returns the current role so an admin promotion/demotion applies
+ * without waiting for the user to log in again.
+ */
+export async function getSessionState(userId: string, sessionId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { currentSessionId: true },
+    select: { currentSessionId: true, isBanned: true, role: true },
   });
-  return !!user && user.currentSessionId === sessionId;
+  return {
+    valid: !!user && !user.isBanned && user.currentSessionId === sessionId,
+    role: user?.role,
+  };
 }

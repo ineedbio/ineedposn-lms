@@ -1,12 +1,7 @@
 // Site-wide copy and contact details shown in the header, hero and footer.
+// Hero text, contact details and PromptPay are editable in หลังบ้าน → ตั้งค่า (lib/settings.ts).
 export const SITE = {
   name: "INeedBio",
-  heroEyebrow: "INeedBio Online",
-  heroTitle: "ติวเข้ม ม.ปลาย",
-  heroTitleAccent: "กับ INeedBio",
-  heroSubtitle: "คอร์สเดียว เรียนได้ตลอดชีพ ไม่มีการลบคลิป",
-  instagram: "ineedbiochem",
-  phone: "091-025-6171",
   domain: "ineedbio.shop",
 };
 

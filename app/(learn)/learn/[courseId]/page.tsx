@@ -34,7 +34,7 @@ export default async function LessonPlayerPage({
     include: {
       lessons: {
         orderBy: { order: "asc" },
-        include: { quiz: { include: { _count: { select: { questions: true } } } } },
+        include: { quiz: { include: { _count: { select: { questions: true } } } }, attachments: true },
       },
     },
   });
@@ -114,6 +114,25 @@ export default async function LessonPlayerPage({
             )}
           </div>
         </div>
+
+        {lesson.attachments.length > 0 && (
+          <div className="flex w-full max-w-[1100px] flex-wrap gap-2.5">
+            {lesson.attachments.map((a) => (
+              <a
+                key={a.id}
+                href={a.fileUrl}
+                target="_blank"
+                rel="noopener"
+                className="flex items-center gap-2 rounded-xl border border-dark-hover px-3.5 py-2 text-sm text-white no-underline hover:border-accent"
+              >
+                <b className="rounded bg-accent px-1.5 py-0.5 text-[11px] text-on-accent">
+                  {(a.fileName.match(/\.([a-z0-9]{2,4})$/i)?.[1] ?? "FILE").toUpperCase()}
+                </b>
+                {a.fileName}
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

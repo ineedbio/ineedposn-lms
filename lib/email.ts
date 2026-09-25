@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
+import { getSettings } from "./settings";
 
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL!;
 const FROM = process.env.EMAIL_FROM ?? "INeedBio <onboarding@resend.dev>";
@@ -110,8 +111,10 @@ export async function notifyAdminNewEnrollment(params: {
   amount: number;
   promptpayRef: string;
 }) {
+  // Recipients come from หลังบ้าน → ตั้งค่า (comma-separated), falling back to the env var.
+  const configured = (await getSettings()).admin_emails.split(",").map((s) => s.trim()).filter(Boolean);
   await send({
-    to: ADMIN_EMAIL,
+    to: configured.length ? configured : ADMIN_EMAIL,
     subject: `มีนักเรียนสมัครเรียนใหม่ — ${params.courseTitle}`,
     html: `
       <div style="font-family: sans-serif; font-size:14px; color:#111;">

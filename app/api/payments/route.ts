@@ -1,3 +1,4 @@
+import { enrollmentOpen, getSettings } from "@/lib/settings";
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { prisma } from "@/lib/prisma";
@@ -9,6 +10,9 @@ export async function POST(req: Request) {
     const session = await requireUser();
     const userId = (session.user as any).id as string;
     const { courseId, slipImageUrl } = await req.json();
+    if (!(await enrollmentOpen())) {
+      return NextResponse.json({ error: (await getSettings()).enroll_closed_message }, { status: 403 });
+    }
 
     if (!courseId || !slipImageUrl) {
       return NextResponse.json({ error: "กรอกข้อมูลไม่ครบ" }, { status: 400 });

@@ -2,13 +2,15 @@ import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import { SITE } from "@/lib/site";
+import { getSettings } from "@/lib/settings";
 
 /** Dark green site footer with live course/lesson/hour counts. */
 export default async function Footer() {
-  const [courses, lessons, subjects] = await Promise.all([
+  const [courses, lessons, subjects, cfg] = await Promise.all([
     prisma.course.count({ where: { isPublished: true } }),
     prisma.lesson.aggregate({ where: { course: { isPublished: true } }, _count: true, _sum: { duration: true } }),
     prisma.subject.findMany({ where: { courses: { some: { isPublished: true } } }, orderBy: { order: "asc" }, select: { id: true, name: true } }),
+    getSettings(),
   ]);
   const hours = Math.round((lessons._sum.duration ?? 0) / 3600);
   const link = "text-snow/70 no-underline hover:text-snow";
@@ -53,15 +55,17 @@ export default async function Footer() {
           <h4 className="mb-3 text-[13px] font-semibold">ติดต่อ</h4>
           <ul className="grid gap-2">
             <li>
-              <a href={`https://www.instagram.com/${SITE.instagram}`} target="_blank" rel="noopener" className={link}>IG @{SITE.instagram}</a>
+              <a href={`https://www.instagram.com/${cfg.contact_ig}`} target="_blank" rel="noopener" className={link}>IG @{cfg.contact_ig}</a>
             </li>
-            <li className="text-snow/70">โทร {SITE.phone}</li>
+            {cfg.contact_phone && <li className="text-snow/70">โทร {cfg.contact_phone}</li>}
             <li className="text-snow/70">(เฉพาะเรื่องด่วน 10:00–18:00)</li>
           </ul>
         </div>
       </div>
       <div className="mx-auto max-w-site border-t border-snow/15 px-4 py-5 text-[12.5px] text-snow/70">
-        © {new Date().getFullYear()} {SITE.name} · {SITE.domain}
+        © {new Date().getFullYear()} {SITE.name} · {SITE.domain} ·{" "}
+        <Link href="/terms" className={link}>ข้อตกลงการใช้งาน</Link> ·{" "}
+        <Link href="/privacy" className={link}>นโยบายความเป็นส่วนตัว</Link>
       </div>
     </footer>
   );

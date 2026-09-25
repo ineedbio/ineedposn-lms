@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, ApiError } from "@/lib/rbac";
+import { parseLessonFields } from "@/lib/course-fields";
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
     await requireAdmin();
-    const body = await req.json();
-    const data: any = {};
-    if (typeof body.title === "string") data.title = body.title;
-    if (typeof body.youtubeUrl === "string") data.youtubeUrl = body.youtubeUrl;
-    if (typeof body.durationMinutes === "number") data.duration = Math.round(body.durationMinutes * 60);
-    if (typeof body.isPreview === "boolean") data.isPreview = body.isPreview;
+    const { data, error } = parseLessonFields(await req.json());
+    if (error) return NextResponse.json({ error }, { status: 400 });
 
     const lesson = await prisma.lesson.update({ where: { id: params.id }, data });
     return NextResponse.json(lesson);
