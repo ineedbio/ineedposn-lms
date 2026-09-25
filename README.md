@@ -2,6 +2,13 @@
 
 Next.js 14 + TypeScript + Tailwind + Prisma + PostgreSQL + NextAuth.
 
+> **Google Apps Script version:** `gas/` holds a second, self-contained build of
+> this LMS that runs on Google Apps Script + Google Sheets/Drive instead of
+> Postgres/Vercel. It keeps this app's features: avatars, the student
+> registry, POSN camp tracking, per-course PromptPay, lesson file uploads and
+> Design Studio blocks. Setup and upgrade steps (in Thai) are in
+> `gas/README.md`. It is not part of the Next.js build.
+
 ## What's actually implemented (real, working code)
 
 - **Database schema** (`prisma/schema.prisma`) — every model from the agreed
