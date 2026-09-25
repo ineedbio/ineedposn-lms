@@ -53,43 +53,79 @@
     return isNaN(d.getTime()) ? isoStr : d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
-  // Inject styles for Finance tab
+  // Inject styles for Finance tab (using native ineedbio theme variables without rgb() wrappers)
   var style = document.createElement('style');
   style.textContent = `
-    .ib-finance-panel { margin-top: 24px; display: flex; flex-direction: column; gap: 20px; font-family: inherit; }
-    .ib-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .ib-stat-card { background: rgb(var(--bg2)); border: 1px solid rgb(var(--line)); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 6px; }
-    .ib-stat-card.income { border-left: 4px solid #16a34a; }
-    .ib-stat-card.expense { border-left: 4px solid #dc2626; }
-    .ib-stat-card.profit { border-left: 4px solid #2563eb; }
-    .ib-stat-title { font-size: 13px; color: rgb(var(--muted)); font-weight: 600; }
-    .ib-stat-val { font-size: 24px; font-weight: 800; color: rgb(var(--ink)); }
-    .ib-stat-sub { font-size: 12px; color: rgb(var(--ink2)); }
-    .ib-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; }
-    .ib-subnav { display: flex; gap: 8px; background: rgb(var(--bg3)); padding: 4px; border-radius: 999px; }
-    .ib-subnav button { padding: 8px 18px; border: none; border-radius: 999px; background: transparent; cursor: pointer; font-size: 13px; font-weight: 600; color: rgb(var(--ink2)); transition: all .15s; }
-    .ib-subnav button.active { background: rgb(var(--ink)); color: rgb(var(--bg)); box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-    .ib-table { width: 100%; border-collapse: separate; border-spacing: 0; background: rgb(var(--bg2)); border: 1px solid rgb(var(--line)); border-radius: 16px; overflow: hidden; font-size: 13px; }
-    .ib-table th { background: rgb(var(--bg3)); padding: 12px 16px; text-align: left; font-weight: 700; color: rgb(var(--ink2)); border-bottom: 1px solid rgb(var(--line)); }
-    .ib-table td { padding: 14px 16px; border-bottom: 1px solid rgb(var(--line)); vertical-align: middle; color: rgb(var(--ink)); }
+    .ib-finance-panel { margin-top: 20px; display: flex; flex-direction: column; gap: 20px; font-family: inherit; }
+    .ib-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .ib-stat-card { background: var(--bg, #ffffff); border: 1px solid var(--line, #e6e6e4); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+    .ib-stat-card.income { border-left: 5px solid #16a34a; }
+    .ib-stat-card.expense { border-left: 5px solid #dc2626; }
+    .ib-stat-card.profit { border-left: 5px solid #2563eb; }
+    .ib-stat-title { font-size: 13px; color: var(--muted, #8a8a8a); font-weight: 600; }
+    .ib-stat-val { font-size: 26px; font-weight: 800; color: var(--ink, #0c0c0c); letter-spacing: -0.02em; }
+    .ib-stat-sub { font-size: 12px; color: var(--ink2, #525252); }
+    
+    .ib-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 16px; }
+    .ib-subnav { display: flex; gap: 4px; background: var(--bg3, #ececea); padding: 4px; border-radius: 999px; }
+    .ib-subnav button { padding: 8px 18px; border: none; border-radius: 999px; background: transparent; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--ink2, #525252); transition: all .15s; font-family: inherit; }
+    .ib-subnav button.active { background: var(--bg, #ffffff) !important; color: var(--ink, #0c0c0c) !important; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    
+    .ib-table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg, #ffffff); border: 1px solid var(--line, #e6e6e4); border-radius: 18px; overflow: hidden; font-size: 13.5px; }
+    .ib-table th { background: var(--bg2, #f5f5f4); padding: 12px 16px; text-align: left; font-weight: 700; color: var(--ink2, #525252); border-bottom: 1px solid var(--line, #e6e6e4); }
+    .ib-table td { padding: 14px 16px; border-bottom: 1px solid var(--line, #e6e6e4); vertical-align: middle; color: var(--ink, #0c0c0c); }
     .ib-table tr:last-child td { border-bottom: none; }
-    .ib-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all .15s; text-decoration: none; }
-    .ib-btn-primary { background: rgb(var(--acc)); color: rgb(var(--on-acc)); }
+    .ib-table tr:hover td { background: var(--bg2, #f5f5f4); }
+    
+    .ib-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 18px; border-radius: 999px; font-size: 13.5px; font-weight: 600; border: 1px solid transparent; cursor: pointer; transition: all .15s; text-decoration: none; font-family: inherit; }
+    .ib-btn-primary { background: var(--acc, #16875a) !important; color: var(--on-acc, #ffffff) !important; border-color: var(--acc, #16875a); }
     .ib-btn-primary:hover { opacity: .9; transform: translateY(-1px); }
-    .ib-btn-outline { background: transparent; border: 1px solid rgb(var(--line)); color: rgb(var(--ink)); }
-    .ib-btn-outline:hover { background: rgb(var(--bg3)); }
-    .ib-btn-sm { padding: 4px 10px; font-size: 12px; }
-    .ib-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 16px; }
-    .ib-modal-card { background: rgb(var(--bg)); border: 1px solid rgb(var(--line)); border-radius: 20px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.25); display: flex; flex-direction: column; gap: 16px; }
+    .ib-btn-outline { background: var(--bg, #ffffff) !important; border: 1px solid var(--line, #e6e6e4) !important; color: var(--ink, #0c0c0c) !important; }
+    .ib-btn-outline:hover { background: var(--bg2, #f5f5f4) !important; }
+    .ib-btn-sm { padding: 5px 12px; font-size: 12.5px; }
+    
+    .ib-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
+    .ib-modal-card { background: var(--bg, #ffffff) !important; color: var(--ink, #0c0c0c) !important; border: 1px solid var(--line, #e6e6e4); border-radius: 20px; max-width: 520px; width: 100%; padding: 26px 28px; box-shadow: 0 24px 60px rgba(0,0,0,0.35); display: flex; flex-direction: column; gap: 16px; position: relative; }
     .ib-field { display: flex; flex-direction: column; gap: 6px; }
-    .ib-field label { font-size: 12px; font-weight: 700; color: rgb(var(--ink2)); }
-    .ib-field input, .ib-field select, .ib-field textarea { padding: 10px 14px; border-radius: 10px; border: 1px solid rgb(var(--line)); background: rgb(var(--bg2)); color: rgb(var(--ink)); font-family: inherit; font-size: 13px; outline: none; }
-    .ib-field input:focus, .ib-field select:focus, .ib-field textarea:focus { border-color: rgb(var(--acc)); }
-    .ib-tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+    .ib-field label { font-size: 12.5px; font-weight: 700; color: var(--ink2, #525252); }
+    .ib-field input, .ib-field select, .ib-field textarea { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line, #e6e6e4); background: var(--bg2, #f5f5f4) !important; color: var(--ink, #0c0c0c) !important; font-family: inherit; font-size: 13.5px; outline: none; transition: border-color .15s, box-shadow .15s; }
+    .ib-field input:focus, .ib-field select:focus, .ib-field textarea:focus { border-color: var(--acc, #16875a); box-shadow: 0 0 0 3px var(--acc-soft, #e3f4ea); }
+    
+    .ib-tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 700; }
     .ib-tag-chem { background: #ffedd5; color: #c2410c; }
     .ib-tag-bio { background: #dcfce7; color: #15803d; }
     .ib-tag-phys { background: #e0f2fe; color: #0369a1; }
     .ib-tag-math { background: #f3e8ff; color: #7e22ce; }
+
+    /* Clean Sidebar Tab Styling */
+    .ib-finance-tab-btn {
+      all: unset;
+      box-sizing: border-box;
+      display: block;
+      width: 100%;
+      cursor: pointer;
+      border: none !important;
+      outline: none !important;
+      background: transparent !important;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--ink2, #525252) !important;
+      padding: 9px 12px;
+      border-radius: 10px;
+      text-align: left;
+      transition: all .15s;
+    }
+    .ib-finance-tab-btn:hover {
+      color: var(--ink, #0c0c0c) !important;
+      background: var(--bg2, #f5f5f4) !important;
+    }
+    .ib-finance-tab-btn.on,
+    .ib-finance-tab-btn.active {
+      color: var(--acc, #16875a) !important;
+      font-weight: 700 !important;
+      background: var(--acc-soft, #e3f4ea) !important;
+    }
   `;
   document.head.appendChild(style);
 
@@ -100,7 +136,7 @@
   }, 400);
 
   function setupAdminUI() {
-    var nav = document.querySelector('nav.ad-nav, nav.tabs, .ad-tabs, [role="tablist"], .adnav');
+    var nav = document.querySelector('nav.ad-nav, nav.tabs, .ad-tabs, [role="tablist"], .adnav, .ad-side, .adside');
     if (!nav) {
       var links = document.querySelectorAll('a, button');
       for (var i = 0; i < links.length; i++) {
@@ -126,15 +162,21 @@
       if (hdr && !document.querySelector('.ib-instructor-badge')) {
         var badge = document.createElement('span');
         badge.className = 'ib-instructor-badge';
-        badge.style.cssText = 'font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px; margin-left: 12px; background: rgb(var(--acc)); color: rgb(var(--on-acc)); vertical-align: middle;';
+        badge.style.cssText = 'font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px; margin-left: 12px; background: var(--acc); color: var(--on-acc); vertical-align: middle;';
         badge.textContent = 'ครูผู้สอนวิชา: ' + (currentUser.instructor_subject_name || currentUser.instructor_subject);
         hdr.appendChild(badge);
       }
     }
 
-    var tabBtn = document.createElement('button');
-    tabBtn.className = 'ib-finance-tab-btn tab ' + (nav.children[0] ? nav.children[0].className : '');
-    tabBtn.type = 'button';
+    var sample = nav.children[0];
+    var tag = sample ? sample.tagName.toLowerCase() : 'button';
+    var tabBtn = document.createElement(tag);
+    tabBtn.className = (sample ? sample.className : 'tab') + ' ib-finance-tab-btn';
+    if (tag === 'a') {
+      tabBtn.href = 'javascript:void(0)';
+    } else {
+      tabBtn.type = 'button';
+    }
     tabBtn.innerHTML = '💰 บัญชีรายรับ-รายจ่าย';
     tabBtn.onclick = function (e) {
       e.preventDefault();
@@ -147,7 +189,7 @@
         nav.children[k].addEventListener('click', function () {
           var p = document.getElementById('ib-finance-container');
           if (p) p.style.display = 'none';
-          var defaultContent = document.querySelector('.ad-body, .ad-content, .adcontent');
+          var defaultContent = document.querySelector('.ad-body, .ad-content, .adcontent, .ad-main');
           if (defaultContent) defaultContent.style.display = '';
           tabBtn.classList.remove('active', 'on');
         });
@@ -161,7 +203,7 @@
     }
     tabBtn.classList.add('active', 'on');
 
-    var defaultContent = document.querySelector('.ad-body, .ad-content, .adcontent');
+    var defaultContent = document.querySelector('.ad-body, .ad-content, .adcontent, .ad-main');
     if (defaultContent) defaultContent.style.display = 'none';
 
     var container = document.getElementById('ib-finance-container');
@@ -182,7 +224,7 @@
   }
 
   async function renderFinanceView(container) {
-    container.innerHTML = '<div style="text-align: center; padding: 40px; color: rgb(var(--muted));">กำลังโหลดข้อมูลการเงินและบัญชี...</div>';
+    container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--muted);">กำลังโหลดข้อมูลการเงินและบัญชี...</div>';
 
     try {
       if (!cachedCourses.length) {
@@ -197,9 +239,9 @@
       container.innerHTML = `
         <div class="ib-toolbar">
           <div style="display: flex; align-items: center; gap: 12px;">
-            <h2 style="font-size: 20px; font-weight: 800; margin: 0;">💰 บัญชีรายรับ-รายจ่าย</h2>
+            <h2 style="font-size: 20px; font-weight: 800; margin: 0; color: var(--ink);">💰 บัญชีรายรับ-รายจ่าย</h2>
             ${isSuper ? `
-              <select id="ib-subject-selector" class="ib-btn ib-btn-outline" style="padding: 6px 12px;">
+              <select id="ib-subject-selector" class="ib-btn ib-btn-outline" style="padding: 6px 14px; font-weight: 600;">
                 <option value="" ${currentSubject === '' ? 'selected' : ''}>ทุกวิชา</option>
                 <option value="bio" ${currentSubject === 'bio' ? 'selected' : ''}>ชีววิทยา</option>
                 <option value="chem" ${currentSubject === 'chem' ? 'selected' : ''}>เคมี</option>
@@ -281,7 +323,7 @@
 
   function renderIncomesTable(rows) {
     if (!rows.length) {
-      return '<div style="padding: 40px; text-align: center; color: rgb(var(--muted));">ไม่มีรายการรายรับในหมวดหมู่นี้</div>';
+      return '<div style="padding: 40px; text-align: center; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 18px;">ไม่มีรายการรายรับในหมวดหมู่นี้</div>';
     }
     return `
       <table class="ib-table">
@@ -302,7 +344,7 @@
                 <td>${fmtDate(r.reviewed_at || r.created_at)}</td>
                 <td>
                   <strong>${r.student_name}</strong> ${r.student_nickname ? '(' + r.student_nickname + ')' : ''}
-                  <div style="font-size: 11px; color: rgb(var(--muted));">${r.student_email}</div>
+                  <div style="font-size: 11px; color: var(--muted);">${r.student_email}</div>
                 </td>
                 <td><strong>${r.course_title}</strong></td>
                 <td><span class="ib-tag ib-tag-${r.subject_key}">${r.subject_name || r.subject_key}</span></td>
@@ -312,7 +354,7 @@
                     <button type="button" class="ib-btn ib-btn-outline ib-btn-sm btn-view-slip" data-id="${r.payment_id}" data-type="income">
                       🔍 ดูสลิป
                     </button>
-                  ` : '<span style="color: rgb(var(--muted));">ไม่มีสลิป</span>'}
+                  ` : '<span style="color: var(--muted);">ไม่มีสลิป</span>'}
                 </td>
               </tr>
             `;
@@ -324,7 +366,7 @@
 
   function renderExpensesTable(rows) {
     if (!rows.length) {
-      return '<div style="padding: 40px; text-align: center; color: rgb(var(--muted));">ยังไม่มีการบันทึกรายจ่าย</div>';
+      return '<div style="padding: 40px; text-align: center; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 18px;">ยังไม่มีการบันทึกรายจ่าย</div>';
     }
     return `
       <table class="ib-table">
@@ -347,9 +389,9 @@
                 <td>${fmtDate(r.date)}</td>
                 <td>
                   <strong>${r.title}</strong>
-                  ${r.note ? `<div style="font-size: 11px; color: rgb(var(--muted));">${r.note}</div>` : ''}
+                  ${r.note ? `<div style="font-size: 11px; color: var(--muted);">${r.note}</div>` : ''}
                 </td>
-                <td><span style="background: rgb(var(--bg3)); padding: 2px 8px; border-radius: 6px; font-size: 12px;">${r.category}</span></td>
+                <td><span style="background: var(--bg3); padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;">${r.category}</span></td>
                 <td>
                   ${r.course_title ? `<div style="font-size: 12px;">${r.course_title}</div>` : ''}
                   <span class="ib-tag ib-tag-${r.subject_key}">${r.subject_name || r.subject_key}</span>
@@ -361,7 +403,7 @@
                     <button type="button" class="ib-btn ib-btn-outline ib-btn-sm btn-view-slip" data-id="${r.expense_id}" data-type="expense">
                       🧾 ดูใบเสร็จ
                     </button>
-                  ` : '<span style="color: rgb(var(--muted));">ไม่มีสลิป</span>'}
+                  ` : '<span style="color: var(--muted);">ไม่มีสลิป</span>'}
                 </td>
                 <td>
                   <button type="button" class="ib-btn ib-btn-outline ib-btn-sm btn-delete-expense" data-id="${r.expense_id}" style="color: #dc2626;">
@@ -417,14 +459,14 @@
     var src = 'data:' + mime + ';base64,' + base64;
     modal.innerHTML = `
       <div class="ib-modal-card" style="max-width: 440px; text-align: center;">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgb(var(--line)); padding-bottom: 12px;">
-          <strong style="font-size: 15px;">${title}</strong>
-          <button type="button" id="btn-close-modal" style="background: none; border: none; font-size: 20px; cursor: pointer; color: rgb(var(--muted));">&times;</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 12px;">
+          <strong style="font-size: 16px; font-weight: 700;">${title}</strong>
+          <button type="button" id="btn-close-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); line-height: 1;">&times;</button>
         </div>
-        <div style="max-height: 70vh; overflow-y: auto; border-radius: 12px;">
+        <div style="max-height: 65vh; overflow-y: auto; border-radius: 12px; margin: 12px 0;">
           <img src="${src}" style="width: 100%; border-radius: 12px; display: block;" alt="Slip" />
         </div>
-        <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px;">
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
           <a href="${src}" target="_blank" download="slip" class="ib-btn ib-btn-outline">เปิดภาพเต็ม</a>
           <button type="button" id="btn-close-modal-bottom" class="ib-btn ib-btn-primary">ปิด</button>
         </div>
@@ -445,9 +487,9 @@
     modal.className = 'ib-modal-overlay';
     modal.innerHTML = `
       <div class="ib-modal-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgb(var(--line)); padding-bottom: 12px;">
-          <strong style="font-size: 16px;">+ บันทึกรายจ่ายใหม่</strong>
-          <button type="button" id="btn-close-exp" style="background: none; border: none; font-size: 20px; cursor: pointer; color: rgb(var(--muted));">&times;</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 12px;">
+          <strong style="font-size: 17px; font-weight: 800;">+ บันทึกรายจ่ายใหม่</strong>
+          <button type="button" id="btn-close-exp" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); line-height: 1; padding: 0 4px;">&times;</button>
         </div>
         <form id="exp-form" style="display: flex; flex-direction: column; gap: 14px;">
           <div class="ib-field">
@@ -504,14 +546,14 @@
             <label>แนบสลิป / ใบเสร็จหลักฐาน (JPG / PNG ไม่เกิน 3 MB)</label>
             <input type="file" id="exp-file-input" accept="image/png, image/jpeg, image/webp" />
             <div id="exp-img-preview" style="display: none; margin-top: 8px;">
-              <img style="max-height: 120px; border-radius: 8px; border: 1px solid rgb(var(--line));" />
+              <img style="max-height: 120px; border-radius: 8px; border: 1px solid var(--line);" />
             </div>
           </div>
           <div class="ib-field">
             <label>บันทึกเพิ่มเติม</label>
             <textarea name="note" rows="2" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"></textarea>
           </div>
-          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px;">
             <button type="button" id="btn-cancel-exp" class="ib-btn ib-btn-outline">ยกเลิก</button>
             <button type="submit" id="btn-submit-exp" class="ib-btn ib-btn-primary">บันทึกรายจ่าย</button>
           </div>
