@@ -1,8 +1,8 @@
-// AlterTable
-ALTER TABLE "User" ADD COLUMN "instructorSubjectKey" TEXT;
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "instructorSubjectKey" TEXT;
 
 -- CreateTable
-CREATE TABLE "Expense" (
+CREATE TABLE IF NOT EXISTS "Expense" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "amount" INTEGER NOT NULL,
@@ -20,11 +20,18 @@ CREATE TABLE "Expense" (
 );
 
 -- CreateIndex
-CREATE INDEX "Expense_subjectKey_idx" ON "Expense"("subjectKey");
-CREATE INDEX "Expense_date_idx" ON "Expense"("date");
-CREATE INDEX "Expense_courseId_idx" ON "Expense"("courseId");
-CREATE INDEX "Expense_recordedById_idx" ON "Expense"("recordedById");
+CREATE INDEX IF NOT EXISTS "Expense_subjectKey_idx" ON "Expense"("subjectKey");
+CREATE INDEX IF NOT EXISTS "Expense_date_idx" ON "Expense"("date");
+CREATE INDEX IF NOT EXISTS "Expense_courseId_idx" ON "Expense"("courseId");
+CREATE INDEX IF NOT EXISTS "Expense_recordedById_idx" ON "Expense"("recordedById");
 
 -- AddForeignKey
-ALTER TABLE "Expense" ADD CONSTRAINT "Expense_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "Course"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "Expense" ADD CONSTRAINT "Expense_recordedById_fkey" FOREIGN KEY ("recordedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Expense_courseId_fkey') THEN
+        ALTER TABLE "Expense" ADD CONSTRAINT "Expense_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "Course"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Expense_recordedById_fkey') THEN
+        ALTER TABLE "Expense" ADD CONSTRAINT "Expense_recordedById_fkey" FOREIGN KEY ("recordedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+END $$;
