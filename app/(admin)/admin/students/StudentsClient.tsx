@@ -341,7 +341,7 @@ export default function StudentsClient({
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[24px] p-6 max-w-[340px] w-full shadow-2xl flex flex-col items-center text-center gap-3 border border-slate-100">
             <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-xl font-bold">
               🗑️
@@ -406,7 +406,7 @@ export default function StudentsClient({
           )}
           <button
             onClick={() => setIsAddOpen(true)}
-            className="text-xs font-bold px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white shadow-sm transition"
+            className="text-xs font-bold px-4 py-2 rounded-xl bg-ink hover:opacity-90 text-white shadow-sm transition"
           >
             + เพิ่มนักเรียน
           </button>
@@ -624,7 +624,7 @@ export default function StudentsClient({
 
       {/* Edit Modal */}
       {editingStudent && (
-        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[24px] p-6 max-w-[500px] w-full shadow-2xl flex flex-col gap-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <h2 className="text-base font-bold text-slate-900">✏️ แก้ไขข้อมูลนักเรียน</h2>
@@ -720,7 +720,7 @@ export default function StudentsClient({
 
       {/* Add Modal */}
       {isAddOpen && (
-        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[24px] p-6 max-w-[500px] w-full shadow-2xl flex flex-col gap-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <h2 className="text-base font-bold text-slate-900">+ เพิ่มนักเรียนใหม่</h2>

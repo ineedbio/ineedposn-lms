@@ -47,7 +47,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-[1300px] mx-auto px-12 pt-14 pb-24">
+    <div className="mx-auto max-w-site px-4 pb-16 pt-9">
       <div className="mb-10">
         <Link href="/dashboard" className="text-sm font-medium text-secondary hover:text-accent transition-colors">
           ← กลับหน้าหลัก

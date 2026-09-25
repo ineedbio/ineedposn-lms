@@ -65,7 +65,7 @@ export default function StudentsTable({
       {filtered.map((s) => (
         <div
           key={s.id}
-          className="grid grid-cols-[2fr_1.3fr_1fr_2fr_1fr] gap-3 items-center px-5 py-[18px] border-b border-[#f0f0f2]"
+          className="grid grid-cols-[2fr_1.3fr_1fr_2fr_1fr] gap-3 items-center px-5 py-[18px] border-b border-border-light"
         >
           <div className="flex flex-col gap-0.5 min-w-0">
             <div className="text-[15px] font-bold truncate">{s.name}</div>

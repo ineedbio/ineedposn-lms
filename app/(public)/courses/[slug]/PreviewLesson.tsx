@@ -17,7 +17,7 @@ export default function PreviewLesson({ youtubeUrl }: { youtubeUrl: string }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-xs font-semibold text-ink bg-panel px-3.5 py-1.5 rounded-pill hover:bg-border-light transition-all duration-150 active:scale-[0.96]"
+        className="rounded-pill border border-accent px-3 py-0.5 text-[12.5px] font-medium text-accent transition-opacity hover:opacity-80"
       >
         ทดลองเรียน
       </button>

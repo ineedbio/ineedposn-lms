@@ -120,8 +120,8 @@ export default function DesignStudio({ initialBlocks }: { initialBlocks: Block[]
           ))}
         </aside>
 
-        <main className="flex-1 bg-[#f0f0f2] overflow-y-auto p-10 flex justify-center">
-          <div className="w-full max-w-[820px] bg-white rounded-2xl overflow-hidden shadow-[0_0_0_1px_#e5e5e7] flex flex-col h-fit">
+        <main className="flex-1 bg-panel overflow-y-auto p-10 flex justify-center">
+          <div className="w-full max-w-[820px] bg-white rounded-2xl overflow-hidden ring-1 ring-border flex flex-col h-fit">
             {blocks.length === 0 && (
               <div className="py-20 px-8 text-center text-muted text-[15px]">
                 แคนวาสว่าง — เลือกบล็อกจากด้านซ้ายเพื่อเริ่ม

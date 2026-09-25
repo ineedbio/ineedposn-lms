@@ -99,7 +99,7 @@ export default async function LessonPlayerPage({
             {idx > 0 && (
               <Link
                 href={`/learn/${course.id}?lesson=${idx - 1}`}
-                className="text-sm font-semibold text-panel bg-dark-hover px-5 py-2.5 rounded-pill hover:bg-[#4a4a4c] hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+                className="text-sm font-semibold text-panel bg-dark-hover px-5 py-2.5 rounded-pill hover:opacity-90 hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
               >
                 ← บทก่อนหน้า
               </Link>

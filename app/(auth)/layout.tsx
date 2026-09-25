@@ -1,14 +1,14 @@
-import Link from "next/link";
-import Image from "next/image";
+import Logo from "@/components/Logo";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <header className="px-12 py-7">
-        <Link href="/" className="flex items-center gap-2.5 text-[22px] font-extrabold tracking-[-0.02em] text-ink">
-          <Image src="/ineedbio-logo.png" alt="INeedBio" width={34} height={34} />
-          INeedBio
-        </Link>
+    <div className="flex min-h-screen flex-col bg-paper">
+      <header className="border-b border-border">
+        <div className="mx-auto flex h-[58px] max-w-site items-center justify-between px-4">
+          <Logo />
+          <ThemeToggle />
+        </div>
       </header>
       {children}
     </div>
