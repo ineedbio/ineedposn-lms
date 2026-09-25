@@ -1,99 +1,75 @@
 import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import CourseCover from "@/components/CourseCover";
-import { LinkButton } from "@/components/Button";
+import { myStates } from "@/lib/catalog";
 import { subjectKey } from "@/lib/site";
+import { zdate } from "@/lib/z1";
+import { StatusBadge } from "@/components/z1/blocks";
 
+// Port of viewMy() from the Apps Script site.
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
-  const user = session?.user as any;
-  if (!user?.id) {
-    redirect("/login");
-  }
+  const userId = (session?.user as any)?.id as string | undefined;
+  if (!userId) redirect("/login");
 
-  // 1. ดึงข้อมูลผู้ใช้สดๆ จาก Database
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { firstName: true, nickname: true },
+  const [user, states, pays] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { nickname: true, firstName: true } }),
+    myStates(userId),
+    prisma.payment.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
+  ]);
+  const ids = Object.keys(states);
+  const courses = await prisma.course.findMany({
+    where: { id: { in: ids } },
+    include: { subject: true, lessons: { select: { id: true, progress: { where: { userId }, select: { isCompleted: true } } } } },
   });
-
-  // ใช้ชื่อเล่นก่อน ถ้าไม่มีใช้ชื่อจริง
-  const displayName = dbUser?.nickname || dbUser?.firstName || (user.name as string | undefined)?.split(" ")[0] || "";
-
-  // 2. ดึงคอร์สที่ลงทะเบียน (เรียนได้แล้ว + รอตรวจสลิป)
-  const enrollments = await prisma.enrollment.findMany({
-    where: { userId: user.id, status: { in: ["ACTIVE", "PENDING"] } },
-    orderBy: { status: "asc" },
-    include: {
-      course: {
-        include: {
-          subject: true,
-          lessons: { orderBy: { order: "asc" }, include: { progress: { where: { userId: user.id } } } },
-        },
-      },
-    },
-  });
+  const rank = { approved: 0, pending: 1, rejected: 2 } as const;
+  const list = courses
+    .map((c) => {
+      const done = c.lessons.filter((l) => l.progress[0]?.isCompleted).length;
+      const pay = pays.find((p) => p.courseId === c.id);
+      return { c, st: states[c.id], done, total: c.lessons.length, pct: c.lessons.length ? Math.round((done / c.lessons.length) * 100) : 0, pay };
+    })
+    .sort((a, b) => rank[a.st] - rank[b.st]);
 
   return (
-    <main className="mx-auto max-w-site px-4 pb-16 pt-9">
-      <div className="mb-7 grid gap-1">
-        <span className="text-[13px] font-medium text-muted">คอร์สของฉัน</span>
-        <h1 className="text-[clamp(28px,4vw,38px)] font-bold">สวัสดี {displayName}</h1>
-        <p className="text-secondary">เรียนต่อจากที่ค้างไว้ หรือเลือกบทเรียนใหม่</p>
+    <>
+      <div className="page-h">
+        <span className="mono">สวัสดี {user?.nickname || user?.firstName}</span>
+        <h1>คอร์สของฉัน</h1>
       </div>
-
-      {enrollments.length === 0 ? (
-        <div className="grid justify-items-center gap-4 rounded-card border border-dashed border-border px-6 py-14 text-center text-secondary">
-          <p>ยังไม่มีคอร์สที่ลงทะเบียน</p>
-          <LinkButton href="/#courses" size="sm">เลือกคอร์ส</LinkButton>
+      {list.length ? (
+        <div className="mine">
+          {list.map(({ c, st, done, total, pct, pay }) => (
+            <div key={c.id} className={`mc s-${subjectKey(c.subject)}`}>
+              <div className="spread"><span className="mono">{c.subject.name}</span><StatusBadge s={st} /></div>
+              <h3>{c.title}</h3>
+              {st === "approved" ? (
+                <>
+                  <div className="stack" style={{ gap: 6 }}>
+                    <div className="bar"><i style={{ width: `${pct}%` }} /></div>
+                    <span className="sm ink2">เรียนไปแล้ว {pct}% · {done} จาก {total} ตอน</span>
+                  </div>
+                  <div className="act"><Link className="pill" href={`/learn/${c.id}`}>{done ? "เรียนต่อ" : "เริ่มเรียน"}</Link></div>
+                </>
+              ) : st === "pending" ? (
+                <p className="sm ink2">ส่งสลิปเมื่อ {zdate(pay?.createdAt, true)} · แอดมินกำลังตรวจ</p>
+              ) : (
+                <>
+                  <p className="sm ink2">สลิปไม่ผ่าน{pay?.rejectReason ? `: ${pay.rejectReason}` : ""}</p>
+                  <div className="act"><Link className="pill ghost" href={`/courses/${c.slug}`}>ส่งสลิปใหม่</Link></div>
+                </>
+              )}
+            </div>
+          ))}
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-[18px]">
-          {enrollments.map((e) => {
-            const active = e.status === "ACTIVE";
-            const total = e.course.lessons.length;
-            const done = e.course.lessons.filter((l) => l.progress[0]?.isCompleted).length;
-            const pct = total ? Math.round((done / total) * 100) : 0;
-            const resumeIdx = Math.max(
-              e.course.lessons.findIndex((l) => !l.progress[0]?.isCompleted),
-              0
-            );
-            return (
-              <Link
-                key={e.id}
-                href={active ? `/learn/${e.course.id}?lesson=${resumeIdx}` : `/courses/${e.course.slug}`}
-                className={`s-${subjectKey(e.course.subject)} flex flex-col overflow-hidden rounded-card border border-border bg-paper no-underline transition duration-200 hover:-translate-y-0.5 hover:border-secondary`}
-              >
-                <CourseCover course={e.course} />
-                <div className="flex flex-1 flex-col gap-2 px-[18px] pb-[18px] pt-4">
-                  <span className="text-[13px] font-semibold text-accent">{e.course.subject.name}</span>
-                  <h3 className="text-xl font-bold leading-snug">{e.course.title}</h3>
-                  {active ? (
-                    <>
-                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-panel-2">
-                        <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
-                      </div>
-                      <div className="mt-auto flex items-center justify-between pt-2 text-[13.5px]">
-                        <span className="text-secondary">เรียนแล้ว {done}/{total} ตอน · {pct}%</span>
-                        <span className="rounded-pill bg-accent px-3 py-0.5 text-[12.5px] font-medium text-on-accent">
-                          {done === 0 ? "เริ่มเรียน" : "เรียนต่อ"}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="mt-auto pt-2">
-                      <span className="rounded-pill bg-wait-soft px-2.5 py-0.5 text-xs font-medium text-wait">รอตรวจสลิป</span>
-                    </div>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
+        <div className="empty" style={{ marginBottom: 72 }}>
+          <p>ยังไม่มีคอร์ส เลือกคอร์สที่สนใจแล้วส่งสลิปได้เลย</p>
+          <Link className="pill" href="/">ดูคอร์สทั้งหมด</Link>
         </div>
       )}
-    </main>
+    </>
   );
 }

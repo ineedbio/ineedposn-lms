@@ -41,6 +41,14 @@ model User {
   avatarUrl         String?
   isBanned          Boolean   @default(false) // admin "ระงับบัญชี": blocks login and ends the current session
 
+  // Sign-up goals, as on the Apps Script site
+  dreamFaculty      String?
+  dreamUniversity   String?
+  currentFaculty    String? // only for students who already finished ม.6 ("เด็กซิ่ว")
+  currentUniversity String?
+  termsAcceptedAt   DateTime?
+  termsVersion      String?
+
   createdAt DateTime @default(now())
 
   enrollments  Enrollment[]

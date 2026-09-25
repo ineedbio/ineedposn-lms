@@ -1,5 +1,6 @@
 import { Anuphan, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import "./z1.css";
 import type { Metadata } from "next";
 import ChunkErrorRecovery from "@/components/ChunkErrorRecovery";
 

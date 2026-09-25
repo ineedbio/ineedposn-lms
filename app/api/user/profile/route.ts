@@ -45,6 +45,12 @@ export async function PATCH(req: Request) {
   const gradeLevel = formData.get("gradeLevel")?.toString().trim() || null;
   const phone = formData.get("phone")?.toString().trim() || null;
   const avatarFile = formData.get("avatar") as File | null;
+  // Goal fields are only updated when the form sends them.
+  const goals: Record<string, string | null> = {};
+  for (const k of ["dreamFaculty", "dreamUniversity", "currentFaculty", "currentUniversity"]) {
+    const v = formData.get(k);
+    if (v !== null) goals[k] = v.toString().trim() || null;
+  }
 
   if (!firstName || !lastName) {
     return NextResponse.json({ error: "กรุณากรอกชื่อและนามสกุล" }, { status: 400 });
@@ -81,6 +87,7 @@ export async function PATCH(req: Request) {
       gradeLevel,
       phone,
       avatarUrl,
+      ...goals,
     },
   });
 
