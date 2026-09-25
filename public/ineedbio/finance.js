@@ -32,9 +32,41 @@
     return res;
   };
 
+  // Extract token from storage if not captured by fetch yet
+  function ensureToken() {
+    if (currentToken) return currentToken;
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        var v = localStorage.getItem(k);
+        if (!v) continue;
+        if (v.length === 24 && !/[^a-zA-Z0-9]/.test(v)) {
+          currentToken = v;
+          break;
+        }
+        try {
+          var obj = JSON.parse(v);
+          if (obj && obj.token) {
+            currentToken = obj.token;
+            if (obj.user) {
+              currentUser = obj.user;
+              if (currentUser.instructor_subject) currentSubject = currentUser.instructor_subject;
+            }
+            break;
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+    return currentToken;
+  }
+
   async function api(action, data) {
     var url = window.INEEDBIO_API_URL || '/api/ib';
-    var res = await _origFetch(url, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ action: action, data: data || {}, token: currentToken })\n    });
+    var res = await _origFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, data: data || {}, token: ensureToken() })
+    });
     var json = await res.json();
     if (!json.ok) throw new Error(json.message || json.error || 'เกิดข้อผิดพลาด');
     return json.data;
@@ -104,24 +136,25 @@
 
     /* Admin Sidebar Link */
     .ib-finance-nav-link {
-      all: unset;
+      display: flex !important;
+      align-items: center;
       box-sizing: border-box;
-      display: block;
       width: 100%;
       cursor: pointer;
       font-family: inherit;
       font-size: 14px;
-      font-weight: 500;
-      color: var(--ink2) !important;
-      padding: 9px 12px;
+      font-weight: 600;
+      color: var(--ink2, #525252) !important;
+      padding: 10px 14px;
       border-radius: 10px;
       text-align: left;
       transition: all .15s;
       text-decoration: none;
+      background: transparent;
     }
     .ib-finance-nav-link:hover {
-      color: var(--ink) !important;
-      background: var(--bg2) !important;
+      color: var(--ink, #0c0c0c) !important;
+      background: var(--bg2, #f5f5f4) !important;
     }
   `;
   document.head.appendChild(style);
@@ -140,15 +173,27 @@
   }
 
   window.addEventListener('hashchange', checkRoute);
-  setInterval(checkRoute, 500);
+  setInterval(checkRoute, 400);
 
   // Add clean link to Admin Sidebar
   function setupAdminSidebarLink() {
-    var nav = document.querySelector('nav.ad-nav, nav.tabs, .ad-tabs, [role="tablist"], .adnav, .ad-side, .adside');
+    ensureToken();
+    var nav = document.querySelector('nav.ad-nav, nav.tabs, .ad-tabs, [role="tablist"], .adnav, .ad-side, .adside, aside nav, .sidebar nav, .ad-menu');
+    if (!nav) {
+      var candidates = document.querySelectorAll('nav, aside, [class*="nav"], [class*="side"], [class*="tab"], [class*="menu"]');
+      for (var c = 0; c < candidates.length; c++) {
+        var txt = candidates[c].textContent || '';
+        if (txt.indexOf('คำขอ') >= 0 || txt.indexOf('คอร์ส') >= 0 || txt.indexOf('นักเรียน') >= 0 || txt.indexOf('ภาพรวม') >= 0) {
+          nav = candidates[c];
+          break;
+        }
+      }
+    }
     if (!nav) {
       var links = document.querySelectorAll('a, button');
       for (var i = 0; i < links.length; i++) {
-        if (links[i].textContent && links[i].textContent.indexOf('คำขอเข้าเรียน') >= 0) {
+        var t = links[i].textContent || '';
+        if (t.indexOf('คำขอ') >= 0 || t.indexOf('คอร์ส') >= 0 || t.indexOf('นักเรียน') >= 0 || t.indexOf('ภาพรวม') >= 0 || t.indexOf('ตั้งค่า') >= 0) {
           nav = links[i].parentElement;
           break;
         }
@@ -167,10 +212,12 @@
       }
     }
 
+    var sample = nav.children[0];
     var a = document.createElement('a');
-    a.className = 'ib-finance-nav-link';
+    a.className = (sample && sample.className ? sample.className : 'tab') + ' ib-finance-nav-link';
     a.href = '#/finance';
     a.innerHTML = '💰 บัญชีรายรับ-รายจ่าย ↗';
+    a.style.cursor = 'pointer';
     a.addEventListener('click', function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -195,7 +242,7 @@
         <header class="ib-finance-header">
           <div class="ib-finance-hdr-inner">
             <div class="ib-finance-brand-wrap">
-              <a href="#/admin" class="ib-btn ib-btn-outline ib-btn-sm">
+              <a href="#/admin" id="btn-back-to-admin" class="ib-btn ib-btn-outline ib-btn-sm">
                 ← กลับหน้าหลักหลังบ้าน
               </a>
               <div class="ib-finance-title-box">
@@ -254,6 +301,15 @@
       </div>
     `;
 
+    var backBtn = document.getElementById('btn-back-to-admin');
+    if (backBtn) {
+      backBtn.onclick = function (e) {
+        e.preventDefault();
+        window.location.hash = '#/admin';
+        window.location.reload();
+      };
+    }
+
     document.getElementById('sub-btn-inc').onclick = function () {
       activeSubTab = 'incomes';
       loadFinanceData();
@@ -278,7 +334,7 @@
 
     try {
       if (!cachedCourses.length) {
-        cachedCourses = (await api('admin.course.list')) || [];
+        cachedCourses = (await api('admin.courses')) || [];
       }
       var summary = await api('admin.finance.summary', { subject: currentSubject });
       var incomes = activeSubTab === 'incomes' ? await api('admin.finance.incomes', { subject: currentSubject }) : [];
