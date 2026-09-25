@@ -51,14 +51,16 @@ model User {
 
   createdAt DateTime @default(now())
 
-  enrollments  Enrollment[]
-  payments     Payment[]
-  progress     LessonProgress[]
-  quizAttempts QuizAttempt[]
-  otpTokens    OtpToken[]
-  ibSessions   IbSession[]
-  shopOrders   ShopOrder[]
-  bills        Bill[]
+  enrollments          Enrollment[]
+  payments             Payment[]
+  progress             LessonProgress[]
+  quizAttempts         QuizAttempt[]
+  otpTokens            OtpToken[]
+  ibSessions           IbSession[]
+  shopOrders           ShopOrder[]
+  bills                Bill[]
+  instructorSubjectKey String? // "bio" | "chem" | "phys" | "math" (when role is INSTRUCTOR)
+  recordedExpenses     Expense[]        @relation("RecordedExpenses")
 }
 
 // Login sessions of the INeedBio web app (public/ineedbio/app.js → /api/ib).
@@ -159,6 +161,7 @@ model Course {
   lessons     Lesson[]
   enrollments Enrollment[]
   payments    Payment[]
+  expenses    Expense[]
 
   createdAt DateTime @default(now())
 }
@@ -388,8 +391,7 @@ model FileBlob {
   createdAt DateTime @default(now())
 }
 
-// ============= SHOP (web app cart → orders → one bill per receiving account) =============
-
+// ============= SHOP (web app cart → orders → one bill per receiving account) ======
 // Bank / PromptPay accounts that receive payment. A course uses its own payAccountId, else the
 // first active account listing its subject, else the main PromptPay in Settings.
 model PayAccount {
@@ -485,4 +487,28 @@ model Bill {
   @@index([userId])
   @@index([status])
   @@index([slipHash])
+}
+
+// ============= FINANCIALS & EXPENSES =============
+
+model Expense {
+  id           String   @id @default(cuid())
+  title        String
+  amount       Int
+  category     String?
+  date         DateTime @default(now())
+  note         String?
+  slipImageUrl String? // "blob:<id>" stored in FileBlob
+  subjectKey   String? // "bio" | "chem" | "phys" | "math"
+  courseId     String?
+  course       Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  recordedById String
+  recordedBy   User     @relation("RecordedExpenses", fields: [recordedById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([subjectKey])
+  @@index([date])
+  @@index([courseId])
+  @@index([recordedById])
 }

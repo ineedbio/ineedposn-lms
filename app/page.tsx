@@ -17,11 +17,14 @@ export default function Home() {
       <div id="modal" />
       <div className="toasts" id="toasts" aria-live="polite" />
 
+      {/* ตั้งค่า URL ของ API ให้หน้าเว็บเรียกใช้ผ่านตัวแปร window.INEEDBIO_API_URL */}
       <Script id="ineedbio-config" strategy="beforeInteractive">
         {`window.INEEDBIO_API_URL = ${JSON.stringify(API_URL)};`}
       </Script>
       {/* ตัวเว็บทั้งหมด (หน้าแรก คอร์ส ห้องเรียน หลังบ้าน) — ใช้ hash route เช่น /#/course/ID */}
       <Script src="/ineedbio/app.js" strategy="afterInteractive" />
+      {/* ระบบบัญชีรายรับ-รายจ่าย และการจัดการสิทธิ์แอดมินตามวิชา */}
+      <Script src="/ineedbio/finance.js" strategy="afterInteractive" />
     </>
   );
 }
