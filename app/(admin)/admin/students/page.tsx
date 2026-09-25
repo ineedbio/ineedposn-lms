@@ -1,55 +1,97 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/rbac";
-import StudentsTable from "./StudentsTable";
+import { redirect } from "next/navigation";
+import StudentsClient from "./StudentsClient";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function AdminStudentsPage() {
-  await requireAdmin();
+  const session = await getServerSession(authOptions);
+  const user = session?.user as any;
+  if (!user || user.role !== "ADMIN") redirect("/dashboard");
 
-  const [students, subjects] = await Promise.all([
+  const [dbStudents, statusSetting, courses] = await Promise.all([
     prisma.user.findMany({
       where: { role: "STUDENT" },
-      include: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        nickname: true,
+        school: true,
+        gradeLevel: true,
+        phone: true,
+        email: true,
+        avatarUrl: true,
+        createdAt: true,
         enrollments: {
-          where: { status: "ACTIVE" },
-          include: { course: { include: { subject: true, lessons: { select: { id: true } } } } },
+          select: {
+            id: true,
+            status: true,
+            course: { select: { id: true, title: true, price: true } },
+          },
+        },
+        payments: {
+          select: {
+            id: true,
+            status: true,
+            amount: true,
+            course: { select: { id: true, title: true, price: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1,
         },
       },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.subject.findMany({ orderBy: { order: "asc" } }),
+    prisma.themeSetting.findUnique({
+      where: { key: "admin_student_statuses" },
+    }),
+    prisma.course.findMany({
+      select: { id: true, title: true },
+      orderBy: { title: "asc" },
+    }),
   ]);
 
-  const studentIds = students.map((s) => s.id);
-  const completed = await prisma.lessonProgress.findMany({
-    where: { userId: { in: studentIds }, isCompleted: true },
-    select: { userId: true, lessonId: true },
-  });
-  const completedSet = new Set(completed.map((p) => `${p.userId}:${p.lessonId}`));
+  const customStatusMap = statusSetting?.value ? JSON.parse(statusSetting.value) : {};
 
-  const rows = students.map((s) => {
-    const courses = Array.from(new Set(s.enrollments.map((e) => e.course.subject.name)));
-    const lessonIds = s.enrollments.flatMap((e) => e.course.lessons.map((l) => l.id));
-    const done = lessonIds.filter((id) => completedSet.has(`${s.id}:${id}`)).length;
-    const pct = lessonIds.length ? Math.round((done / lessonIds.length) * 100) : 0;
+  const formatted = dbStudents.map((s) => {
+    const activeEnrollment = s.enrollments.find((e) => e.status === "ACTIVE") || s.enrollments[0];
+    const latestPayment = s.payments[0];
+
+    let defaultStatus = "ยังไม่ชำระ";
+    if (activeEnrollment?.status === "ACTIVE" || latestPayment?.status === "APPROVED") {
+      defaultStatus = "ชำระแล้ว";
+    } else if (latestPayment?.status === "PENDING" || activeEnrollment?.status === "PENDING") {
+      defaultStatus = "รอตรวจสอบ";
+    }
+
+    // ดึงค่าที่เคยบันทึกไว้ใน Neon DB
+    const custom = customStatusMap[s.id];
+    const finalStatus = custom?.paymentStatus || defaultStatus;
+    const finalNotes = custom?.notes || "";
+
+    const courseObj = activeEnrollment?.course || latestPayment?.course;
+
     return {
       id: s.id,
       name: `${s.firstName} ${s.lastName}`,
+      nickname: s.nickname || "-",
+      grade: s.gradeLevel || "-",
+      school: s.school || "-",
+      phone: s.phone || "-",
       email: s.email,
-      school: s.school ?? "-",
-      grade: s.gradeLevel ?? "-",
-      courses,
-      progress: `${pct}%`,
+      avatarUrl: s.avatarUrl || null,
+      course: courseObj?.title ?? "ยังไม่ลงคอร์ส",
+      courseId: courseObj?.id ?? "NONE",
+      amount: latestPayment?.amount ?? courseObj?.price ?? 0,
+      date: s.createdAt.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }),
+      paymentStatus: finalStatus,
+      notes: finalNotes,
     };
   });
 
-  return (
-    <main className="px-14 pt-12 pb-24 max-w-[1300px]">
-      <h1 className="text-[32px] font-extrabold tracking-[-0.02em] mb-2">นักเรียน</h1>
-      <p className="text-base text-secondary mb-8">ดูว่านักเรียนแต่ละคนลงทะเบียนคอร์สไหนบ้าง และความคืบหน้า</p>
-
-      <StudentsTable students={rows} subjectNames={subjects.map((s) => s.name)} />
-    </main>
-  );
+  return <StudentsClient initialStudents={formatted} allCourses={courses} />;
 }

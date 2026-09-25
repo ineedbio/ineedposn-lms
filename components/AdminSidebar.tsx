@@ -9,7 +9,8 @@ const NAV = [
   { href: "/admin/payments", label: "การชำระเงิน" },
   { href: "/admin/courses", label: "คอร์สเรียน" },
   { href: "/admin/quizzes", label: "ข้อสอบ" },
-  { href: "/admin/students", label: "นักเรียน" },
+  { href: "/admin/students", label: "ทะเบียนนักเรียน" },
+  { href: "/admin/camp-results", label: "🏆 ผลค่าย สอวน." }, // เพิ่มเมนู สอวน.
   { href: "/admin/design-studio", label: "Design Studio" },
 ];
 
@@ -17,12 +18,24 @@ export default function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-[240px] flex-shrink-0 bg-ink text-white min-h-screen px-5 py-8 flex flex-col gap-9">
+    <aside className="w-[240px] flex-shrink-0 bg-ink text-white min-h-screen px-5 py-8 flex flex-col gap-6">
+      {/* โลโก้ Admin */}
       <div className="flex items-center gap-2 px-2">
         <Image src="/ineedbio-logo.png" alt="INeedBio" width={28} height={28} />
         <span className="text-[19px] font-extrabold tracking-[-0.02em]">INeedBio</span>
         <span className="text-muted font-semibold text-[13px]">Admin</span>
       </div>
+
+      {/* ปุ่มกลับหน้าหลัก (อยู่ซ้ายสุดใต้โลโก้ เด่นชัด) */}
+      <Link
+        href="/dashboard"
+        className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95"
+      >
+        <span>←</span>
+        <span>กลับหน้าหลัก (ห้องเรียน)</span>
+      </Link>
+
+      {/* รายการเมนู Admin */}
       <nav className="flex flex-col gap-1">
         {NAV.map((item) => {
           const active = pathname?.startsWith(item.href);
@@ -39,7 +52,10 @@ export default function AdminSidebar() {
           );
         })}
       </nav>
+
       <div className="flex-1" />
+
+      {/* ปุ่มออกจากระบบ */}
       <LogoutButton className="text-left text-sm font-medium text-muted hover:text-white transition px-3 py-3" />
     </aside>
   );

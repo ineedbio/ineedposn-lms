@@ -34,7 +34,7 @@ function LoginForm() {
       setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
       return;
     }
-    router.push("/dashboard");
+    window.location.href = "/dashboard";
   }
 
   return (

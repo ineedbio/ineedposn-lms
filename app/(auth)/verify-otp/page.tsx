@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Button from "@/components/Button";
 
 const inputClass =
@@ -9,7 +10,6 @@ const inputClass =
 const labelClass = "text-[13px] font-semibold text-ink";
 
 function VerifyOtpForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const email = params.get("email") ?? "";
   const [otp, setOtp] = useState("");
@@ -21,27 +21,43 @@ function VerifyOtpForm() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const res = await fetch("/api/auth/verify-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, otp }),
+
+    // สั่งล็อกอินด้วย OTP ตรงๆ
+    const res = await signIn("credentials", {
+      email,
+      otp,
+      redirect: false,
     });
+
     setLoading(false);
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "ยืนยันไม่สำเร็จ");
+
+    if (!res || res.error) {
+      setError(
+        res?.error && res.error !== "CredentialsSignin"
+          ? res.error
+          : "รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว"
+      );
       return;
     }
-    router.push("/login?verified=1");
+
+    // ล็อกอินผ่านแล้ว บังคับเปิด dashboard ตรงๆ ทันที ไม่ใช้ router.push เพื่อให้คุกกี้เซสชันทำงาน
+    window.location.href = "/dashboard";
   }
 
   async function resend() {
     setResent(false);
-    await fetch("/api/auth/verify-otp", {
+    setError("");
+    const res = await fetch("/api/auth/verify-otp", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
+
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error ?? "ส่งรหัสใหม่ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+      return;
+    }
     setResent(true);
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Button from "@/components/Button";
 
 const inputClass =
@@ -9,7 +9,6 @@ const inputClass =
 const labelClass = "text-[13px] font-semibold text-ink";
 
 export default function ForgotPasswordPage() {
-  const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -34,18 +33,37 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    // 1. ส่งรีเซ็ตรหัสผ่านใหม่
     const res = await fetch("/api/auth/reset-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, otp, newPassword }),
     });
-    setLoading(false);
+
     if (!res.ok) {
+      setLoading(false);
       const data = await res.json();
       setError(data.error?.formErrors?.[0] ?? data.error ?? "ไม่สำเร็จ");
       return;
     }
-    router.push("/login?reset=1");
+
+    // 2. รีเซ็ตสำเร็จ สั่งล็อกอินด้วยรหัสผ่านใหม่ทันที
+    const loginRes = await signIn("credentials", {
+      email,
+      password: newPassword,
+      redirect: false,
+    });
+
+    setLoading(false);
+
+    if (!loginRes || loginRes.error) {
+      window.location.href = "/login?reset=1";
+      return;
+    }
+
+    // 3. เข้าหน้าแดชบอร์ดทันที
+    window.location.href = "/dashboard";
   }
 
   return (
@@ -98,6 +116,7 @@ export default function ForgotPasswordPage() {
               <input
                 type="password"
                 required
+                placeholder="อย่างน้อย 8 ตัวอักษร"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className={inputClass}
