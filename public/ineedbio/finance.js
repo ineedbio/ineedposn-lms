@@ -34,18 +34,15 @@
 
   async function api(action, data) {
     var url = window.INEEDBIO_API_URL || '/api/ib';
-    var res = await _origFetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: action, data: data || {}, token: currentToken })
-    });
+    var res = await _origFetch(url, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ action: action, data: data || {}, token: currentToken })\n    });
     var json = await res.json();
     if (!json.ok) throw new Error(json.message || json.error || 'เกิดข้อผิดพลาด');
     return json.data;
   }
 
-  function baht(n) {
-    return '฿' + Number(n || 0).toLocaleString('th-TH');
+  function baht(num) {
+    var n = Number(num) || 0;
+    return '฿' + n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   function fmtDate(isoStr) {
@@ -174,6 +171,13 @@
     a.className = 'ib-finance-nav-link';
     a.href = '#/finance';
     a.innerHTML = '💰 บัญชีรายรับ-รายจ่าย ↗';
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      window.location.hash = '#/finance';
+      renderStandaloneFinancePage();
+    }, true);
     nav.appendChild(a);
   }
 
@@ -274,7 +278,7 @@
 
     try {
       if (!cachedCourses.length) {
-        cachedCourses = (await api('admin.courses')) || [];
+        cachedCourses = (await api('admin.course.list')) || [];
       }
       var summary = await api('admin.finance.summary', { subject: currentSubject });
       var incomes = activeSubTab === 'incomes' ? await api('admin.finance.incomes', { subject: currentSubject }) : [];
@@ -361,11 +365,11 @@
         <thead>
           <tr>
             <th>วันที่อนุมัติ</th>
-            <th>ชื่อนักเรียน</th>
+            <th>ผู้เรียน</th>
             <th>คอร์สเรียน</th>
             <th>วิชา</th>
             <th>ยอดเงิน</th>
-            <th>สลิปโอนเงิน</th>
+            <th>สลิป</th>
           </tr>
         </thead>
         <tbody>
@@ -383,9 +387,9 @@
                 <td>
                   ${r.has_slip ? `
                     <button type="button" class="ib-btn ib-btn-outline ib-btn-sm btn-view-slip" data-id="${r.payment_id}" data-type="income">
-                      🔍 ดูสลิป
+                      📄 ดูสลิป
                     </button>
-                  ` : '<span style="color: var(--muted);">ไม่มีสลิป</span>'}
+                  ` : '<span style="color: var(--muted);">-</span>'}
                 </td>
               </tr>
             `;
@@ -406,10 +410,10 @@
             <th>วันที่</th>
             <th>รายการรายจ่าย</th>
             <th>หมวดหมู่</th>
-            <th>คอร์ส/วิชา</th>
+            <th>วิชา/คอร์ส</th>
             <th>ยอดเงิน</th>
             <th>ผู้บันทึก</th>
-            <th>สลิป/ใบเสร็จ</th>
+            <th>สลิป</th>
             <th>จัดการ</th>
           </tr>
         </thead>
@@ -431,13 +435,13 @@
                 <td>${r.recorded_by || '-'}</td>
                 <td>
                   ${r.has_slip ? `
-                    <button type="button" class="ib-btn ib-btn-outline ib-btn-sm btn-view-slip" data-id="${r.expense_id}" data-type="expense">
-                      🧾 ดูใบเสร็จ
+                    <button type="button" class="ib-btn ib-btn-outline ib-btn-sm btn-view-slip" data-id="${r.id}" data-type="expense">
+                      📄 ดูสลิป
                     </button>
-                  ` : '<span style="color: var(--muted);">ไม่มีสลิป</span>'}
+                  ` : '<span style="color: var(--muted);">-</span>'}
                 </td>
                 <td>
-                  <button type="button" class="ib-btn ib-btn-outline ib-btn-sm btn-delete-expense" data-id="${r.expense_id}" style="color: #dc2626;">
+                  <button type="button" class="ib-btn ib-btn-outline ib-btn-sm btn-del-expense" data-id="${r.id}" style="color: #dc2626;">
                     ลบ
                   </button>
                 </td>
@@ -450,29 +454,28 @@
   }
 
   function attachTableEvents(container) {
-    var viewBtns = container.querySelectorAll('.btn-view-slip');
-    viewBtns.forEach(function (b) {
-      b.onclick = async function () {
-        var id = b.getAttribute('data-id');
-        var type = b.getAttribute('data-type');
-        b.textContent = 'กำลังโหลด...';
+    var slipBtns = container.querySelectorAll('.btn-view-slip');
+    slipBtns.forEach(function (btn) {
+      btn.onclick = async function () {
+        var id = btn.getAttribute('data-id');
+        var type = btn.getAttribute('data-type');
+        btn.textContent = 'กำลังโหลด...';
         try {
-          var slipData = type === 'expense'
-            ? await api('admin.finance.expense.slip', { expense_id: id })
-            : await api('admin.slip', { enroll_id: id });
-          showImageModal(slipData.mime, slipData.base64, type === 'expense' ? 'ใบเสร็จ / สลิปรายจ่าย' : 'สลิปโอนเงินของนักเรียน');
+          var res = type === 'income' ? await api('admin.finance.slip.income', { payment_id: id }) : await api('admin.finance.slip.expense', { expense_id: id });
+          if (!res || !res.slip_url) throw new Error('ไม่พบข้อมูลสลิป');
+          showSlipModal(res.slip_url, type === 'income' ? 'สลิปการโอนเงิน (รายรับ)' : 'หลักฐานการจ่ายเงิน (รายจ่าย)');
         } catch (e) {
-          alert(e.message);
+          alert('ไม่สามารถโหลดสลิปได้: ' + e.message);
         } finally {
-          b.textContent = type === 'expense' ? '🧾 ดูใบเสร็จ' : '🔍 ดูสลิป';
+          btn.innerHTML = '📄 ดูสลิป';
         }
       };
     });
 
-    var delBtns = container.querySelectorAll('.btn-delete-expense');
-    delBtns.forEach(function (b) {
-      b.onclick = async function () {
-        var id = b.getAttribute('data-id');
+    var delBtns = container.querySelectorAll('.btn-del-expense');
+    delBtns.forEach(function (btn) {
+      btn.onclick = async function () {
+        var id = btn.getAttribute('data-id');
         if (!confirm('ยืนยันลบรายการรายจ่ายนี้?')) return;
         try {
           await api('admin.finance.expense.delete', { expense_id: id });
@@ -484,142 +487,150 @@
     });
   }
 
-  function showImageModal(mime, base64, title) {
-    var modal = document.createElement('div');
-    modal.className = 'ib-modal-overlay';
-    var src = 'data:' + mime + ';base64,' + base64;
-    modal.innerHTML = `
-      <div class="ib-modal-card" style="max-width: 440px; text-align: center;">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 12px;">
-          <strong style="font-size: 16px; font-weight: 700;">${title}</strong>
-          <button type="button" id="btn-close-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); line-height: 1;">&times;</button>
+  function showSlipModal(src, title) {
+    var modal = document.getElementById('ib-slip-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'ib-slip-modal';
+      modal.className = 'ib-modal-overlay';
+      modal.innerHTML = `
+        <div class="ib-modal-card">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="font-size: 16px; font-weight: 700;">${title}</strong>
+            <button type="button" id="btn-close-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); line-height: 1;">&times;</button>
+          </div>
+          <div style="max-height: 65vh; overflow-y: auto; border-radius: 14px; margin: 14px 0;">
+            <img src="${src}" style="width: 100%; border-radius: 14px; display: block;" alt="Slip" />
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <a href="${src}" target="_blank" download="slip" class="ib-btn ib-btn-outline">เปิดภาพเต็ม</a>
+            <button type="button" id="btn-close-modal-2" class="ib-btn ib-btn-primary">ปิด</button>
+          </div>
         </div>
-        <div style="max-height: 65vh; overflow-y: auto; border-radius: 14px; margin: 14px 0;">
-          <img src="${src}" style="width: 100%; border-radius: 14px; display: block;" alt="Slip" />
-        </div>
-        <div style="display: flex; justify-content: flex-end; gap: 8px;">
-          <a href="${src}" target="_blank" download="slip" class="ib-btn ib-btn-outline">เปิดภาพเต็ม</a>
-          <button type="button" id="btn-close-modal-bottom" class="ib-btn ib-btn-primary">ปิด</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-    var close = function () { modal.remove(); };
-    modal.querySelector('#btn-close-modal').onclick = close;
-    modal.querySelector('#btn-close-modal-bottom').onclick = close;
-    modal.onclick = function (e) { if (e.target === modal) close(); };
+      `;
+      document.body.appendChild(modal);
+      document.getElementById('btn-close-modal').onclick = function () { modal.remove(); };
+      document.getElementById('btn-close-modal-2').onclick = function () { modal.remove(); };
+      modal.onclick = function (e) { if (e.target === modal) modal.remove(); };
+    }
   }
 
   function openExpenseModal() {
-    var isSuper = !currentUser || !currentUser.instructor_subject;
-    var defaultSubj = currentSubject || 'bio';
+    var old = document.getElementById('ib-expense-modal');
+    if (old) old.remove();
 
     var modal = document.createElement('div');
+    modal.id = 'ib-expense-modal';
     modal.className = 'ib-modal-overlay';
     modal.innerHTML = `
       <div class="ib-modal-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 14px;">
-          <strong style="font-size: 17px; font-weight: 800;">+ บันทึกรายจ่ายใหม่</strong>
-          <button type="button" id="btn-close-exp" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); line-height: 1; padding: 0 4px;">&times;</button>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="font-size: 18px; font-weight: 800; margin: 0; color: var(--ink);">บันทึกรายจ่ายใหม่</h3>
+          <button type="button" id="btn-close-exp" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted);">&times;</button>
         </div>
-        <form id="exp-form" style="display: flex; flex-direction: column; gap: 14px;">
+        <form id="ib-expense-form" style="display: flex; flex-direction: column; gap: 14px;">
           <div class="ib-field">
             <label>ชื่อรายการรายจ่าย *</label>
-            <input type="text" name="title" placeholder="เช่น ค่าชีทประกอบการเรียน, ค่าถ่ายทำคลิป" required />
+            <input type="text" name="title" required placeholder="เช่น ค่าชีทเรียน, ค่าเช่าเซิร์ฟเวอร์, ค่าวิทยากร" />
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="ib-field">
               <label>จำนวนเงิน (บาท) *</label>
-              <input type="number" name="amount" min="1" placeholder="0" required />
+              <input type="number" step="0.01" min="0" name="amount" required placeholder="0.00" />
             </div>
             <div class="ib-field">
-              <label>หมวดหมู่รายจ่าย</label>
-              <select name="category">
-                <option value="ค่าชีท/เอกสาร">ค่าชีท / เอกสาร</option>
-                <option value="ค่าตัดต่อ/ถ่ายทำ">ค่าตัดต่อ / ถ่ายทำ</option>
-                <option value="ค่ายิงแอด/การตลาด">ค่ายิงแอด / การตลาด</option>
-                <option value="ค่าตัวผู้สอน">ค่าตัวผู้สอน</option>
-                <option value="ค่าธรรมเนียม/บริการ">ค่าธรรมเนียม / บริการ</option>
-                <option value="อื่นๆ">อื่นๆ</option>
-              </select>
+              <label>วันที่เกิดรายการ *</label>
+              <input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}" />
             </div>
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="ib-field">
-              <label>วิชา *</label>
-              ${isSuper ? `
-                <select name="subject_key" id="exp-subj-select">
-                  <option value="bio">ชีววิทยา</option>
-                  <option value="chem">เคมี</option>
-                  <option value="phys">ฟิสิกส์</option>
-                  <option value="math">คณิตศาสตร์</option>
-                </select>
-              ` : `
-                <input type="text" value="${currentUser.instructor_subject_name || defaultSubj}" disabled />
-                <input type="hidden" name="subject_key" value="${defaultSubj}" />
-              `}
+              <label>หมวดหมู่รายจ่าย *</label>
+              <select name="category" required>
+                <option value="ค่าชีท/เอกสาร">ค่าชีท/เอกสาร</option>
+                <option value="ค่าสอน/วิทยากร">ค่าสอน/วิทยากร</option>
+                <option value="ค่าระบบ/เซิร์ฟเวอร์">ค่าระบบ/เซิร์ฟเวอร์</option>
+                <option value="ค่าการตลาด/โฆษณา">ค่าการตลาด/โฆษณา</option>
+                <option value="อุปกรณ์/สถานที่">อุปกรณ์/สถานที่</option>
+                <option value="อื่นๆ">อื่นๆ</option>
+              </select>
             </div>
             <div class="ib-field">
-              <label>คอร์สที่เกี่ยวข้อง (ไม่บังคับ)</label>
-              <select name="course_id" id="exp-course-select">
-                <option value="">-- ทั้งวิชา / ไม่ระบุคอร์ส --</option>
-                ${cachedCourses.map(function (c) {
-                  return `<option value="${c.course_id}">${c.title}</option>`;
-                }).join('')}
+              <label>สังกัดวิชา *</label>
+              <select name="subject_key" required>
+                ${currentUser && currentUser.instructor_subject ? `
+                  <option value="${currentUser.instructor_subject}">${currentUser.instructor_subject_name || currentUser.instructor_subject}</option>
+                ` : `
+                  <option value="bio">ชีววิทยา (Bio)</option>
+                  <option value="chem">เคมี (Chem)</option>
+                  <option value="phys">ฟิสิกส์ (Phys)</option>
+                  <option value="math">คณิตศาสตร์ (Math)</option>
+                `}
               </select>
             </div>
           </div>
           <div class="ib-field">
-            <label>วันที่</label>
-            <input type="date" name="date" value="${new Date().toISOString().slice(0, 10)}" />
+            <label>ผูกกับคอร์สเรียน (ถ้ามี)</label>
+            <select name="course_id">
+              <option value="">-- ไม่ระบุคอร์ส --</option>
+              ${cachedCourses.map(function (c) {
+                return '<option value="' + c.id + '">' + c.title + '</option>';
+              }).join('')}
+            </select>
           </div>
           <div class="ib-field">
-            <label>แนบสลิป / ใบเสร็จหลักฐาน (JPG / PNG ไม่เกิน 3 MB)</label>
-            <input type="file" id="exp-file-input" accept="image/png, image/jpeg, image/webp" />
-            <div id="exp-img-preview" style="display: none; margin-top: 8px;">
-              <img style="max-height: 120px; border-radius: 10px; border: 1px solid var(--line);" />
+            <label>หมายเหตุเพิ่มเติม</label>
+            <textarea name="note" rows="2" placeholder="รายละเอียดเพิ่มเติมหรือเลขที่ใบเสร็จ"></textarea>
+          </div>
+          <div class="ib-field">
+            <label>แนบสลิป/หลักฐานการจ่ายเงิน (รูปภาพ)</label>
+            <input type="file" id="ib-slip-input" accept="image/*" />
+            <div id="ib-slip-preview" style="display: none; margin-top: 6px;">
+              <img id="ib-slip-img" style="max-height: 120px; border-radius: 8px; border: 1px solid var(--line);" />
             </div>
           </div>
-          <div class="ib-field">
-            <label>บันทึกเพิ่มเติม</label>
-            <textarea name="note" rows="2" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"></textarea>
-          </div>
-          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px;">
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px;">
             <button type="button" id="btn-cancel-exp" class="ib-btn ib-btn-outline">ยกเลิก</button>
-            <button type="submit" id="btn-submit-exp" class="ib-btn ib-btn-primary">บันทึกรายจ่าย</button>
+            <button type="submit" id="btn-save-exp" class="ib-btn ib-btn-primary">บันทึกรายจ่าย</button>
           </div>
         </form>
       </div>
     `;
     document.body.appendChild(modal);
 
-    var closeModal = function () { modal.remove(); };
-    modal.querySelector('#btn-close-exp').onclick = closeModal;
-    modal.querySelector('#btn-cancel-exp').onclick = closeModal;
+    function closeModal() { modal.remove(); }
+    document.getElementById('btn-close-exp').onclick = closeModal;
+    document.getElementById('btn-cancel-exp').onclick = closeModal;
+    modal.onclick = function (e) { if (e.target === modal) closeModal(); };
 
-    var fileInput = modal.querySelector('#exp-file-input');
-    var preview = modal.querySelector('#exp-img-preview');
     var slipBase64 = null;
-    var slipMime = '';
-
+    var slipMime = null;
+    var fileInput = document.getElementById('ib-slip-input');
     fileInput.onchange = function (e) {
       var file = e.target.files && e.target.files[0];
-      if (!file) return;
+      if (!file) {
+        slipBase64 = null;
+        slipMime = null;
+        document.getElementById('ib-slip-preview').style.display = 'none';
+        return;
+      }
       slipMime = file.type;
       var reader = new FileReader();
-      reader.onload = function (ev) {
-        var res = ev.target.result;
-        slipBase64 = String(res).split(',')[1];
-        preview.style.display = 'block';
-        preview.querySelector('img').src = res;
+      reader.onload = function (evt) {
+        var res = evt.target.result;
+        var parts = res.split(',');
+        slipBase64 = parts[1];
+        var img = document.getElementById('ib-slip-img');
+        img.src = res;
+        document.getElementById('ib-slip-preview').style.display = 'block';
       };
       reader.readAsDataURL(file);
     };
 
-    var form = modal.querySelector('#exp-form');
+    var form = document.getElementById('ib-expense-form');
     form.onsubmit = async function (e) {
       e.preventDefault();
-      var submitBtn = modal.querySelector('#btn-submit-exp');
+      var submitBtn = document.getElementById('btn-save-exp');
       submitBtn.disabled = true;
       submitBtn.textContent = 'กำลังบันทึก...';
       try {
