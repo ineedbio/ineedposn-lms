@@ -1,0 +1,382 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED") // Neon non-pooled connection — used by prisma migrate only
+}
+
+// ============= USERS & AUTH =============
+
+enum Role {
+  STUDENT
+  ADMIN
+  INSTRUCTOR
+}
+
+enum OtpPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+model User {
+  id            String  @id @default(cuid())
+  email         String  @unique
+  password      String
+  firstName     String
+  lastName      String
+  nickname      String?
+  school        String?
+  gradeLevel    String?
+  phone         String?
+  role          Role    @default(STUDENT)
+  emailVerified Boolean @default(false)
+
+  // device-lock: single active session per account
+  currentSessionId  String?
+  currentDeviceInfo String?
+  lastLoginAt       DateTime?
+  avatarUrl         String?
+  isBanned          Boolean   @default(false) // admin "ระงับบัญชี": blocks login and ends the current session
+
+  // Sign-up goals, as on the Apps Script site
+  dreamFaculty      String?
+  dreamUniversity   String?
+  currentFaculty    String? // only for students who already finished ม.6 ("เด็กซิ่ว")
+  currentUniversity String?
+  termsAcceptedAt   DateTime?
+  termsVersion      String?
+
+  createdAt DateTime @default(now())
+
+  enrollments  Enrollment[]
+  payments     Payment[]
+  progress     LessonProgress[]
+  quizAttempts QuizAttempt[]
+  otpTokens    OtpToken[]
+  ibSessions   IbSession[]
+}
+
+// Login sessions of the INeedBio web app (public/ineedbio/app.js → /api/ib).
+// One account = one device: a new login ends the user's other sessions. Ended rows are kept
+// for a while so the old device can be told why it was signed out.
+model IbSession {
+  tokenHash  String    @id // sha-256 of the bearer token; the raw token only lives in the browser
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId   String
+  deviceInfo String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  endedAt    DateTime?
+  endReason  String? // "replaced" (other device logged in) | "logout" | "admin" | "banned" | "password"
+
+  @@index([userId])
+}
+
+// One-time codes for email verification and password reset.
+// Stored hashed (never the raw code); short TTL; capped attempts.
+model OtpToken {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose    OtpPurpose
+  codeHash   String // sha-256 of the 6-digit code — raw code is emailed, never persisted
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int        @default(0)
+  createdAt  DateTime   @default(now())
+
+  @@index([userId, purpose])
+}
+
+// ============= SUBJECT-SCOPED CATALOG =============
+// Every catalog + marketing table carries subjectId so that creating a new
+// Subject is enough for the rest of the system (promo blocks, revenue
+// reporting, course listing) to pick it up automatically — see
+// lib/subjects.ts `provisionSubject()`.
+
+model Subject {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  colorTheme String   @default("#0B0B0C")
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  categories  Category[]
+  courses     Course[]
+  promoBlocks PageBlock[]     @relation("SubjectPromoBlocks")
+  results     StudentResult[]
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  courses   Course[]
+}
+
+model Course {
+  id           String  @id @default(cuid())
+  title        String
+  slug         String  @unique
+  description  String
+  coverImage   String?
+  price        Int // 0 = free trial course
+  isPublished  Boolean @default(false)
+  paymentQrUrl String? // admin-uploaded PromptPay QR image — each course can settle to a different account
+
+  // Sales-page content edited from the admin course modal (all optional; empty = section hidden)
+  subtitle        String?
+  fullPrice       Int? // struck-through "was" price
+  level           String? // e.g. "สอวน.", "A-Level"
+  sortOrder       Int     @default(0)
+  highlights      String? // one per line
+  audience        String? // one per line
+  instructorName  String?
+  instructorTitle String?
+  instructorBio   String? // one per line
+  instructorPhoto String?
+  faq             String? // blocks separated by a blank line: first line question, rest answer
+  trailerYoutube  String? // 11-char YouTube id
+
+  subjectId  String
+  subject    Subject  @relation(fields: [subjectId], references: [id])
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  lessons     Lesson[]
+  enrollments Enrollment[]
+  payments    Payment[]
+
+  createdAt DateTime @default(now())
+}
+
+enum LessonType {
+  VIDEO
+  PDF
+  RICH_TEXT
+  QUIZ
+}
+
+model Lesson {
+  id         String     @id @default(cuid())
+  title      String
+  order      Int
+  type       LessonType
+  youtubeUrl String? // pasted YouTube link (unlisted) — no file upload needed
+  content    String?
+  duration   Int? // seconds
+  isPreview  Boolean    @default(false) // free "ทดลองเรียน" lesson, viewable without enrollment
+  chapter    String? // groups lessons into chapters ("บทที่ 1 เซลล์") in the syllabus and admin list
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  attachments Attachment[]
+  quiz        Quiz?
+  progress    LessonProgress[]
+}
+
+model Attachment {
+  id       String @id @default(cuid())
+  fileName String
+  fileUrl  String
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+// ============= PROGRESS =============
+
+model LessonProgress {
+  id             String    @id @default(cuid())
+  userId         String
+  lessonId       String
+  isCompleted    Boolean   @default(false)
+  watchedSeconds Int       @default(0)
+  completedAt    DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+}
+
+enum EnrollStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+}
+
+model Enrollment {
+  id         String       @id @default(cuid())
+  userId     String
+  courseId   String
+  status     EnrollStatus @default(PENDING)
+  enrolledAt DateTime?
+  expiresAt  DateTime?
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+}
+
+// ============= QUIZ =============
+
+enum QuestionType {
+  MCQ
+  SHORT_ANSWER
+}
+
+model Quiz {
+  id         String  @id @default(cuid())
+  title      String
+  timeLimit  Int // seconds
+  passScore  Int // percent
+  isMockExam Boolean @default(false)
+
+  lessonId String? @unique
+  lesson   Lesson? @relation(fields: [lessonId], references: [id])
+
+  questions Question[]
+  attempts  QuizAttempt[]
+}
+
+model Question {
+  id            String       @id @default(cuid())
+  text          String
+  type          QuestionType
+  choices       Json? // [{ id, text }]
+  correctAnswer String
+  explanation   String?
+
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  quizId      String
+  answers     Json
+  score       Int
+  isPassed    Boolean
+  submittedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  quiz Quiz @relation(fields: [quizId], references: [id])
+}
+
+// ============= PAYMENTS =============
+
+enum PayStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Payment {
+  id           String    @id @default(cuid())
+  userId       String
+  courseId     String
+  amount       Int
+  promptpayRef String    @unique
+  slipImageUrl String?
+  status       PayStatus @default(PENDING)
+  rejectReason String?
+  note         String? // admin note, e.g. "โอนผ่าน IG" for a manually granted enrollment
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+}
+
+// ============= NO-CODE ADMIN CONTENT =============
+
+model PageBlock {
+  id          String  @id @default(cuid())
+  page        String // e.g. "home", "course:<slug>"
+  order       Int
+  type        String // "hero" | "course_grid" | "promo_banner" | "testimonial" | ...
+  contentJson Json
+  isPublished Boolean @default(false)
+
+  // when a block is scoped to a subject (per-subject promo banners etc.)
+  subjectId String?
+  subject   Subject? @relation("SubjectPromoBlocks", fields: [subjectId], references: [id])
+
+  updatedAt DateTime @updatedAt
+}
+
+model ThemeSetting {
+  key   String @id
+  value String
+}
+
+// ============= AUDIT LOG =============
+// Every admin mutation is written here — required because every action in
+// the admin Design Studio can change data across the whole site.
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String
+  action    String
+  target    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+// ============= RATE LIMITING =============
+// Fixed-window counters for /api/auth/* — backed by Postgres (not
+// in-memory) because Vercel serverless instances are stateless and not
+// shared, so an in-memory counter would silently do nothing under load.
+// See lib/rate-limit.ts.
+model RateLimitHit {
+  key       String   @id
+  count     Int      @default(1)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+// ============= SITE SETTINGS / HALL OF FAME =============
+
+// Key/value site settings edited from หลังบ้าน → ตั้งค่า (hero text, contact, PromptPay, legal text…).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// "ผลงานนักเรียน": students who passed POSN camp, shown on the home page and /results.
+model StudentResult {
+  id          String   @id @default(cuid())
+  nickname    String
+  year        String // Buddhist year, e.g. "2569"
+  subjectId   String?
+  subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  school      String?
+  center      String?
+  review      String?
+  photoUrl    String?
+  isPublished Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+// Payment slips and images uploaded from หลังบ้าน, stored in the database (no external storage).
+// Public images are served by /api/ib/file/<id>; slips are only returned to admins.
+model FileBlob {
+  id        String   @id @default(cuid())
+  mime      String
+  data      Bytes
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

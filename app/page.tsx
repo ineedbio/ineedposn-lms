@@ -1,7 +1,8 @@
 import Script from 'next/script';
 
-// URL ของ Apps Script Web App — ตั้งใน .env.local หรือใน Vercel → Settings → Environment Variables
-const API_URL = process.env.NEXT_PUBLIC_INEEDBIO_API_URL || '';
+// หลังบ้าน: /api/ib ในเว็บนี้เอง (ฐานข้อมูล Neon) — ถ้าจะกลับไปใช้ Apps Script ให้ตั้ง
+// NEXT_PUBLIC_INEEDBIO_API_URL เป็น URL ที่ลงท้าย /exec
+const API_URL = process.env.NEXT_PUBLIC_INEEDBIO_API_URL || '/api/ib';
 
 export default function Home() {
   return (
@@ -19,9 +20,8 @@ export default function Home() {
       <Script id="ineedbio-config" strategy="beforeInteractive">
         {`window.INEEDBIO_API_URL = ${JSON.stringify(API_URL)};`}
       </Script>
-      {/* ตัวเว็บทั้งหมด (หน้าแรก คอร์ส ห้องเรียน หลังบ้าน) — ใช้ hash route เช่น /#/course/ID
-          ยังไม่ได้ตั้ง API URL: เปิดโหมดเดโม (demo.js จำลองหลังบ้านในเบราว์เซอร์ แล้วค่อยโหลด app.js) */}
-      <Script src={API_URL ? '/ineedbio/app.js' : '/ineedbio/demo.js'} strategy="afterInteractive" />
+      {/* ตัวเว็บทั้งหมด (หน้าแรก คอร์ส ห้องเรียน หลังบ้าน) — ใช้ hash route เช่น /#/course/ID */}
+      <Script src="/ineedbio/app.js" strategy="afterInteractive" />
     </>
   );
 }
