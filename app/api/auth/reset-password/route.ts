@@ -25,7 +25,8 @@ export async function POST(req: Request) {
 
   const parsed = Schema.safeParse(await req.json());
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
+    return NextResponse.json({ error: first || "กรอกข้อมูลไม่ครบ" }, { status: 400 });
   }
   const { email, otp, newPassword } = parsed.data;
 

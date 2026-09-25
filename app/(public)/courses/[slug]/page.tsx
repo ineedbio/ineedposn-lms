@@ -1,26 +1,20 @@
-import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import PreviewLesson from "./PreviewLesson";
-import { LinkButton } from "@/components/Button";
-import CourseCover from "@/components/CourseCover";
-import { baht, duration, subjectKey } from "@/lib/site";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
-import EnrollClosedButton from "@/components/EnrollClosedButton";
+import { myStates } from "@/lib/catalog";
+import { generatePromptPayQR } from "@/lib/promptpay";
+import { subjectKey } from "@/lib/site";
+import { hm, zbaht } from "@/lib/z1";
+import { getResults } from "@/components/z1/server";
+import { ReviewCard } from "@/components/z1/blocks";
+import { AuthLink, JumpButton, NoticeButton, PayBox, PreviewButton, SubjectAccent, SylAll, YouTube } from "@/components/z1/client";
 
 export const dynamic = "force-dynamic";
 
-function Check() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" className="mt-0.5 flex-none text-accent" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" fill="currentColor" />
-      <path d="M7.5 12.5l3 3 6-6.5" fill="none" stroke="rgb(var(--on-acc))" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
+// Port of viewCourse() from the Apps Script site.
 export default async function CourseDetailPage({ params }: { params: { slug: string } }) {
   const course = await prisma.course.findUnique({
     where: { slug: params.slug },
@@ -30,199 +24,234 @@ export default async function CourseDetailPage({ params }: { params: { slug: str
 
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id as string | undefined;
-
-  const enrollment = userId
-    ? await prisma.enrollment.findUnique({
-        where: { userId_courseId: { userId, courseId: course.id } },
-      })
-    : null;
-
-  let ctaHref = `/checkout?course=${course.slug}`;
-  let ctaLabel = "ลงทะเบียนเรียน";
-  if (enrollment?.status === "ACTIVE") {
-    ctaHref = `/learn/${course.id}`;
-    ctaLabel = "ไปที่ห้องเรียน";
-  } else if (enrollment?.status === "PENDING") {
-    ctaHref = "/dashboard";
-    ctaLabel = "รอตรวจสอบการชำระเงิน";
-  }
-
-  const total = course.lessons.reduce((a, l) => a + (l.duration ?? 0), 0);
-  const [settings, reviews] = await Promise.all([
+  const [cfg, states, results, lastPay] = await Promise.all([
     getSettings(),
-    prisma.studentResult.findMany({
-      where: { subjectId: course.subjectId, isPublished: true, review: { not: null } },
-      orderBy: [{ year: "desc" }, { sortOrder: "asc" }],
-      take: 6,
-    }),
+    myStates(userId),
+    getResults(),
+    userId ? prisma.payment.findFirst({ where: { userId, courseId: course.id }, orderBy: { createdAt: "desc" } }) : null,
   ]);
-  const enrollOpen = settings.enroll_open === "1";
-  const lines = (t: string | null) => (t ?? "").split("\n").map((x) => x.trim()).filter(Boolean);
+  const st = states[course.id];
+  const subject = subjectKey(course.subject);
+  const enrollOpen = cfg.enroll_open === "1";
+  const closedMsg = cfg.enroll_closed_message;
+
+  // chapters (lessons without a chapter go under one default heading)
+  const chapters: { title: string; lessons: typeof course.lessons }[] = [];
+  for (const l of course.lessons) {
+    const t = l.chapter || "เนื้อหาในคอร์ส";
+    const ch = chapters.find((c) => c.title === t) ?? chapters[chapters.push({ title: t, lessons: [] }) - 1];
+    ch.lessons.push(l);
+  }
+  const min = (l: { duration: number | null }) => Math.round((l.duration ?? 0) / 60);
+  const total = course.lessons.length;
+  const totalMin = course.lessons.reduce((a, l) => a + min(l), 0);
+  const ytId = (u: string | null) => u?.match(/(?:youtu\.be\/|[?&]v=|\/embed\/)([\w-]{11})/)?.[1] ?? "";
+  const previews = course.lessons.filter((l) => l.isPreview && ytId(l.youtubeUrl));
+  const lines = (t: string | null) => (t ?? "").split(/\n+/).map((x) => x.trim()).filter(Boolean);
+  const highlights = lines(course.highlights);
+  const audience = lines(course.audience);
+  const bio = lines(course.instructorBio);
+  const reviews = results.filter((r) => r.subject === subject && r.review).slice(0, 4);
   const faq = (course.faq ?? "")
     .split(/\n\s*\n/)
     .map((b) => b.trim().split("\n"))
     .filter((b) => b[0]?.trim())
-    .map(([q, ...a]) => ({ q: q.trim(), a: a.join("\n").trim() }))
+    .map(([q, ...a]) => ({ q: q.replace(/^ถาม:\s*/, "").trim(), a: a.join("\n").replace(/^ตอบ:\s*/, "").trim() }))
     .concat([
       { q: "ซื้อแล้วดูได้นานแค่ไหน", a: "ดูได้ตลอด ไม่มีวันหมดอายุ เปิดดูซ้ำได้ทุกตอนไม่จำกัดจำนวนครั้ง" },
       { q: "ดูได้กี่เครื่อง", a: "บัญชีหนึ่งใช้ได้ครั้งละ 1 เครื่อง ถ้าเข้าสู่ระบบจากเครื่องใหม่ เครื่องเดิมจะออกจากระบบเอง สลับเครื่องได้ตลอด" },
       { q: "โอนเงินแล้วเข้าเรียนได้เมื่อไร", a: "หลังแอดมินตรวจสลิป ปกติภายใน 24 ชั่วโมง ระบบจะส่งอีเมลแจ้งเมื่ออนุมัติ แล้วเข้าเรียนได้ที่เมนู “คอร์สของฉัน”" },
-      { q: "มีคำถามเพิ่มเติม ติดต่อใคร", a: `ทัก IG @${settings.contact_ig} ได้เลย` },
+      { q: "มีคำถามเพิ่มเติม ติดต่อใคร", a: `ทัก IG @${cfg.contact_ig} ได้เลย` },
     ]);
-  const chapters: { name: string; lessons: typeof course.lessons }[] = [];
-  for (const l of course.lessons) {
-    const name = l.chapter || "เนื้อหาในคอร์ส";
-    const ch = chapters.find((c) => c.name === name) ?? chapters[chapters.push({ name, lessons: [] }) - 1];
-    ch.lessons.push(l);
+  const jumps: [string, string][] = [["overview", "ภาพรวม"], ["syllabus", "เนื้อหา"]];
+  if (course.instructorName) jumps.push(["instructor", "ผู้สอน"]);
+  if (reviews.length) jumps.push(["reviews", "รีวิว"]);
+  jumps.push(["faq", "คำถามที่พบบ่อย"]);
+
+  const learnHref = `/learn/${course.id}`;
+  let box: React.ReactNode;
+  let cta: React.ReactNode;
+  if (!userId) {
+    box = enrollOpen ? (
+      <>
+        <p className="ink2 sm">สมัครสมาชิกหรือเข้าสู่ระบบก่อน แล้วจึงซื้อคอร์สได้</p>
+        <AuthLink mode="signup" className="pill block">สมัครสมาชิกเพื่อซื้อคอร์ส</AuthLink>
+        <AuthLink mode="login" className="pill ghost block">มีบัญชีแล้ว เข้าสู่ระบบ</AuthLink>
+      </>
+    ) : (
+      <>
+        <NoticeButton className="pill block" title="ยังไม่เปิดรับสมัคร" msg={closedMsg}>สมัครเรียนคอร์สนี้</NoticeButton>
+        <AuthLink mode="login" className="pill ghost block">มีบัญชีแล้ว เข้าสู่ระบบ</AuthLink>
+      </>
+    );
+    cta = enrollOpen ? <AuthLink mode="signup" className="pill">สมัครเพื่อซื้อ</AuthLink> : <NoticeButton className="pill" title="ยังไม่เปิดรับสมัคร" msg={closedMsg}>สมัครเรียน</NoticeButton>;
+  } else if (st === "approved") {
+    box = (
+      <>
+        <div className="note ok">คุณมีสิทธิ์เข้าเรียนคอร์สนี้แล้ว</div>
+        <Link className="pill block" href={learnHref}>เข้าห้องเรียน</Link>
+      </>
+    );
+    cta = <Link className="pill" href={learnHref}>เข้าห้องเรียน</Link>;
+  } else if (st === "pending") {
+    box = <div className="note wait">ส่งสลิปแล้ว แอดมินกำลังตรวจ ปกติไม่เกิน 24 ชั่วโมง ระบบจะส่งอีเมลแจ้งเมื่ออนุมัติ</div>;
+    cta = <span className="badge b-wait">รอตรวจสลิป</span>;
+  } else if (!enrollOpen) {
+    box = <NoticeButton className="pill block" title="ยังไม่เปิดรับสมัคร" msg={closedMsg}>ลงทะเบียนเรียน</NoticeButton>;
+    cta = <NoticeButton className="pill" title="ยังไม่เปิดรับสมัคร" msg={closedMsg}>ซื้อคอร์ส</NoticeButton>;
+  } else {
+    const qr = course.paymentQrUrl || (cfg.promptpay_id ? await generatePromptPayQR(cfg.promptpay_id, course.price) : null);
+    box = (
+      <>
+        {st === "rejected" && <div className="note no">สลิปครั้งก่อนไม่ผ่าน{lastPay?.rejectReason ? `: ${lastPay.rejectReason}` : ""} ส่งสลิปใหม่ได้ด้านล่าง</div>}
+        <PayBox courseId={course.id} price={course.price} qr={qr} ppId={cfg.promptpay_id} ppName={cfg.promptpay_name} />
+      </>
+    );
+    cta = <JumpButton to="sec-buy" className="pill">ซื้อคอร์ส</JumpButton>;
   }
-  const highlights = lines(course.highlights);
-  const audience = lines(course.audience);
-  const bio = lines(course.instructorBio);
+
+  const CK = (
+    <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="10" fill="currentColor" />
+      <path d="M5.5 10.3l3 3 6-6.3" fill="none" stroke="rgb(var(--on-acc))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 
   return (
-    <div className={`s-${subjectKey(course.subject)}`}>
-      <main className="mx-auto grid max-w-site items-start gap-11 px-4 pb-[72px] pt-7 min-[841px]:grid-cols-[1.45fr_1fr] max-[840px]:gap-7">
-        <div className="min-w-0">
-          <Link href="/" className="text-sm text-secondary underline underline-offset-[3px] hover:text-ink">← คอร์สทั้งหมด</Link>
-          <div className="mt-6 text-[13px] font-semibold text-accent">{course.subject.name}{course.level ? ` · ${course.level}` : ""}</div>
-          <h1 className="mb-3 mt-2 text-[clamp(28px,4.4vw,44px)] font-bold leading-tight">{course.title}</h1>
-          {course.subtitle && <p className="text-lg text-secondary">{course.subtitle}</p>}
-          <div className="mb-7 mt-3.5 flex flex-wrap gap-2 text-sm">
-            <span className="rounded-pill bg-accent-soft px-3.5 py-1 text-accent"><b>{course.lessons.length}</b> ตอน</span>
-            {total > 0 && <span className="rounded-pill bg-accent-soft px-3.5 py-1 text-accent"><b>{duration(total)}</b> วิดีโอ</span>}
-            <span className="rounded-pill bg-accent-soft px-3.5 py-1 text-accent"><b>ดูได้ตลอด</b> ไม่มีวันหมดอายุ</span>
-          </div>
-          {course.trailerYoutube ? (
-            <div className="mb-7 aspect-video overflow-hidden rounded-card bg-black">
-              <iframe
-                src={`https://www.youtube-nocookie.com/embed/${course.trailerYoutube}`}
-                title={`คลิปแนะนำ ${course.title}`}
-                className="h-full w-full"
-                allow="encrypted-media; picture-in-picture"
-                allowFullScreen
-              />
+    <>
+      <SubjectAccent subject={subject} />
+      <div style={{ paddingTop: 24 }}><Link className="back" href="/">← คอร์สทั้งหมด</Link></div>
+      <div className="cd">
+        <div>
+          <section className="chero" id="sec-overview">
+            <span className="mono sj">{course.subject.name}</span>
+            <h1>{course.title}</h1>
+            {course.subtitle && <p className="ink2 lead">{course.subtitle}</p>}
+            <div className="facts">
+              <span><b>{total}</b> ตอน</span>
+              <span><b>{hm(totalMin)}</b> วิดีโอ</span>
+              <span><b>ดูได้ตลอด</b> ไม่มีวันหมดอายุ</span>
             </div>
-          ) : (
-            <CourseCover course={course} big className="mb-7 rounded-card" />
-          )}
-          {course.description && <p className="mb-7 max-w-[62ch] whitespace-pre-line text-secondary">{course.description}</p>}
-          {(highlights.length > 0 || audience.length > 0) && (
-            <div className="mb-8 grid gap-3.5 sm:grid-cols-2">
-              {highlights.length > 0 && (
-                <div className="rounded-card bg-accent-soft p-5">
-                  <h3 className="mb-2 font-bold">จุดเด่นของคอร์ส</h3>
-                  <ul className="grid gap-1.5 text-[14.5px]">{highlights.map((h) => <li key={h} className="flex gap-2"><Check />{h}</li>)}</ul>
-                </div>
-              )}
-              {audience.length > 0 && (
-                <div className="rounded-card border border-border p-5">
-                  <h3 className="mb-2 font-bold">คอร์สนี้เหมาะกับ</h3>
-                  <ul className="grid list-disc gap-1.5 pl-5 text-[14.5px] text-secondary">{audience.map((h) => <li key={h}>{h}</li>)}</ul>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="mb-2 flex items-end justify-between">
-            <h2 className="text-[22px] font-bold">เนื้อหาในคอร์ส</h2>
-            <span className="text-[13.5px] text-muted">{course.lessons.length} ตอน{total ? ` · ${duration(total)}` : ""}</span>
-          </div>
-          <div className="border-t border-border">
-            {chapters.map((ch, ci) => (
-              <details key={ch.name} open={ci === 0} className="border-b border-border">
-                <summary className="flex cursor-pointer list-none justify-between gap-3 px-0.5 py-3.5 font-medium [&::-webkit-details-marker]:hidden">
-                  <span>{ch.name}</span>
-                  <span className="whitespace-nowrap text-[13.5px] font-normal text-muted">{ch.lessons.length} ตอน</span>
-                </summary>
-                <ul className="pb-3">
-                  {ch.lessons.map((l) => (
-                    <li key={l.id} className="flex items-center justify-between gap-3 px-0.5 py-1.5 text-sm text-secondary">
-                      <span className="truncate">{l.title}</span>
-                      <span className="flex flex-none items-center gap-3">
-                        {l.duration != null && <span className="font-mono text-xs text-muted">{Math.round(l.duration / 60)} นาที</span>}
-                        {l.isPreview && l.youtubeUrl && <PreviewLesson youtubeUrl={l.youtubeUrl} />}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ))}
-            {course.lessons.length === 0 && <p className="py-4 text-sm text-muted">ยังไม่มีบทเรียนในคอร์สนี้</p>}
-          </div>
-
-          {course.instructorName && (
-            <section className="mt-10 flex flex-wrap gap-5 rounded-card border border-border p-5">
-              {course.instructorPhoto && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={course.instructorPhoto} alt="" className="h-24 w-24 flex-none rounded-full bg-panel object-cover" />
-              )}
-              <div className="min-w-[220px] flex-1">
-                <span className="text-[13px] font-semibold text-accent">ผู้สอน</span>
-                <h3 className="text-xl font-bold">{course.instructorName}</h3>
-                {course.instructorTitle && <p className="text-sm text-secondary">{course.instructorTitle}</p>}
-                {bio.length > 0 && <ul className="mt-2 grid list-disc gap-1 pl-5 text-sm text-secondary">{bio.map((b) => <li key={b}>{b}</li>)}</ul>}
+            {course.trailerYoutube ? (
+              <div className="player trailer"><YouTube id={course.trailerYoutube} /></div>
+            ) : course.coverImage ? (
+              <div className="cover trailer" style={{ borderRadius: 16, aspectRatio: "16/8" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={course.coverImage} alt="" style={{ objectFit: "contain" }} />
               </div>
+            ) : null}
+            {!course.trailerYoutube && previews.length > 0 && (
+              <PreviewButton className="pill ghost s" style={{ justifySelf: "start" }} id={ytId(previews[0].youtubeUrl)} title={previews[0].title}>▶ ดูตอนตัวอย่างฟรี</PreviewButton>
+            )}
+          </section>
+          <nav className="jump" aria-label="ส่วนของหน้า">
+            {jumps.map(([k, label]) => <JumpButton key={k} to={`sec-${k}`}>{label}</JumpButton>)}
+          </nav>
+          {highlights.length > 0 && (
+            <section className="sec">
+              <h2>จุดเด่นของคอร์ส</h2>
+              <div className="hl">{highlights.map((h) => <div key={h}><span className="ic">{CK}</span><span>{h}</span></div>)}</div>
             </section>
           )}
-
-          {reviews.length > 0 && (
-            <section className="mt-10">
-              <h2 className="mb-3 text-[22px] font-bold">รีวิวจากน้องที่ติดค่าย</h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {reviews.map((r) => (
-                  <figure key={r.id} className="grid gap-2 rounded-card border border-border p-4">
-                    <blockquote className="text-[14.5px] text-secondary">“{r.review}”</blockquote>
-                    <figcaption className="text-sm font-medium">น้อง{r.nickname}{r.school ? ` · ${r.school}` : ""} <span className="text-muted">({r.year})</span></figcaption>
-                  </figure>
-                ))}
-              </div>
+          {audience.length > 0 && (
+            <section className="sec">
+              <h2>คอร์สนี้เหมาะกับ</h2>
+              <ul className="aud">{audience.map((a) => <li key={a}>{a}</li>)}</ul>
             </section>
           )}
-
-          <section className="mt-10">
-            <h2 className="mb-2 text-[22px] font-bold">คำถามที่พบบ่อย</h2>
-            <div className="border-t border-border">
-              {faq.map((x) => (
-                <details key={x.q} className="border-b border-border">
-                  <summary className="flex cursor-pointer list-none justify-between gap-3 px-0.5 py-3.5 font-medium [&::-webkit-details-marker]:hidden">
-                    {x.q}
-                    <span className="text-accent">+</span>
+          {course.description && (
+            <section className="sec">
+              <h2>รายละเอียดคอร์ส</h2>
+              <p className="desc">{course.description}</p>
+            </section>
+          )}
+          <section className="sec" id="sec-syllabus">
+            <div className="spread"><h2>เนื้อหาในคอร์ส</h2><SylAll /></div>
+            <p className="sm ink2">
+              {chapters.length} บท · {total} ตอน · {hm(totalMin)}{previews.length ? ` · ดูฟรีได้ ${previews.length} ตอน` : ""}
+            </p>
+            <div className="syl">
+              {chapters.map((ch, i) => (
+                <details key={ch.title} open={i === 0}>
+                  <summary>
+                    <span>{ch.title}</span>
+                    <span className="n">{ch.lessons.length} ตอน · {hm(ch.lessons.reduce((a, l) => a + min(l), 0))}</span>
                   </summary>
-                  <p className="whitespace-pre-line pb-3.5 text-sm text-secondary">{x.a}</p>
+                  <ul>
+                    {ch.lessons.map((l) => (
+                      <li key={l.id}>
+                        <span>
+                          {l.title}
+                          {l.isPreview && ytId(l.youtubeUrl) && (
+                            <> <PreviewButton className="pill s ghost" style={{ marginLeft: 6 }} id={ytId(l.youtubeUrl)} title={l.title}>ดูฟรี</PreviewButton></>
+                          )}
+                        </span>
+                        <span className="d">{min(l)} นาที</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ))}
+            </div>
+          </section>
+          {course.instructorName && (
+            <section className="sec" id="sec-instructor">
+              <h2>ผู้สอน</h2>
+              <div className="inst">
+                <div className="ph">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {course.instructorPhoto && <img src={course.instructorPhoto} alt="" />}
+                  <span>{course.instructorName.replace(/^พี่\s*/, "").slice(0, 1)}</span>
+                </div>
+                <div className="stack" style={{ gap: 4, flex: 1, minWidth: 220 }}>
+                  <h3 style={{ fontSize: 20 }}>{course.instructorName}</h3>
+                  {course.instructorTitle && <span className="sm acc">{course.instructorTitle}</span>}
+                  {bio.length > 1 ? (
+                    <ul className="bl">{bio.map((b) => <li key={b}>{b.replace(/^[-•*]\s*/, "")}</li>)}</ul>
+                  ) : bio.length === 1 ? (
+                    <p className="ink2 desc" style={{ marginTop: 6 }}>{bio[0]}</p>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+          )}
+          {reviews.length > 0 && (
+            <section className="sec" id="sec-reviews">
+              <div className="spread"><h2>เสียงจากน้องที่ติดค่าย</h2><Link className="link" href="/results">ดูทั้งหมด</Link></div>
+              <div className="rvs two">{reviews.map((r) => <ReviewCard key={r.id} r={r} />)}</div>
+            </section>
+          )}
+          <section className="sec" id="sec-faq">
+            <h2>คำถามที่พบบ่อย</h2>
+            <div className="syl faq">
+              {faq.map((f) => (
+                <details key={f.q}>
+                  <summary><span className="t">{f.q}</span><span className="n">+</span></summary>
+                  <p>{f.a}</p>
                 </details>
               ))}
             </div>
           </section>
         </div>
-
-        <aside className="grid gap-3.5 rounded-3xl border border-border bg-paper p-6 min-[841px]:sticky min-[841px]:top-[84px]">
-          <span className="text-sm text-muted">ราคาคอร์ส</span>
-          <div className="text-[32px] font-semibold tabular-nums">
-            {course.fullPrice && course.fullPrice > course.price && (
-              <span className="mr-2 text-[0.55em] font-normal text-muted line-through">฿{course.fullPrice.toLocaleString()}</span>
-            )}
-            {baht(course.price)}
-          </div>
-          <ul className="grid gap-2 border-y border-border py-4 text-[14.5px]">
-            <li className="flex gap-2.5"><Check />คลิปเรียน {course.lessons.length} ตอน{total ? ` (${duration(total)})` : ""}</li>
-            <li className="flex gap-2.5"><Check />ชีทประกอบในห้องเรียน</li>
-            <li className="flex gap-2.5"><Check />ดูได้ตลอด ไม่มีวันหมดอายุ</li>
-            <li className="flex gap-2.5"><Check />เรียนได้ทั้งมือถือและคอม</li>
+        <aside className="buy" id="sec-buy">
+          <span className="mono">ราคาคอร์ส</span>
+          <span className="price">
+            {course.fullPrice && course.fullPrice > course.price && <span className="was">{zbaht(course.fullPrice)}</span>}
+            {zbaht(course.price)}
+          </span>
+          <ul className="incl">
+            <li>{CK}คลิปเรียน {total} ตอน ({hm(totalMin)})</li>
+            <li>{CK}ชีทประกอบในห้องเรียน</li>
+            <li>{CK}ดูได้ตลอด ไม่มีวันหมดอายุ</li>
+            <li>{CK}เรียนได้ทั้งมือถือและคอม</li>
           </ul>
-          {!userId && enrollOpen && <p className="text-sm text-secondary">สมัครสมาชิกหรือเข้าสู่ระบบก่อน แล้วจึงซื้อคอร์สได้</p>}
-          {!enrollOpen && !enrollment ? (
-            // Enrollment closed (หลังบ้าน → ตั้งค่า): the button explains instead of going to checkout.
-            <EnrollClosedButton label={userId ? "ลงทะเบียนเรียน" : "สมัครเรียนคอร์สนี้"} message={settings.enroll_closed_message} />
-          ) : (
-            <LinkButton href={userId ? ctaHref : "/register"} className="w-full">
-              {userId ? ctaLabel : "สมัครสมาชิกเพื่อซื้อคอร์ส"}
-            </LinkButton>
-          )}
-          {!userId && (
-            <LinkButton href="/login" variant="outline" className="w-full">มีบัญชีแล้ว เข้าสู่ระบบ</LinkButton>
-          )}
+          {box}
         </aside>
-      </main>
-    </div>
+      </div>
+      <div className="mbar">
+        <div><span className="sm ink2">{course.title}</span><b className="price">{zbaht(course.price)}</b></div>
+        {cta}
+      </div>
+    </>
   );
 }

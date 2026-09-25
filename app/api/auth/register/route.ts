@@ -14,9 +14,16 @@ const RegisterSchema = z.object({
   school: z.string().optional(),
   gradeLevel: z.string().optional(),
   phone: z.string().optional(),
-  email: z.string().email(),
+  email: z.string().email("อีเมลไม่ถูกต้อง"),
   password: z.string().min(8, "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"),
+  dreamFaculty: z.string().optional(),
+  dreamUniversity: z.string().optional(),
+  currentFaculty: z.string().optional(),
+  currentUniversity: z.string().optional(),
 });
+
+// Bumped when the terms text changes; stored with each account's acceptance.
+const TERMS_VERSION = "2569-09-25";
 
 export async function POST(req: Request) {
   // 5 sign-up attempts per IP per 15 minutes — generous for a real person,
@@ -27,14 +34,19 @@ export async function POST(req: Request) {
 
   const formData = await req.formData();
   const raw = Object.fromEntries(
-    ["firstName", "lastName", "nickname", "school", "gradeLevel", "phone", "email", "password"].map((k) => [
+    ["firstName", "lastName", "nickname", "school", "gradeLevel", "phone", "email", "password",
+      "dreamFaculty", "dreamUniversity", "currentFaculty", "currentUniversity"].map((k) => [
       k,
       formData.get(k)?.toString() ?? "",
     ])
   );
+  if (!["1", "true", "on"].includes(formData.get("acceptTerms")?.toString() ?? "")) {
+    return NextResponse.json({ error: "กรุณาติ๊กยอมรับข้อตกลงการใช้งานและนโยบายความเป็นส่วนตัวก่อน" }, { status: 400 });
+  }
   const parsed = RegisterSchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
+    return NextResponse.json({ error: first || "กรอกข้อมูลให้ครบ (ชื่อ นามสกุล อีเมล รหัสผ่าน)" }, { status: 400 });
   }
   const data = parsed.data;
   const email = data.email.toLowerCase();
@@ -66,6 +78,12 @@ export async function POST(req: Request) {
     school: data.school,
     gradeLevel: data.gradeLevel,
     phone: data.phone,
+    dreamFaculty: data.dreamFaculty || null,
+    dreamUniversity: data.dreamUniversity || null,
+    currentFaculty: data.currentFaculty || null,
+    currentUniversity: data.currentUniversity || null,
+    termsAcceptedAt: new Date(),
+    termsVersion: TERMS_VERSION,
     role: "STUDENT" as const,
     emailVerified: false,
     ...(avatarUrl ? { avatarUrl } : {}),

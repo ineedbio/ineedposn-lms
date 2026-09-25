@@ -44,6 +44,16 @@ export async function POST(req: Request) {
       }
     }
 
+    // "ทำเครื่องหมายว่าดูจบ" button: the student marks (or unmarks) a lesson by hand.
+    if (typeof body.done === "boolean") {
+      const row = await prisma.lessonProgress.upsert({
+        where: { userId_lessonId: { userId, lessonId } },
+        update: { isCompleted: body.done, completedAt: body.done ? new Date() : null },
+        create: { userId, lessonId, watchedSeconds: 0, isCompleted: body.done, completedAt: body.done ? new Date() : null },
+      });
+      return NextResponse.json({ watchedSeconds: row.watchedSeconds, isCompleted: row.isCompleted });
+    }
+
     // A student can only ever gain watch time, never lose it — otherwise
     // seeking backward or a dropped connection could un-complete a lesson.
     const existing = await prisma.lessonProgress.findUnique({
