@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
-import LogoutButton from "./LogoutButton";
+import { signOut } from "next-auth/react";
+import Logo from "./Logo";
+import ThemeToggle from "./ThemeToggle";
 
 const NAV = [
   { href: "/admin/payments", label: "การชำระเงิน" },
-  { href: "/admin/courses", label: "คอร์สเรียน" },
   { href: "/admin/students", label: "ทะเบียนนักเรียน" },
-  { href: "/admin/camp-results", label: "🏆 ผลค่าย สอวน." }, // เพิ่มเมนู สอวน.
+  { href: "/admin/camp-results", label: "ผลค่าย สอวน." },
+  { href: "/admin/courses", label: "คอร์สเรียน" },
+  { href: "/admin/quizzes", label: "ข้อสอบ" },
   { href: "/admin/design-studio", label: "Design Studio" },
 ];
 
@@ -17,33 +19,21 @@ export default function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-[240px] flex-shrink-0 bg-ink text-white min-h-screen px-5 py-8 flex flex-col gap-6">
-      {/* โลโก้ Admin */}
-      <div className="flex items-center gap-2 px-2">
-        <Image src="/ineedbio-logo.png" alt="INeedBio" width={28} height={28} />
-        <span className="text-[19px] font-extrabold tracking-[-0.02em]">INeedBio</span>
-        <span className="text-muted font-semibold text-[13px]">Admin</span>
+    <aside className="flex flex-col gap-2 border-border bg-paper px-3 md:sticky md:top-0 md:h-screen md:border-r md:py-5 max-md:border-b max-md:py-2.5">
+      <div className="flex items-center justify-between gap-2 px-1 pb-2 max-md:pb-1">
+        <Logo href="/admin/payments" suffix="Admin" />
+        <span className="md:hidden"><ThemeToggle /></span>
       </div>
 
-      {/* ปุ่มกลับหน้าหลัก (อยู่ซ้ายสุดใต้โลโก้ เด่นชัด) */}
-      <Link
-        href="/dashboard"
-        className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95"
-      >
-        <span>←</span>
-        <span>กลับหน้าหลัก (ห้องเรียน)</span>
-      </Link>
-
-      {/* รายการเมนู Admin */}
-      <nav className="flex flex-col gap-1">
+      <nav className="flex gap-0.5 md:flex-col max-md:overflow-x-auto">
         {NAV.map((item) => {
           const active = pathname?.startsWith(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`text-[15px] px-3 py-3 rounded-[10px] transition-all duration-150 active:scale-[0.97] ${
-                active ? "font-semibold bg-dark-hover text-white" : "font-medium text-muted hover:text-white hover:bg-dark-hover/50"
+              className={`whitespace-nowrap rounded-[10px] px-3 py-2 text-[14.5px] no-underline transition-colors ${
+                active ? "bg-accent-soft font-semibold text-accent" : "text-secondary hover:bg-panel hover:text-ink"
               }`}
             >
               {item.label}
@@ -52,10 +42,15 @@ export default function AdminSidebar() {
         })}
       </nav>
 
-      <div className="flex-1" />
+      <div className="flex-1 max-md:hidden" />
 
-      {/* ปุ่มออกจากระบบ */}
-      <LogoutButton className="text-left text-sm font-medium text-muted hover:text-white transition px-3 py-3" />
+      <div className="grid gap-1 border-t border-border pt-3 max-md:hidden">
+        <div className="px-3 pb-2"><ThemeToggle /></div>
+        <Link href="/" className="rounded-[10px] px-3 py-2 text-sm text-secondary no-underline hover:bg-panel hover:text-ink">← กลับหน้าเว็บ</Link>
+        <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className="rounded-[10px] px-3 py-2 text-left text-sm text-no hover:bg-panel">
+          ออกจากระบบ
+        </button>
+      </div>
     </aside>
   );
 }

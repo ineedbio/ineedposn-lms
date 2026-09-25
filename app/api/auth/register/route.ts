@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { issueOtp } from "@/lib/otp";
 import { sendRegistrationOtp } from "@/lib/email";
 import { uploadFile } from "@/lib/storage";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const RegisterSchema = z.object({
   firstName: z.string().min(1),
@@ -18,6 +19,12 @@ const RegisterSchema = z.object({
 });
 
 export async function POST(req: Request) {
+  // 5 sign-up attempts per IP per 15 minutes — generous for a real person,
+  // enough to stop scripted account-creation spam.
+  const ip = clientIp(req.headers);
+  const rl = await rateLimit("register", ip, { limit: 5, windowSeconds: 15 * 60 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+
   const formData = await req.formData();
   const raw = Object.fromEntries(
     ["firstName", "lastName", "nickname", "school", "gradeLevel", "phone", "email", "password"].map((k) => [

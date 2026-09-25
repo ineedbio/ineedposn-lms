@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { issueOtp, verifyOtp, type VerifyOtpResult } from "@/lib/otp";
 import { sendRegistrationOtp } from "@/lib/email";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const OTP_ERROR: Record<Extract<VerifyOtpResult, { ok: false }>["reason"], string> = {
   NOT_FOUND: "รหัส OTP ไม่ถูกต้อง",
@@ -11,6 +12,13 @@ const OTP_ERROR: Record<Extract<VerifyOtpResult, { ok: false }>["reason"], strin
 };
 
 export async function POST(req: Request) {
+  // lib/otp.ts already caps wrong guesses per-code at 5; this additionally
+  // rate-limits the endpoint itself so someone can't outrun that cap by
+  // hammering /verify-otp directly (e.g. across many requested codes).
+  const ip = clientIp(req.headers);
+  const rl = await rateLimit("verify-otp", ip, { limit: 15, windowSeconds: 15 * 60 });
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+
   const { email, otp } = await req.json();
   if (!email || !otp) {
     return NextResponse.json({ error: "กรอกข้อมูลไม่ครบ" }, { status: 400 });
@@ -42,6 +50,17 @@ export async function POST(req: Request) {
 // Resend a fresh OTP for an unverified account.
 export async function PUT(req: Request) {
   const { email } = await req.json();
+
+  // 3 resends per email per 15 minutes — resending is the main way this
+  // endpoint could be turned into an email bomb against one inbox.
+  if (email) {
+    const rl = await rateLimit("verify-otp-resend", String(email).toLowerCase(), {
+      limit: 3,
+      windowSeconds: 15 * 60,
+    });
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+  }
+
   const user = await prisma.user.findUnique({
     where: { email: email ? String(email).toLowerCase() : "" },
   });

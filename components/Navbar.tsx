@@ -1,9 +1,11 @@
-import Link from "next/link";
-import Image from "next/image";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import LogoutButton from "./LogoutButton";
+import Logo from "./Logo";
+import ThemeToggle from "./ThemeToggle";
+import UserMenu from "./UserMenu";
+import { NavLinks, MobileNav, type NavItem } from "./NavLinks";
+import { LinkButton } from "./Button";
 
 export default async function Navbar() {
   const session = await getServerSession(authOptions);
@@ -13,64 +15,44 @@ export default async function Navbar() {
   const dbUser = user?.id
     ? await prisma.user.findUnique({
         where: { id: user.id },
-        select: { firstName: true, avatarUrl: true },
+        select: { firstName: true, nickname: true, avatarUrl: true, email: true },
       })
     : null;
 
-  const avatarUrl = dbUser?.avatarUrl || user?.avatarUrl;
-  const initial = (dbUser?.firstName?.[0] || user?.name?.[0] || "?").toUpperCase();
+  const items: NavItem[] = [{ href: "/", label: "คอร์สทั้งหมด" }];
+  if (user) items.push({ href: "/dashboard", label: "คอร์สของฉัน" });
+  if (user?.role === "ADMIN") items.push({ href: "/admin/payments", label: "หลังบ้าน" });
+  const mobileItems: NavItem[] = user ? [...items, { href: "/settings", label: "บัญชี" }] : [...items, { href: "/login", label: "เข้าสู่ระบบ" }];
 
   return (
-    <header className="sticky top-0 z-50 flex items-center justify-between px-12 py-5 bg-white/85 backdrop-blur-md border-b border-border-light">
-      <Link href="/" className="flex items-center gap-2.5 text-[22px] font-extrabold tracking-[-0.02em] text-ink">
-        <Image src="/ineedbio-logo.png" alt="INeedBio" width={34} height={34} />
-        INeedBio
-      </Link>
-      <nav className="flex items-center gap-9">
-        {user ? (
-          <>
-            <Link href="/" className="text-[15px] font-medium text-ink hover:text-secondary transition">
-              คอร์สทั้งหมด
-            </Link>
-            <Link href="/dashboard" className="text-[15px] font-medium text-ink hover:text-secondary transition">
-              ห้องเรียน
-            </Link>
-            {user.role === "ADMIN" && (
-              <Link href="/admin/payments" className="text-[15px] font-medium text-ink hover:text-secondary transition">
-                Admin
-              </Link>
+    <>
+      <header className="sticky top-0 z-40 border-b border-border bg-paper/85 backdrop-blur-md backdrop-saturate-150">
+        <div className="mx-auto flex h-[58px] max-w-site items-center justify-between gap-5 px-4 max-[560px]:gap-2.5">
+          <Logo />
+          <NavLinks items={items} />
+          <div className="flex items-center gap-3 max-[560px]:gap-2">
+            <ThemeToggle />
+            {user ? (
+              <UserMenu
+                name={dbUser?.nickname || dbUser?.firstName || user.name || "?"}
+                email={dbUser?.email ?? user.email ?? ""}
+                avatarUrl={dbUser?.avatarUrl || user.avatarUrl}
+                isAdmin={user.role === "ADMIN"}
+              />
+            ) : (
+              <>
+                <LinkButton href="/login" variant="outline" size="xs" className="max-[560px]:hidden">
+                  เข้าสู่ระบบ
+                </LinkButton>
+                <LinkButton href="/register" size="xs">
+                  สมัครสมาชิก
+                </LinkButton>
+              </>
             )}
-            <LogoutButton className="text-[15px] font-medium text-secondary hover:text-ink transition active:scale-95" />
-            <Link
-              href="/settings"
-              title="ตั้งค่าโปรไฟล์"
-              className="w-[38px] h-[38px] rounded-full bg-ink text-white flex items-center justify-center text-sm font-bold flex-shrink-0 overflow-hidden transition-transform duration-150 hover:scale-110 active:scale-95"
-            >
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarUrl} alt="รูปโปรไฟล์" className="w-full h-full object-cover" />
-              ) : (
-                initial
-              )}
-            </Link>
-          </>
-        ) : (
-          <>
-            <Link href="/dashboard" className="text-[15px] font-medium text-ink hover:text-secondary transition">
-              ห้องเรียน
-            </Link>
-            <Link href="/login" className="text-[15px] font-medium text-ink hover:text-secondary transition">
-              เข้าสู่ระบบ
-            </Link>
-            <Link
-              href="/register"
-              className="text-sm font-semibold text-white bg-ink px-5 py-2.5 rounded-pill hover:bg-dark-hover transition-all duration-150 active:scale-95"
-            >
-              สมัครสมาชิก
-            </Link>
-          </>
-        )}
-      </nav>
-    </header>
+          </div>
+        </div>
+      </header>
+      <MobileNav items={mobileItems} />
+    </>
   );
 }

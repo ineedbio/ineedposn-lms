@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { prisma } from "@/lib/prisma";
 import { requireUser, ApiError } from "@/lib/rbac";
+import { notifyAdminNewEnrollment } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
@@ -45,6 +46,26 @@ export async function POST(req: Request) {
       });
       return p;
     });
+
+    // Best-effort admin notification — a failed email must NOT roll back or
+    // fail the payment submission; the Payment/Enrollment rows already
+    // committed above are the source of truth, and the admin can still see
+    // this in the Admin → Payments dashboard even if the email never arrives.
+    try {
+      await notifyAdminNewEnrollment({
+        studentName: (session.user as any).name ?? "",
+        studentEmail: (session.user as any).email ?? "",
+        courseTitle: course.title,
+        amount: payment.amount,
+        promptpayRef: payment.promptpayRef,
+      });
+    } catch (err) {
+      console.error("[payments] failed to notify admin of new enrollment", {
+        paymentId: payment.id,
+        courseId,
+        err,
+      });
+    }
 
     return NextResponse.json({ id: payment.id }, { status: 201 });
   } catch (e) {
