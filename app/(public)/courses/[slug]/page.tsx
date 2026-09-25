@@ -8,6 +8,7 @@ import { LinkButton } from "@/components/Button";
 import CourseCover from "@/components/CourseCover";
 import { baht, duration, subjectKey } from "@/lib/site";
 import { getSettings } from "@/lib/settings";
+import EnrollClosedButton from "@/components/EnrollClosedButton";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,7 @@ export default async function CourseDetailPage({ params }: { params: { slug: str
       take: 6,
     }),
   ]);
+  const enrollOpen = settings.enroll_open === "1";
   const lines = (t: string | null) => (t ?? "").split("\n").map((x) => x.trim()).filter(Boolean);
   const faq = (course.faq ?? "")
     .split(/\n\s*\n/)
@@ -207,10 +209,15 @@ export default async function CourseDetailPage({ params }: { params: { slug: str
             <li className="flex gap-2.5"><Check />ดูได้ตลอด ไม่มีวันหมดอายุ</li>
             <li className="flex gap-2.5"><Check />เรียนได้ทั้งมือถือและคอม</li>
           </ul>
-          {!userId && <p className="text-sm text-secondary">สมัครสมาชิกหรือเข้าสู่ระบบก่อน แล้วจึงซื้อคอร์สได้</p>}
-          <LinkButton href={userId ? ctaHref : "/register"} className="w-full">
-            {userId ? ctaLabel : "สมัครสมาชิกเพื่อซื้อคอร์ส"}
-          </LinkButton>
+          {!userId && enrollOpen && <p className="text-sm text-secondary">สมัครสมาชิกหรือเข้าสู่ระบบก่อน แล้วจึงซื้อคอร์สได้</p>}
+          {!enrollOpen && !enrollment ? (
+            // Enrollment closed (หลังบ้าน → ตั้งค่า): the button explains instead of going to checkout.
+            <EnrollClosedButton label={userId ? "ลงทะเบียนเรียน" : "สมัครเรียนคอร์สนี้"} message={settings.enroll_closed_message} />
+          ) : (
+            <LinkButton href={userId ? ctaHref : "/register"} className="w-full">
+              {userId ? ctaLabel : "สมัครสมาชิกเพื่อซื้อคอร์ส"}
+            </LinkButton>
+          )}
           {!userId && (
             <LinkButton href="/login" variant="outline" className="w-full">มีบัญชีแล้ว เข้าสู่ระบบ</LinkButton>
           )}

@@ -1,4 +1,4 @@
-import { getSettings } from "@/lib/settings";
+import { getSettings, enrollmentOpen } from "@/lib/settings";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -28,6 +28,18 @@ export default async function CheckoutPage({
     where: { userId_courseId: { userId, courseId: course.id } },
   });
   if (enrollment?.status === "ACTIVE") redirect(`/learn/${course.id}`);
+
+  if (!enrollment && !(await enrollmentOpen())) {
+    return (
+      <div className="mx-auto flex max-w-[500px] flex-col items-center gap-4 px-6 py-20 text-center">
+        <h1 className="text-2xl font-bold">ยังไม่เปิดรับสมัคร</h1>
+        <p className="text-[15px] text-secondary">{(await getSettings()).enroll_closed_message}</p>
+        <Link href={`/courses/${course.slug}`} className="rounded-pill border border-accent px-5 py-2 text-sm text-accent no-underline">
+          กลับไปหน้าคอร์ส
+        </Link>
+      </div>
+    );
+  }
 
   if (enrollment?.status === "PENDING") {
     return (

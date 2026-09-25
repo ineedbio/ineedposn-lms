@@ -21,6 +21,7 @@ export async function PUT(req: Request) {
     if ("promptpay_id" in clean) clean.promptpay_id = pp;
     if ("contact_ig" in clean) clean.contact_ig = clean.contact_ig.replace(/^@/, "");
     if ("admin_emails" in clean) clean.admin_emails = emails.join(", ");
+    if ("enroll_open" in clean) clean.enroll_open = clean.enroll_open === "1" ? "1" : "0";
 
     await prisma.$transaction(
       Object.entries(clean).map(([key, value]) =>

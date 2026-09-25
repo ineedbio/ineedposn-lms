@@ -18,7 +18,15 @@ export const SETTING_DEFAULTS: Settings = {
   admin_emails: process.env.ADMIN_NOTIFICATION_EMAIL ?? "",
   terms_text: "",
   privacy_text: "",
+  // "1" = students can buy courses; anything else shows enroll_closed_message instead.
+  enroll_open: "",
+  enroll_closed_message: "ตอนนี้ระบบอยู่ในขั้นพัฒนา ยังไม่สามารถลงคอร์สเรียนได้ ติดตามข่าวการเปิดรับสมัครได้ทาง IG",
 };
+
+/** Whether students can currently buy courses (หลังบ้าน → ตั้งค่า → การรับสมัคร). */
+export async function enrollmentOpen() {
+  return (await getSettings()).enroll_open === "1";
+}
 
 
 /** All settings merged over the defaults; cached for the duration of one request. */

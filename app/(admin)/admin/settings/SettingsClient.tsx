@@ -35,7 +35,17 @@ export default function SettingsClient({ saved, defaults }: { saved: Record<stri
     <div className="grid gap-5 px-6 py-7 md:px-8">
       <h1 className="text-[26px] font-bold">ตั้งค่า</h1>
       <form className="grid max-w-[640px] gap-3.5 rounded-2xl border border-border p-5" onSubmit={save}>
-        <h3 className="text-base font-bold">หน้าแรก</h3>
+        <h3 className="text-base font-bold">การรับสมัคร</h3>
+        <label className="flex items-start gap-2.5 rounded-xl border border-border p-3 text-sm">
+          <input type="checkbox" className="mt-1" checked={f.enroll_open === "1"} onChange={(e) => setF({ ...f, enroll_open: e.target.checked ? "1" : "0" })} />
+          <span>
+            <b>เปิดให้ลงคอร์สเรียน</b>
+            <span className="block text-[13px] text-muted">ถ้าปิด ปุ่มสมัครเรียนจะเด้งข้อความด้านล่างแทน และหน้าชำระเงินจะใช้ไม่ได้ (แอดมินยังเพิ่มสิทธิ์ให้นักเรียนเองได้)</span>
+          </span>
+        </label>
+        <Field label="ข้อความเมื่อปิดรับสมัคร">{input("enroll_closed_message")}</Field>
+
+        <h3 className="mt-1.5 text-base font-bold">หน้าแรก</h3>
         <Field label="ข้อความเล็กเหนือหัวข้อ">{input("hero_eyebrow")}</Field>
         <Field label="หัวข้อใหญ่ (ใส่ | เพื่อขึ้นบรรทัดใหม่ บรรทัดที่ 2 จะเป็นสีเขียว)">{input("hero_title")}</Field>
         <Field label="ข้อความใต้หัวข้อ">{input("hero_subtitle")}</Field>

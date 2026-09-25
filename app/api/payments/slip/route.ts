@@ -1,3 +1,4 @@
+import { enrollmentOpen, getSettings } from "@/lib/settings";
 import { NextResponse } from "next/server";
 import { requireUser, ApiError } from "@/lib/rbac";
 import { uploadFile } from "@/lib/storage";
@@ -5,6 +6,9 @@ import { uploadFile } from "@/lib/storage";
 export async function POST(req: Request) {
   try {
     await requireUser();
+    if (!(await enrollmentOpen())) {
+      return NextResponse.json({ error: (await getSettings()).enroll_closed_message }, { status: 403 });
+    }
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
