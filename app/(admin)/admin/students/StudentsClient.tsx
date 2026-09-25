@@ -41,13 +41,16 @@ export default function StudentsClient({
   const [selectedStatus, setSelectedStatus] = useState("ทั้งหมด");
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Minimal Toast Popup State
+  // Toast State
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
 
-  // Minimal Delete Modal State
+  // Delete Modal State
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
-  // Add Student Modal State
+  // Edit Modal State
+  const [editingStudent, setEditingStudent] = useState<any | null>(null);
+
+  // Add Modal State
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isPosn, setIsPosn] = useState(false);
   const [newStudent, setNewStudent] = useState({
@@ -70,7 +73,7 @@ export default function StudentsClient({
     setTimeout(() => setToast(null), 2500);
   }
 
-  // ซิงก์ข้อมูลสดจาก Neon DB พร้อมนำโน้ตที่เคยบันทึกไว้มาประกบ
+  // ซิงก์ข้อมูลสดจาก Neon DB พร้อมประกบโน้ต
   useEffect(() => {
     const savedNotes = JSON.parse(localStorage.getItem("ineedbio_students_notes") || "{}");
     setStudents(
@@ -97,7 +100,7 @@ export default function StudentsClient({
     setHasChanges(true);
   }
 
-  // 1. บันทึกการเปลี่ยนแปลงทั้งหมดลง Neon DB จริง
+  // 1. บันทึกการเปลี่ยนแปลง (สถานะเงิน / โน้ต) ลง Neon DB
   async function handleSaveAll() {
     try {
       const updates = students.map((s) => ({
@@ -113,6 +116,12 @@ export default function StudentsClient({
       });
 
       if (!res.ok) throw new Error("บันทึกลงฐานข้อมูลไม่สำเร็จ");
+
+      const notesMap: Record<string, string> = {};
+      students.forEach((s) => {
+        if (s.notes) notesMap[s.id] = s.notes;
+      });
+      localStorage.setItem("ineedbio_students_notes", JSON.stringify(notesMap));
 
       setHasChanges(false);
       showToast("บันทึกการเปลี่ยนแปลงลงฐานข้อมูลเรียบร้อย");
@@ -133,7 +142,7 @@ export default function StudentsClient({
     showToast("ยกเลิกและคืนค่าเดิมเรียบร้อยแล้ว", "info");
   }
 
-  // 2. ลบนักเรียนออกจาก Neon DB จริง
+  // 2. ลบนักเรียนออกจาก Neon DB
   async function confirmDelete() {
     if (!deleteTarget) return;
     const targetId = deleteTarget.id;
@@ -152,7 +161,36 @@ export default function StudentsClient({
     }
   }
 
-  // 3. เพิ่มนักเรียนลง Neon DB จริง
+  // 3. แก้ไขข้อมูลส่วนตัวนักเรียนลง Neon DB
+  function openEditModal(student: any) {
+    setEditingStudent({ ...student });
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingStudent) return;
+
+    try {
+      const res = await fetch("/api/admin/students", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingStudent),
+      });
+
+      if (!res.ok) throw new Error("แก้ไขข้อมูลไม่สำเร็จ");
+
+      setStudents((prev) =>
+        prev.map((s) => (s.id === editingStudent.id ? { ...s, ...editingStudent } : s))
+      );
+
+      setEditingStudent(null);
+      showToast(`แก้ไขข้อมูล "${editingStudent.name}" เรียบร้อย`);
+    } catch (err: any) {
+      showToast(err.message || "เกิดข้อผิดพลาดในการแก้ไข", "info");
+    }
+  }
+
+  // 4. เพิ่มนักเรียนใหม่ลง Neon DB
   async function handleAddSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!newStudent.name) return;
@@ -301,6 +339,7 @@ export default function StudentsClient({
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[24px] p-6 max-w-[340px] w-full shadow-2xl flex flex-col items-center text-center gap-3 border border-slate-100">
@@ -331,7 +370,7 @@ export default function StudentsClient({
         </div>
       )}
 
-      {/* แถบสลับหน้า */}
+      {/* Navigation */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div className="flex gap-2 items-center">
           <Link
@@ -387,7 +426,7 @@ export default function StudentsClient({
         </p>
       </div>
 
-      {/* การ์ดคอร์สเรียน */}
+      {/* Course Cards */}
       <div>
         <div className="text-xs text-slate-500 mb-2 font-bold uppercase tracking-wider">
           คอร์สเรียน — คลิกการ์ดเพื่อกรอง
@@ -414,7 +453,7 @@ export default function StudentsClient({
         </div>
       </div>
 
-      {/* ค้นหาและตัวกรอง */}
+      {/* Search & Filter */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3">
         <div className="flex flex-wrap gap-3 items-center">
           <input
@@ -473,7 +512,7 @@ export default function StudentsClient({
         </div>
       </div>
 
-      {/* ตารางนักเรียน */}
+      {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
@@ -553,13 +592,22 @@ export default function StudentsClient({
                   />
                 </td>
                 <td className="py-3.5 px-3 text-center">
-                  <button
-                    onClick={() => setDeleteTarget({ id: s.id, name: s.name })}
-                    title="ลบนักเรียนนี้"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
-                  >
-                    🗑️
-                  </button>
+                  <div className="flex items-center justify-center gap-1">
+                    <button
+                      onClick={() => openEditModal(s)}
+                      title="แก้ไขข้อมูลนักเรียน"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget({ id: s.id, name: s.name })}
+                      title="ลบนักเรียนนี้"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -574,7 +622,103 @@ export default function StudentsClient({
         </table>
       </div>
 
-      {/* Modal เพิ่มนักเรียน */}
+      {/* Edit Modal */}
+      {editingStudent && (
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] p-6 max-w-[500px] w-full shadow-2xl flex flex-col gap-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-900">✏️ แก้ไขข้อมูลนักเรียน</h2>
+              <button onClick={() => setEditingStudent(null)} className="text-slate-400 hover:text-slate-600 text-lg">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700">ชื่อ - นามสกุล *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingStudent.name}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700">ชื่อเล่น</label>
+                  <input
+                    type="text"
+                    value={editingStudent.nickname}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, nickname: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700">ระดับชั้น</label>
+                  <input
+                    type="text"
+                    value={editingStudent.grade}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, grade: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700">โรงเรียน</label>
+                  <input
+                    type="text"
+                    value={editingStudent.school}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, school: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700">เบอร์โทร</label>
+                  <input
+                    type="tel"
+                    value={editingStudent.phone}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, phone: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700">อีเมล</label>
+                  <input
+                    type="email"
+                    value={editingStudent.email}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, email: e.target.value })}
+                    className="w-full h-9 px-3 mt-1 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingStudent(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                >
+                  บันทึกการแก้ไข
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Modal */}
       {isAddOpen && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[24px] p-6 max-w-[500px] w-full shadow-2xl flex flex-col gap-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
@@ -672,6 +816,7 @@ export default function StudentsClient({
                 </select>
               </div>
 
+              {/* Checkbox เชื่อมโยงโครงการ สอวน. */}
               <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 flex flex-col gap-2.5">
                 <label className="flex items-center gap-2 cursor-pointer font-bold text-emerald-900">
                   <input

@@ -128,3 +128,39 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// 4. แก้ไขข้อมูลส่วนตัวนักเรียนลง Neon DB
+export async function PUT(req: Request) {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as any;
+  if (!user || user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const { id, name, nickname, grade, school, phone, email } = body;
+
+    const parts = name.trim().split(" ");
+    const firstName = parts[0] || name;
+    const lastName = parts.slice(1).join(" ") || "-";
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: {
+        firstName,
+        lastName,
+        nickname: nickname || null,
+        school: school || null,
+        gradeLevel: grade || null,
+        phone: phone || null,
+        email: email || undefined,
+      },
+    });
+
+    revalidatePath("/admin/students");
+    return NextResponse.json({ success: true, student: updated });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
