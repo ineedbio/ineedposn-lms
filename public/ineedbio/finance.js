@@ -136,72 +136,73 @@
 
     /* Admin Sidebar Link */
     .ib-finance-nav-link {
-      display: flex !important;
-      align-items: center;
-      box-sizing: border-box;
-      width: 100%;
-      cursor: pointer;
-      font-family: inherit;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--ink2, #525252) !important;
-      padding: 10px 14px;
-      border-radius: 10px;
-      text-align: left;
-      transition: all .15s;
-      text-decoration: none;
-      background: transparent;
+      cursor: pointer !important;
+      text-decoration: none !important;
+      transition: all .15s !important;
     }
     .ib-finance-nav-link:hover {
-      color: var(--ink, #0c0c0c) !important;
-      background: var(--bg2, #f5f5f4) !important;
+      opacity: 0.9 !important;
     }
   `;
   document.head.appendChild(style);
 
-  // Router loop
+  // Router loop supporting both Next.js pathname and hash routes
   function checkRoute() {
     var h = window.location.hash || '';
-    if (h === '#/finance' || h.indexOf('#/finance?') === 0) {
+    var path = window.location.pathname || '';
+    var isFinance = (h === '#/finance' || h.indexOf('#/finance?') === 0 || path === '/finance' || path.indexOf('/finance/') === 0);
+    var isAdmin = (h.indexOf('#/admin') === 0 || path === '/admin' || path.indexOf('/admin/') === 0);
+
+    if (isFinance) {
       if (!isRenderingPage) renderStandaloneFinancePage();
     } else {
       isRenderingPage = false;
-      if (h.indexOf('#/admin') === 0) {
+      if (isAdmin) {
         setupAdminSidebarLink();
       }
     }
   }
 
   window.addEventListener('hashchange', checkRoute);
-  setInterval(checkRoute, 400);
+  window.addEventListener('popstate', checkRoute);
+  setInterval(checkRoute, 300);
 
-  // Add clean link to Admin Sidebar
+  // Add clean link to Admin Sidebar (supports Next.js AdminSidebar and legacy navigation)
   function setupAdminSidebarLink() {
     ensureToken();
-    var nav = document.querySelector('nav.ad-nav, nav.tabs, .ad-tabs, [role="tablist"], .adnav, .ad-side, .adside, aside nav, .sidebar nav, .ad-menu');
-    if (!nav) {
-      var candidates = document.querySelectorAll('nav, aside, [class*="nav"], [class*="side"], [class*="tab"], [class*="menu"]');
-      for (var c = 0; c < candidates.length; c++) {
-        var txt = candidates[c].textContent || '';
-        if (txt.indexOf('คำขอ') >= 0 || txt.indexOf('คอร์ส') >= 0 || txt.indexOf('นักเรียน') >= 0 || txt.indexOf('ภาพรวม') >= 0) {
-          nav = candidates[c];
-          break;
-        }
-      }
-    }
-    if (!nav) {
-      var links = document.querySelectorAll('a, button');
-      for (var i = 0; i < links.length; i++) {
-        var t = links[i].textContent || '';
-        if (t.indexOf('คำขอ') >= 0 || t.indexOf('คอร์ส') >= 0 || t.indexOf('นักเรียน') >= 0 || t.indexOf('ภาพรวม') >= 0 || t.indexOf('ตั้งค่า') >= 0) {
-          nav = links[i].parentElement;
-          break;
-        }
-      }
-    }
-    if (!nav || nav.querySelector('.ib-finance-nav-link')) return;
+    if (document.querySelector('.ib-finance-nav-link')) return;
 
-    // Filter instructor subject tabs
+    // 1. Prefer placing right after payment/requests tab (คำขอเข้าเรียน)
+    var paymentLink = document.querySelector('a[href*="/admin/payments"], a[href*="payment"], a[href*="คำขอ"]');
+    var targetNeighbor = null;
+    var nav = null;
+
+    if (paymentLink) {
+      nav = paymentLink.parentElement;
+      targetNeighbor = paymentLink;
+    }
+
+    // 2. If not found, look for any admin sidebar link (ภาพรวม, คอร์ส, etc.)
+    if (!nav) {
+      var allAdminLinks = document.querySelectorAll('aside a, nav a, a[href^="/admin"], a[href*="/admin"]');
+      for (var i = 0; i < allAdminLinks.length; i++) {
+        var t = allAdminLinks[i].textContent || '';
+        if (t.indexOf('คำขอ') >= 0 || t.indexOf('ภาพรวม') >= 0 || t.indexOf('คอร์ส') >= 0 || t.indexOf('นักเรียน') >= 0 || t.indexOf('ตั้งค่า') >= 0) {
+          nav = allAdminLinks[i].parentElement;
+          targetNeighbor = allAdminLinks[i];
+          break;
+        }
+      }
+    }
+
+    // 3. Fallback to standard nav selectors
+    if (!nav) {
+      nav = document.querySelector('aside nav, nav.ad-nav, nav.tabs, .ad-tabs, [role="tablist"], .adnav, aside, .sidebar nav');
+    }
+
+    if (!nav) return;
+
+    // Filter instructor subject tabs if instructor
     if (currentUser && currentUser.instructor_subject) {
       var items = nav.children;
       for (var j = 0; j < items.length; j++) {
@@ -212,12 +213,13 @@
       }
     }
 
-    var sample = nav.children[0];
+    var sample = targetNeighbor || nav.querySelector('a, button') || nav.children[0];
     var a = document.createElement('a');
     a.className = (sample && sample.className ? sample.className : 'tab') + ' ib-finance-nav-link';
     a.href = '#/finance';
-    a.innerHTML = '💰 บัญชีรายรับ-รายจ่าย ↗';
+    a.innerHTML = '<span>💰 บัญชีรายรับ-รายจ่าย</span><span style="font-size: 11px; opacity: 0.7;">↗</span>';
     a.style.cursor = 'pointer';
+
     a.addEventListener('click', function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -225,7 +227,12 @@
       window.location.hash = '#/finance';
       renderStandaloneFinancePage();
     }, true);
-    nav.appendChild(a);
+
+    if (targetNeighbor && targetNeighbor.insertAdjacentElement) {
+      targetNeighbor.insertAdjacentElement('afterend', a);
+    } else {
+      nav.appendChild(a);
+    }
   }
 
   // Render the dedicated Full Standalone Finance Page
