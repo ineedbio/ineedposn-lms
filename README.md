@@ -1,39 +1,103 @@
-# INeedBio — เวอร์ชัน Next.js
+# Prep Notebook LMS (INeedPOSN)
 
-## โครงสร้างไฟล์
+Next.js 14 + TypeScript + Tailwind + Prisma + PostgreSQL + NextAuth.
+
+> **Google Apps Script version:** `gas/` holds a second, self-contained build of
+> this LMS that runs on Google Apps Script + Google Sheets/Drive instead of
+> Postgres/Vercel. It keeps this app's features: avatars, the student
+> registry, POSN camp tracking, per-course PromptPay, lesson file uploads and
+> Design Studio blocks. Setup and upgrade steps (in Thai) are in
+> `gas/README.md`. It is not part of the Next.js build.
+
+## What's actually implemented (real, working code)
+
+- **Database schema** (`prisma/schema.prisma`) — every model from the agreed
+  spec: User, Subject, Category, Course, Lesson, Attachment, Quiz, Question,
+  QuizAttempt, Enrollment, LessonProgress, Payment, PageBlock, ThemeSetting,
+  AuditLog.
+- **Auth** — NextAuth credentials login, bcrypt password hashing
+  (`lib/auth.ts`).
+- **Device-lock (anti account-sharing)** — every login mints a new session id
+  and overwrites `User.currentSessionId`; the JWT callback re-checks this on
+  every request; `middleware.ts` rejects stale sessions server-side
+  (`lib/device-lock.ts`, `middleware.ts`).
+- **RBAC enforced server-side** — `middleware.ts` blocks `/admin/*` and
+  `/api/admin/*` for non-admins at the edge; `lib/rbac.ts`'s `requireAdmin()` /
+  `requireUser()` re-check inside every mutating route handler, so there is
+  no path (URL guessing, direct API calls) that bypasses it. This directly
+  fixes the "student could reach admin editing" issue from the mockups —
+  there is no client-side toggle in real code, only real login + role check.
+- **Registration** (`app/api/auth/register/route.ts`) — collects first name,
+  last name, nickname, school, grade level, phone, email, password.
+- **Payments** — PromptPay dynamic QR with the amount baked in
+  (`lib/promptpay.ts`), slip upload to S3/R2-compatible storage
+  (`lib/storage.ts`), admin approve/reject flow that activates the
+  enrollment and writes an audit log entry.
+- **Admin → student email notifications** — fires the moment a student
+  uploads a payment slip (`lib/email.ts`, wired into
+  `app/api/payments/[id]/slip/route.ts`). Student also gets emailed when
+  their payment is reviewed.
+- **Subject auto-provisioning** — `lib/subjects.ts`'s `provisionSubject()`
+  creates a default category and an empty per-subject promo `PageBlock`
+  whenever a subject is created via `/api/subjects`, so adding a subject
+  needs no manual follow-up wiring elsewhere in the system.
+- **Lesson progress + auto-complete** — `/api/lessons/[lessonId]/progress`
+  marks a lesson complete once 90% watched; dashboard computes course % from
+  real `LessonProgress` rows, not a hardcoded number.
+- **Quiz auto-grading** — `/api/quizzes/[quizId]/submit`.
+- **Seed script** (`prisma/seed.ts`) — creates an admin login
+  (`admin@ineedposn.com` / `ChangeMe123!` — **change this immediately**), one
+  subject, one course, one lesson, one quiz.
+
+## What's still scaffolding / needs to be built next
+
+- OTP email verification flow (`otpCode`/`otpExpiry` fields exist; the
+  send/verify endpoints are not wired yet).
+- The Design Studio (Canva-style drag-and-drop admin editor) — `PageBlock`
+  model and the publish/audit-log plumbing exist; the actual drag-and-drop
+  canvas UI shown in the mockups still needs to be built as React
+  components.
+- Course/lesson/quiz admin CRUD *pages* (the API routes for courses exist;
+  lesson + quiz admin forms, drag-reorder UI, and the theme editor UI are
+  not built yet).
+- PDF viewer and rich-text renderer for non-video lesson types.
+- Real-time device-session polling component on the client
+  (`/api/device-session` exists as a target; the polling hook itself isn't
+  wired into a layout yet).
+- Certificates, notifications bell, analytics dashboard, search/filter —
+  not started.
+
+## Local setup
+
+```bash
+npm install
+cp .env.example .env        # fill in real values
+npm run db:push             # create tables from schema.prisma
+npm run db:seed              # creates admin login + sample course
+npm run dev
 ```
-app/
-  layout.tsx        ← <html> ฟอนต์ Anuphan และสคริปต์ QR พร้อมเพย์
-  page.tsx          ← หน้าเว็บ (โหลด public/ineedbio/app.js)
-  ineedbio.css      ← สไตล์ทั้งหมด (ธีมสว่าง/มืด สีวิชา)
-public/
-  ineedbio/app.js   ← ตัวเว็บทั้งหมด: หน้าแรก คอร์ส ห้องเรียน โปรไฟล์ หลังบ้าน ข้อตกลง
-  ineedbio/logo.webp← โลโก้แมว (ใช้เป็น favicon ด้วย)
-  images/students/  ← รูปน้อง R01–R18 (ไม่มี R11)
-  images/courses/   ← ปกคอร์ส A-Level ฟิสิกส์ + รูปพี่หมอซัน
-backend/
-  Code.gs           ← หลังบ้าน วางใน Google Apps Script (ไม่ได้รันบน Next.js)
-  results.csv       ← ข้อมูลน้อง 18 คน สำหรับนำเข้าชีต Results
-.env.example
-```
 
-## ติดตั้ง
-1. `npm install`
-2. คัดลอก `.env.example` เป็น `.env.local` แล้วใส่ URL ของ Apps Script Web App (ลงท้าย `/exec`)
-3. `npm run dev` แล้วเปิด http://localhost:3000
-4. ขึ้น Vercel: ใส่ `NEXT_PUBLIC_INEEDBIO_API_URL` ใน Settings → Environment Variables แล้ว Redeploy
+## Deployment (matches the agreed "no self-hosted server" requirement)
 
-## หลังบ้าน (Apps Script)
-วาง `backend/Code.gs` → รัน `setup()` → Deploy เป็น Web app (Execute as: Me, Who has access: Anyone) → รัน `makeAdmin('อีเมลคุณ')`
-
-## ใส่ข้อมูลน้อง
-เปิดชีต Results → File → Import → อัปโหลด `backend/results.csv` → "Replace current sheet"
-ลิงก์รูปในไฟล์ชี้ไปที่ `https://ineedbio.shop/images/students/Rxx.webp` แล้ว ใช้ได้ทันทีหลัง deploy เว็บ
-รูปคอร์ส: หลังบ้าน → คอร์ส → ใส่ `https://ineedbio.shop/images/courses/phys-alevel-cover.webp` และ `.../pmorsun.webp`
-รูปใหม่ต่อจากนี้: วางไฟล์ใน `public/images/` แล้ว deploy หรือกด "อัปโหลดรูป" ในหลังบ้าน (เก็บใน Google Drive)
-
-## หมายเหตุ
-- ลิงก์ในเว็บใช้แบบ `/#/course/ID`, `/#/admin`, `/#/terms` ทุกหน้าอยู่ใน route `/` เดียว
-- ถ้าจะใส่ในโปรเจกต์ Next.js ที่มีอยู่แล้ว: คัดลอก `public/ineedbio`, `public/images`, `app/ineedbio.css`
-  แล้วเอาเนื้อหา `page.tsx` ไปไว้ใน route ที่ต้องการ (CSS นี้เป็น global จะชนกับ Tailwind/สไตล์เดิมได้
-  แนะนำให้ใช้แทนหน้าเดิมทั้งหมด)
+1. **Database** — create a Postgres instance on
+   [Supabase](https://supabase.com) or [Neon](https://neon.tech) (both have
+   a free tier with point-in-time recovery on paid plans). Copy the
+   connection string into `DATABASE_URL`.
+2. **Object storage** — create a bucket on
+   [Cloudflare R2](https://developers.cloudflare.com/r2/) (cheapest, no
+   egress fees) for slips/attachments/cover images. Fill in the `STORAGE_*`
+   env vars.
+3. **Email** — sign up for [Resend](https://resend.com), verify your sending
+   domain, put the API key in `RESEND_API_KEY`.
+4. **Hosting** — push this repo to GitHub, import it into
+   [Vercel](https://vercel.com), add all the env vars from `.env.example` in
+   the Vercel project settings, deploy. Vercel runs `prisma generate`
+   automatically via the `postinstall` script.
+5. **Domain** — buy the domain from any registrar (Namecheap, Porkbun,
+   Cloudflare Registrar — expect ~300–500 THB/year, no registrar gives a
+   .com away permanently free) and point it at the Vercel project. Using
+   Vercel's free `*.vercel.app` subdomain instead costs nothing.
+6. Run `npx prisma db push` once against the production `DATABASE_URL`
+   (or set up a migration step in CI) before the first deploy goes live,
+   then `npm run db:seed` once to create the real admin account —
+   **change the seeded password immediately after**.
