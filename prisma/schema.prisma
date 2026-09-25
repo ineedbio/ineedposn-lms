@@ -56,6 +56,24 @@ model User {
   progress     LessonProgress[]
   quizAttempts QuizAttempt[]
   otpTokens    OtpToken[]
+  ibSessions   IbSession[]
+}
+
+// Login sessions of the INeedBio web app (public/ineedbio/app.js → /api/ib).
+// One account = one device: a new login ends the user's other sessions. Ended rows are kept
+// for a while so the old device can be told why it was signed out.
+model IbSession {
+  tokenHash  String    @id // sha-256 of the bearer token; the raw token only lives in the browser
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId   String
+  deviceInfo String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  endedAt    DateTime?
+  endReason  String? // "replaced" (other device logged in) | "logout" | "admin" | "banned" | "password"
+
+  @@index([userId])
 }
 
 // One-time codes for email verification and password reset.
@@ -351,4 +369,14 @@ model StudentResult {
   isPublished Boolean  @default(true)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
+}
+
+// Payment slips and images uploaded from หลังบ้าน, stored in the database (no external storage).
+// Public images are served by /api/ib/file/<id>; slips are only returned to admins.
+model FileBlob {
+  id        String   @id @default(cuid())
+  mime      String
+  data      Bytes
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

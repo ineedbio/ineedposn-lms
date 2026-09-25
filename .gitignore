@@ -1,10 +1,4 @@
 node_modules
 .next
-.env
-.env.local
-*.log
-.vercel
-.env*
-
+.env*.local
 *.tsbuildinfo
-next-env.d.ts
