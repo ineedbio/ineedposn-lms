@@ -1,4 +1,4 @@
-// INeedBio Finance & Multi-Role Accounting Extension
+// INeedBio Finance & Multi-Role Accounting Extension — Standalone Dedicated Page
 (function () {
   'use strict';
 
@@ -7,8 +7,9 @@
   var currentSubject = ''; // '' for all, or 'bio' | 'chem' | 'phys' | 'math'
   var activeSubTab = 'incomes'; // 'incomes' | 'expenses'
   var cachedCourses = [];
+  var isRenderingPage = false;
 
-  // Capture token and user from API calls
+  // Intercept fetch to track session token & current user
   var _origFetch = window.fetch;
   window.fetch = async function () {
     var args = Array.prototype.slice.call(arguments);
@@ -53,89 +54,99 @@
     return isNaN(d.getTime()) ? isoStr : d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
-  // Inject styles for Finance tab (using native ineedbio theme variables without rgb() wrappers)
+  // Inject CSS styles matching native INeedBio design tokens
   var style = document.createElement('style');
   style.textContent = `
-    .ib-finance-panel { margin-top: 20px; display: flex; flex-direction: column; gap: 20px; font-family: inherit; }
-    .ib-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
-    .ib-stat-card { background: var(--bg, #ffffff); border: 1px solid var(--line, #e6e6e4); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
-    .ib-stat-card.income { border-left: 5px solid #16a34a; }
-    .ib-stat-card.expense { border-left: 5px solid #dc2626; }
-    .ib-stat-card.profit { border-left: 5px solid #2563eb; }
-    .ib-stat-title { font-size: 13px; color: var(--muted, #8a8a8a); font-weight: 600; }
-    .ib-stat-val { font-size: 26px; font-weight: 800; color: var(--ink, #0c0c0c); letter-spacing: -0.02em; }
-    .ib-stat-sub { font-size: 12px; color: var(--ink2, #525252); }
+    .ib-finance-page { min-height: 100vh; background: var(--bg); color: var(--ink); display: flex; flex-direction: column; font-family: var(--sans); }
+    .ib-finance-header { border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); position: sticky; top: 0; z-index: 50; }
+    .ib-finance-hdr-inner { max-width: 1140px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+    .ib-finance-brand-wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .ib-finance-title-box { display: flex; flex-direction: column; gap: 2px; }
+    .ib-finance-actions-right { display: flex; align-items: center; gap: 12px; }
     
-    .ib-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 16px; }
-    .ib-subnav { display: flex; gap: 4px; background: var(--bg3, #ececea); padding: 4px; border-radius: 999px; }
-    .ib-subnav button { padding: 8px 18px; border: none; border-radius: 999px; background: transparent; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--ink2, #525252); transition: all .15s; font-family: inherit; }
-    .ib-subnav button.active { background: var(--bg, #ffffff) !important; color: var(--ink, #0c0c0c) !important; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .ib-finance-content-wrap { max-width: 1140px; width: 100%; margin: 0 auto; padding: 28px 20px 80px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box; }
+    .ib-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+    .ib-stat-card { background: var(--bg); border: 1px solid var(--line); border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
+    .ib-stat-card.income { border-left: 6px solid #16a34a; }
+    .ib-stat-card.expense { border-left: 6px solid #dc2626; }
+    .ib-stat-card.profit { border-left: 6px solid #2563eb; }
+    .ib-stat-title { font-size: 13.5px; color: var(--muted); font-weight: 600; }
+    .ib-stat-val { font-size: 28px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; }
+    .ib-stat-sub { font-size: 12.5px; color: var(--ink2); }
     
-    .ib-table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg, #ffffff); border: 1px solid var(--line, #e6e6e4); border-radius: 18px; overflow: hidden; font-size: 13.5px; }
-    .ib-table th { background: var(--bg2, #f5f5f4); padding: 12px 16px; text-align: left; font-weight: 700; color: var(--ink2, #525252); border-bottom: 1px solid var(--line, #e6e6e4); }
-    .ib-table td { padding: 14px 16px; border-bottom: 1px solid var(--line, #e6e6e4); vertical-align: middle; color: var(--ink, #0c0c0c); }
+    .ib-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; margin-top: 8px; }
+    .ib-subnav { display: flex; gap: 4px; background: var(--bg3); padding: 5px; border-radius: 999px; }
+    .ib-subnav button { padding: 8px 20px; border: none; border-radius: 999px; background: transparent; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink2); transition: all .15s; font-family: inherit; }
+    .ib-subnav button.active { background: var(--bg) !important; color: var(--ink) !important; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    
+    .ib-table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; font-size: 13.5px; }
+    .ib-table th { background: var(--bg2); padding: 14px 18px; text-align: left; font-weight: 700; color: var(--ink2); border-bottom: 1px solid var(--line); }
+    .ib-table td { padding: 16px 18px; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--ink); }
     .ib-table tr:last-child td { border-bottom: none; }
-    .ib-table tr:hover td { background: var(--bg2, #f5f5f4); }
+    .ib-table tr:hover td { background: var(--bg2); }
     
-    .ib-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 18px; border-radius: 999px; font-size: 13.5px; font-weight: 600; border: 1px solid transparent; cursor: pointer; transition: all .15s; text-decoration: none; font-family: inherit; }
-    .ib-btn-primary { background: var(--acc, #16875a) !important; color: var(--on-acc, #ffffff) !important; border-color: var(--acc, #16875a); }
+    .ib-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 20px; border-radius: 999px; font-size: 14px; font-weight: 600; border: 1px solid transparent; cursor: pointer; transition: all .15s; text-decoration: none; font-family: inherit; }
+    .ib-btn-primary { background: var(--acc) !important; color: var(--on-acc) !important; border-color: var(--acc); box-shadow: 0 2px 10px rgba(0,0,0,.1); }
     .ib-btn-primary:hover { opacity: .9; transform: translateY(-1px); }
-    .ib-btn-outline { background: var(--bg, #ffffff) !important; border: 1px solid var(--line, #e6e6e4) !important; color: var(--ink, #0c0c0c) !important; }
-    .ib-btn-outline:hover { background: var(--bg2, #f5f5f4) !important; }
-    .ib-btn-sm { padding: 5px 12px; font-size: 12.5px; }
+    .ib-btn-outline { background: var(--bg) !important; border: 1px solid var(--line) !important; color: var(--ink) !important; }
+    .ib-btn-outline:hover { background: var(--bg2) !important; }
+    .ib-btn-sm { padding: 5px 14px; font-size: 12.5px; }
     
-    .ib-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
-    .ib-modal-card { background: var(--bg, #ffffff) !important; color: var(--ink, #0c0c0c) !important; border: 1px solid var(--line, #e6e6e4); border-radius: 20px; max-width: 520px; width: 100%; padding: 26px 28px; box-shadow: 0 24px 60px rgba(0,0,0,0.35); display: flex; flex-direction: column; gap: 16px; position: relative; }
+    .ib-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
+    .ib-modal-card { background: var(--bg) !important; color: var(--ink) !important; border: 1px solid var(--line); border-radius: 22px; max-width: 520px; width: 100%; padding: 28px; box-shadow: 0 24px 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 16px; position: relative; }
     .ib-field { display: flex; flex-direction: column; gap: 6px; }
-    .ib-field label { font-size: 12.5px; font-weight: 700; color: var(--ink2, #525252); }
-    .ib-field input, .ib-field select, .ib-field textarea { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line, #e6e6e4); background: var(--bg2, #f5f5f4) !important; color: var(--ink, #0c0c0c) !important; font-family: inherit; font-size: 13.5px; outline: none; transition: border-color .15s, box-shadow .15s; }
-    .ib-field input:focus, .ib-field select:focus, .ib-field textarea:focus { border-color: var(--acc, #16875a); box-shadow: 0 0 0 3px var(--acc-soft, #e3f4ea); }
+    .ib-field label { font-size: 13px; font-weight: 700; color: var(--ink2); }
+    .ib-field input, .ib-field select, .ib-field textarea { padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg2) !important; color: var(--ink) !important; font-family: inherit; font-size: 14px; outline: none; transition: border-color .15s, box-shadow .15s; }
+    .ib-field input:focus, .ib-field select:focus, .ib-field textarea:focus { border-color: var(--acc); box-shadow: 0 0 0 3px var(--acc-soft); }
     
-    .ib-tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 700; }
+    .ib-tag { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; }
     .ib-tag-chem { background: #ffedd5; color: #c2410c; }
     .ib-tag-bio { background: #dcfce7; color: #15803d; }
     .ib-tag-phys { background: #e0f2fe; color: #0369a1; }
     .ib-tag-math { background: #f3e8ff; color: #7e22ce; }
 
-    /* Clean Sidebar Tab Styling */
-    .ib-finance-tab-btn {
+    /* Admin Sidebar Link */
+    .ib-finance-nav-link {
       all: unset;
       box-sizing: border-box;
       display: block;
       width: 100%;
       cursor: pointer;
-      border: none !important;
-      outline: none !important;
-      background: transparent !important;
       font-family: inherit;
       font-size: 14px;
       font-weight: 500;
-      color: var(--ink2, #525252) !important;
+      color: var(--ink2) !important;
       padding: 9px 12px;
       border-radius: 10px;
       text-align: left;
       transition: all .15s;
+      text-decoration: none;
     }
-    .ib-finance-tab-btn:hover {
-      color: var(--ink, #0c0c0c) !important;
-      background: var(--bg2, #f5f5f4) !important;
-    }
-    .ib-finance-tab-btn.on,
-    .ib-finance-tab-btn.active {
-      color: var(--acc, #16875a) !important;
-      font-weight: 700 !important;
-      background: var(--acc-soft, #e3f4ea) !important;
+    .ib-finance-nav-link:hover {
+      color: var(--ink) !important;
+      background: var(--bg2) !important;
     }
   `;
   document.head.appendChild(style);
 
-  // Monitor DOM to add Tab
-  var checkTimer = setInterval(function () {
-    if (window.location.hash.indexOf('#/admin') !== 0) return;
-    setupAdminUI();
-  }, 400);
+  // Router loop
+  function checkRoute() {
+    var h = window.location.hash || '';
+    if (h === '#/finance' || h.indexOf('#/finance?') === 0) {
+      if (!isRenderingPage) renderStandaloneFinancePage();
+    } else {
+      isRenderingPage = false;
+      if (h.indexOf('#/admin') === 0) {
+        setupAdminSidebarLink();
+      }
+    }
+  }
 
-  function setupAdminUI() {
+  window.addEventListener('hashchange', checkRoute);
+  setInterval(checkRoute, 500);
+
+  // Add clean link to Admin Sidebar
+  function setupAdminSidebarLink() {
     var nav = document.querySelector('nav.ad-nav, nav.tabs, .ad-tabs, [role="tablist"], .adnav, .ad-side, .adside');
     if (!nav) {
       var links = document.querySelectorAll('a, button');
@@ -146,11 +157,10 @@
         }
       }
     }
-    if (!nav || nav.querySelector('.ib-finance-tab-btn')) return;
+    if (!nav || nav.querySelector('.ib-finance-nav-link')) return;
 
-    // Instructor Subject Role Enforcement
+    // Filter instructor subject tabs
     if (currentUser && currentUser.instructor_subject) {
-      currentSubject = currentUser.instructor_subject;
       var items = nav.children;
       for (var j = 0; j < items.length; j++) {
         var text = items[j].textContent || '';
@@ -158,73 +168,109 @@
           items[j].style.display = 'none';
         }
       }
-      var hdr = document.querySelector('.ad-hdr, .adhdr, h1');
-      if (hdr && !document.querySelector('.ib-instructor-badge')) {
-        var badge = document.createElement('span');
-        badge.className = 'ib-instructor-badge';
-        badge.style.cssText = 'font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px; margin-left: 12px; background: var(--acc); color: var(--on-acc); vertical-align: middle;';
-        badge.textContent = 'ครูผู้สอนวิชา: ' + (currentUser.instructor_subject_name || currentUser.instructor_subject);
-        hdr.appendChild(badge);
-      }
     }
 
-    var sample = nav.children[0];
-    var tag = sample ? sample.tagName.toLowerCase() : 'button';
-    var tabBtn = document.createElement(tag);
-    tabBtn.className = (sample ? sample.className : 'tab') + ' ib-finance-tab-btn';
-    if (tag === 'a') {
-      tabBtn.href = 'javascript:void(0)';
-    } else {
-      tabBtn.type = 'button';
-    }
-    tabBtn.innerHTML = '💰 บัญชีรายรับ-รายจ่าย';
-    tabBtn.onclick = function (e) {
-      e.preventDefault();
-      activateFinanceTab(nav, tabBtn);
+    var a = document.createElement('a');
+    a.className = 'ib-finance-nav-link';
+    a.href = '#/finance';
+    a.innerHTML = '💰 บัญชีรายรับ-รายจ่าย ↗';
+    nav.appendChild(a);
+  }
+
+  // Render the dedicated Full Standalone Finance Page
+  async function renderStandaloneFinancePage() {
+    isRenderingPage = true;
+    var app = document.getElementById('app');
+    if (!app) return;
+
+    var splash = document.getElementById('splash');
+    if (splash) splash.style.display = 'none';
+
+    app.innerHTML = `
+      <div class="ib-finance-page">
+        <header class="ib-finance-header">
+          <div class="ib-finance-hdr-inner">
+            <div class="ib-finance-brand-wrap">
+              <a href="#/admin" class="ib-btn ib-btn-outline ib-btn-sm">
+                ← กลับหน้าหลักหลังบ้าน
+              </a>
+              <div class="ib-finance-title-box">
+                <h1 style="font-size: 20px; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 8px;">
+                  💰 บัญชีรายรับ-รายจ่าย
+                </h1>
+              </div>
+            </div>
+
+            <div class="ib-finance-actions-right">
+              <div id="ib-subj-wrap"></div>
+              <button type="button" id="btn-add-exp-top" class="ib-btn ib-btn-primary ib-btn-sm">
+                + บันทึกรายจ่าย
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main class="ib-finance-content-wrap">
+          <div class="ib-stat-grid">
+            <div class="ib-stat-card income">
+              <span class="ib-stat-title">รายรับรวม (Approved Incomes)</span>
+              <span class="ib-stat-val" id="val-income" style="color: #16a34a;">...</span>
+              <span class="ib-stat-sub" id="sub-income">กำลังโหลด...</span>
+            </div>
+            <div class="ib-stat-card expense">
+              <span class="ib-stat-title">รายจ่ายรวม (Total Expenses)</span>
+              <span class="ib-stat-val" id="val-expense" style="color: #dc2626;">...</span>
+              <span class="ib-stat-sub" id="sub-expense">กำลังโหลด...</span>
+            </div>
+            <div class="ib-stat-card profit">
+              <span class="ib-stat-title">กำไรสุทธิ (Net Profit)</span>
+              <span class="ib-stat-val" id="val-profit">...</span>
+              <span class="ib-stat-sub">คำนวณจากรายรับหักลบรายจ่าย</span>
+            </div>
+          </div>
+
+          <div class="ib-toolbar">
+            <div class="ib-subnav">
+              <button type="button" id="sub-btn-inc" class="${activeSubTab === 'incomes' ? 'active' : ''}">
+                รายรับ
+              </button>
+              <button type="button" id="sub-btn-exp" class="${activeSubTab === 'expenses' ? 'active' : ''}">
+                รายจ่าย
+              </button>
+            </div>
+            <button type="button" id="btn-add-exp-bar" class="ib-btn ib-btn-primary ib-btn-sm">
+              + บันทึกรายจ่ายใหม่
+            </button>
+          </div>
+
+          <div id="ib-table-box">
+            <div style="padding: 60px; text-align: center; color: var(--muted);">กำลังโหลดข้อมูลการเงินและบัญชี...</div>
+          </div>
+        </main>
+      </div>
+    `;
+
+    document.getElementById('sub-btn-inc').onclick = function () {
+      activeSubTab = 'incomes';
+      loadFinanceData();
     };
-    nav.appendChild(tabBtn);
+    document.getElementById('sub-btn-exp').onclick = function () {
+      activeSubTab = 'expenses';
+      loadFinanceData();
+    };
+    document.getElementById('btn-add-exp-top').onclick = function () {
+      openExpenseModal();
+    };
+    document.getElementById('btn-add-exp-bar').onclick = function () {
+      openExpenseModal();
+    };
 
-    for (var k = 0; k < nav.children.length; k++) {
-      if (nav.children[k] !== tabBtn) {
-        nav.children[k].addEventListener('click', function () {
-          var p = document.getElementById('ib-finance-container');
-          if (p) p.style.display = 'none';
-          var defaultContent = document.querySelector('.ad-body, .ad-content, .adcontent, .ad-main');
-          if (defaultContent) defaultContent.style.display = '';
-          tabBtn.classList.remove('active', 'on');
-        });
-      }
-    }
+    await loadFinanceData();
   }
 
-  async function activateFinanceTab(nav, tabBtn) {
-    for (var i = 0; i < nav.children.length; i++) {
-      nav.children[i].classList.remove('active', 'on');
-    }
-    tabBtn.classList.add('active', 'on');
-
-    var defaultContent = document.querySelector('.ad-body, .ad-content, .adcontent, .ad-main');
-    if (defaultContent) defaultContent.style.display = 'none';
-
-    var container = document.getElementById('ib-finance-container');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'ib-finance-container';
-      container.className = 'ib-finance-panel';
-      if (defaultContent && defaultContent.parentElement) {
-        defaultContent.parentElement.appendChild(container);
-      } else {
-        document.body.appendChild(container);
-      }
-    }
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-
-    renderFinanceView(container);
-  }
-
-  async function renderFinanceView(container) {
-    container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--muted);">กำลังโหลดข้อมูลการเงินและบัญชี...</div>';
+  async function loadFinanceData() {
+    var tableBox = document.getElementById('ib-table-box');
+    if (!tableBox) return;
 
     try {
       if (!cachedCourses.length) {
@@ -234,96 +280,81 @@
       var incomes = activeSubTab === 'incomes' ? await api('admin.finance.incomes', { subject: currentSubject }) : [];
       var expenses = activeSubTab === 'expenses' ? await api('admin.finance.expenses', { subject: currentSubject }) : [];
 
+      // Update Header Subject Selector
+      var subjWrap = document.getElementById('ib-subj-wrap');
       var isSuper = !currentUser || !currentUser.instructor_subject;
-
-      container.innerHTML = `
-        <div class="ib-toolbar">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <h2 style="font-size: 20px; font-weight: 800; margin: 0; color: var(--ink);">💰 บัญชีรายรับ-รายจ่าย</h2>
-            ${isSuper ? `
-              <select id="ib-subject-selector" class="ib-btn ib-btn-outline" style="padding: 6px 14px; font-weight: 600;">
-                <option value="" ${currentSubject === '' ? 'selected' : ''}>ทุกวิชา</option>
-                <option value="bio" ${currentSubject === 'bio' ? 'selected' : ''}>ชีววิทยา</option>
-                <option value="chem" ${currentSubject === 'chem' ? 'selected' : ''}>เคมี</option>
-                <option value="phys" ${currentSubject === 'phys' ? 'selected' : ''}>ฟิสิกส์</option>
-                <option value="math" ${currentSubject === 'math' ? 'selected' : ''}>คณิตศาสตร์</option>
-              </select>
-            ` : `
-              <span class="ib-tag ib-tag-${currentSubject}" style="font-size: 13px; padding: 4px 10px;">
-                วิชา: ${summary.subject_name || currentSubject}
-              </span>
-            `}
-          </div>
-
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <div class="ib-subnav">
-              <button type="button" id="btn-sub-inc" class="${activeSubTab === 'incomes' ? 'active' : ''}">
-                รายรับ (${summary.income_count})
-              </button>
-              <button type="button" id="btn-sub-exp" class="${activeSubTab === 'expenses' ? 'active' : ''}">
-                รายจ่าย (${summary.expense_count})
-              </button>
-            </div>
-            <button type="button" id="btn-add-expense" class="ib-btn ib-btn-primary">
-              + บันทึกรายจ่าย
-            </button>
-          </div>
-        </div>
-
-        <div class="ib-stat-grid">
-          <div class="ib-stat-card income">
-            <span class="ib-stat-title">รายรับรวม (Approved Incomes)</span>
-            <span class="ib-stat-val" style="color: #16a34a;">${baht(summary.total_income)}</span>
-            <span class="ib-stat-sub">จากนักเรียนที่อนุมัติแล้ว ${summary.income_count} รายการ</span>
-          </div>
-          <div class="ib-stat-card expense">
-            <span class="ib-stat-title">รายจ่ายรวม (Total Expenses)</span>
-            <span class="ib-stat-val" style="color: #dc2626;">${baht(summary.total_expense)}</span>
-            <span class="ib-stat-sub">บันทึกค่าใช้จ่าย ${summary.expense_count} รายการ</span>
-          </div>
-          <div class="ib-stat-card profit">
-            <span class="ib-stat-title">กำไรสุทธิ (Net Profit)</span>
-            <span class="ib-stat-val" style="color: ${summary.net_profit >= 0 ? '#2563eb' : '#dc2626'}">
-              ${baht(summary.net_profit)}
+      if (subjWrap) {
+        if (isSuper) {
+          subjWrap.innerHTML = `
+            <select id="ib-subject-selector" class="ib-btn ib-btn-outline ib-btn-sm" style="font-weight: 600;">
+              <option value="" ${currentSubject === '' ? 'selected' : ''}>ทุกวิชา</option>
+              <option value="bio" ${currentSubject === 'bio' ? 'selected' : ''}>ชีววิทยา</option>
+              <option value="chem" ${currentSubject === 'chem' ? 'selected' : ''}>เคมี</option>
+              <option value="phys" ${currentSubject === 'phys' ? 'selected' : ''}>ฟิสิกส์</option>
+              <option value="math" ${currentSubject === 'math' ? 'selected' : ''}>คณิตศาสตร์</option>
+            </select>
+          `;
+          var sel = document.getElementById('ib-subject-selector');
+          if (sel) {
+            sel.onchange = function () {
+              currentSubject = sel.value;
+              loadFinanceData();
+            };
+          }
+        } else {
+          subjWrap.innerHTML = `
+            <span class="ib-tag ib-tag-${currentSubject}" style="font-size: 13px; padding: 5px 12px;">
+              วิชา: ${summary.subject_name || currentSubject}
             </span>
-            <span class="ib-stat-sub">คำนวณจากรายรับหักลบรายจ่าย</span>
-          </div>
-        </div>
-
-        <div id="ib-tab-table-container">
-          ${activeSubTab === 'incomes' ? renderIncomesTable(incomes) : renderExpensesTable(expenses)}
-        </div>
-      `;
-
-      var sel = document.getElementById('ib-subject-selector');
-      if (sel) {
-        sel.onchange = function () {
-          currentSubject = sel.value;
-          renderFinanceView(container);
-        };
+          `;
+        }
       }
-      document.getElementById('btn-sub-inc').onclick = function () {
-        activeSubTab = 'incomes';
-        renderFinanceView(container);
-      };
-      document.getElementById('btn-sub-exp').onclick = function () {
-        activeSubTab = 'expenses';
-        renderFinanceView(container);
-      };
-      document.getElementById('btn-add-expense').onclick = function () {
-        openExpenseModal(container);
-      };
 
-      attachTableEvents(container);
+      // Update Stats
+      var valInc = document.getElementById('val-income');
+      var subInc = document.getElementById('sub-income');
+      var valExp = document.getElementById('val-expense');
+      var subExp = document.getElementById('sub-expense');
+      var valPro = document.getElementById('val-profit');
+      var btnInc = document.getElementById('sub-btn-inc');
+      var btnExp = document.getElementById('sub-btn-exp');
+
+      if (valInc) valInc.textContent = baht(summary.total_income);
+      if (subInc) subInc.textContent = 'จากนักเรียนที่อนุมัติแล้ว ' + summary.income_count + ' รายการ';
+      if (valExp) valExp.textContent = baht(summary.total_expense);
+      if (subExp) subExp.textContent = 'บันทึกค่าใช้จ่าย ' + summary.expense_count + ' รายการ';
+      if (valPro) {
+        valPro.textContent = baht(summary.net_profit);
+        valPro.style.color = summary.net_profit >= 0 ? '#2563eb' : '#dc2626';
+      }
+      if (btnInc) {
+        btnInc.textContent = 'รายรับ (' + summary.income_count + ')';
+        btnInc.className = activeSubTab === 'incomes' ? 'active' : '';
+      }
+      if (btnExp) {
+        btnExp.textContent = 'รายจ่าย (' + summary.expense_count + ')';
+        btnExp.className = activeSubTab === 'expenses' ? 'active' : '';
+      }
+
+      // Render Tables
+      if (activeSubTab === 'incomes') {
+        tableBox.innerHTML = renderIncomesTable(incomes);
+      } else {
+        tableBox.innerHTML = renderExpensesTable(expenses);
+      }
+
+      attachTableEvents(tableBox);
 
     } catch (err) {
-      container.innerHTML = '<div style="padding: 30px; color: #dc2626; text-align: center;">เกิดข้อผิดพลาด: ' + err.message + '</div>';
+      if (tableBox) {
+        tableBox.innerHTML = '<div style="padding: 40px; color: #dc2626; text-align: center;">เกิดข้อผิดพลาด: ' + err.message + '</div>';
+      }
     }
   }
 
   function renderIncomesTable(rows) {
     if (!rows.length) {
-      return '<div style="padding: 40px; text-align: center; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 18px;">ไม่มีรายการรายรับในหมวดหมู่นี้</div>';
+      return '<div style="padding: 60px; text-align: center; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 20px;">ไม่มีรายการรายรับในหมวดหมู่นี้</div>';
     }
     return `
       <table class="ib-table">
@@ -344,11 +375,11 @@
                 <td>${fmtDate(r.reviewed_at || r.created_at)}</td>
                 <td>
                   <strong>${r.student_name}</strong> ${r.student_nickname ? '(' + r.student_nickname + ')' : ''}
-                  <div style="font-size: 11px; color: var(--muted);">${r.student_email}</div>
+                  <div style="font-size: 11.5px; color: var(--muted);">${r.student_email}</div>
                 </td>
                 <td><strong>${r.course_title}</strong></td>
                 <td><span class="ib-tag ib-tag-${r.subject_key}">${r.subject_name || r.subject_key}</span></td>
-                <td style="font-weight: 700; color: #16a34a;">${baht(r.amount)}</td>
+                <td style="font-weight: 700; color: #16a34a; font-size: 14.5px;">${baht(r.amount)}</td>
                 <td>
                   ${r.has_slip ? `
                     <button type="button" class="ib-btn ib-btn-outline ib-btn-sm btn-view-slip" data-id="${r.payment_id}" data-type="income">
@@ -366,7 +397,7 @@
 
   function renderExpensesTable(rows) {
     if (!rows.length) {
-      return '<div style="padding: 40px; text-align: center; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 18px;">ยังไม่มีการบันทึกรายจ่าย</div>';
+      return '<div style="padding: 60px; text-align: center; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 20px;">ยังไม่มีการบันทึกรายจ่าย</div>';
     }
     return `
       <table class="ib-table">
@@ -389,14 +420,14 @@
                 <td>${fmtDate(r.date)}</td>
                 <td>
                   <strong>${r.title}</strong>
-                  ${r.note ? `<div style="font-size: 11px; color: var(--muted);">${r.note}</div>` : ''}
+                  ${r.note ? `<div style="font-size: 11.5px; color: var(--muted);">${r.note}</div>` : ''}
                 </td>
-                <td><span style="background: var(--bg3); padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;">${r.category}</span></td>
+                <td><span style="background: var(--bg3); padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 600;">${r.category}</span></td>
                 <td>
                   ${r.course_title ? `<div style="font-size: 12px;">${r.course_title}</div>` : ''}
                   <span class="ib-tag ib-tag-${r.subject_key}">${r.subject_name || r.subject_key}</span>
                 </td>
-                <td style="font-weight: 700; color: #dc2626;">${baht(r.amount)}</td>
+                <td style="font-weight: 700; color: #dc2626; font-size: 14.5px;">${baht(r.amount)}</td>
                 <td>${r.recorded_by || '-'}</td>
                 <td>
                   ${r.has_slip ? `
@@ -445,7 +476,7 @@
         if (!confirm('ยืนยันลบรายการรายจ่ายนี้?')) return;
         try {
           await api('admin.finance.expense.delete', { expense_id: id });
-          renderFinanceView(container);
+          loadFinanceData();
         } catch (e) {
           alert(e.message);
         }
@@ -463,8 +494,8 @@
           <strong style="font-size: 16px; font-weight: 700;">${title}</strong>
           <button type="button" id="btn-close-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); line-height: 1;">&times;</button>
         </div>
-        <div style="max-height: 65vh; overflow-y: auto; border-radius: 12px; margin: 12px 0;">
-          <img src="${src}" style="width: 100%; border-radius: 12px; display: block;" alt="Slip" />
+        <div style="max-height: 65vh; overflow-y: auto; border-radius: 14px; margin: 14px 0;">
+          <img src="${src}" style="width: 100%; border-radius: 14px; display: block;" alt="Slip" />
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 8px;">
           <a href="${src}" target="_blank" download="slip" class="ib-btn ib-btn-outline">เปิดภาพเต็ม</a>
@@ -479,7 +510,7 @@
     modal.onclick = function (e) { if (e.target === modal) close(); };
   }
 
-  function openExpenseModal(container) {
+  function openExpenseModal() {
     var isSuper = !currentUser || !currentUser.instructor_subject;
     var defaultSubj = currentSubject || 'bio';
 
@@ -487,7 +518,7 @@
     modal.className = 'ib-modal-overlay';
     modal.innerHTML = `
       <div class="ib-modal-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 14px;">
           <strong style="font-size: 17px; font-weight: 800;">+ บันทึกรายจ่ายใหม่</strong>
           <button type="button" id="btn-close-exp" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); line-height: 1; padding: 0 4px;">&times;</button>
         </div>
@@ -546,7 +577,7 @@
             <label>แนบสลิป / ใบเสร็จหลักฐาน (JPG / PNG ไม่เกิน 3 MB)</label>
             <input type="file" id="exp-file-input" accept="image/png, image/jpeg, image/webp" />
             <div id="exp-img-preview" style="display: none; margin-top: 8px;">
-              <img style="max-height: 120px; border-radius: 8px; border: 1px solid var(--line);" />
+              <img style="max-height: 120px; border-radius: 10px; border: 1px solid var(--line);" />
             </div>
           </div>
           <div class="ib-field">
@@ -604,7 +635,7 @@
         };
         await api('admin.finance.expense.save', payload);
         closeModal();
-        renderFinanceView(container);
+        loadFinanceData();
       } catch (err) {
         alert(err.message);
         submitBtn.disabled = false;
