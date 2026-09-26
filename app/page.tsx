@@ -22,6 +22,8 @@ export default function Home() {
       </Script>
       {/* ตัวเว็บทั้งหมด (หน้าแรก คอร์ส ห้องเรียน หลังบ้าน) — ใช้ hash route เช่น /#/course/ID */}
       <Script src="/ineedbio/app.js" strategy="afterInteractive" />
+      {/* "รีวิวจากน้องๆ" on the home page (added next to app.js, which stays unchanged) */}
+      <Script src="/ineedbio/reviews.js" strategy="afterInteractive" />
     </>
   );
 }
