@@ -162,6 +162,7 @@ export async function sendOrderEmail(
       acc.method === "bank"
         ? [["ธนาคาร", acc.bank], ["เลขบัญชี", acc.account_no], ["ชื่อบัญชี", acc.account_name]]
         : [["พร้อมเพย์", acc.promptpay_id], ["ชื่อบัญชี", acc.account_name]];
+    const shown = accRows.filter((r) => String(r[1] || "").trim()); // an account can be just a QR image: skip empty rows
     return (
       '<tr><td style="padding:0 32px 16px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e6e4;border-radius:14px;">' +
       '<tr><td style="padding:14px 16px 4px;"><span style="font-size:12px;color:#8a8a8a;">' + (bills.length > 1 ? "บิลที่ " + (i + 1) + " จาก " + bills.length + " · " : "") + esc(b.id) + "</span></td></tr>" +
@@ -171,7 +172,8 @@ export async function sendOrderEmail(
       (paid
         ? ""
         : '<tr><td style="padding:0 16px 14px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f4;border-radius:10px;font-size:14px;">' +
-          accRows.map((r) => '<tr><td style="padding:8px 12px;color:#8a8a8a;width:90px;">' + r[0] + '</td><td style="padding:8px 12px;color:#0c0c0c;font-weight:600;">' + esc(r[1] || "-") + "</td></tr>").join("") +
+          shown.map((r) => '<tr><td style="padding:8px 12px;color:#8a8a8a;width:90px;">' + r[0] + '</td><td style="padding:8px 12px;color:#0c0c0c;font-weight:600;">' + esc(r[1]) + "</td></tr>").join("") +
+          (shown.length ? "" : '<tr><td style="padding:8px 12px;color:#525252;">สแกน QR ในหน้าชำระเงินของบิลนี้</td></tr>') +
           '</table><p style="margin:10px 0 0;font-size:13px;color:#8a5a00;">โอนเข้าบัญชีนี้เท่านั้น · ชำระภายใน ' + esc(b.expiresAt ? thDateTxt(b.expiresAt) : "-") + "</p></td></tr>") +
       "</table></td></tr>"
     );
@@ -209,7 +211,7 @@ export async function sendBillEmail(u: MailUser, b: MailBill, approved: boolean,
   const meta: [string, string][] = [
     ["เลขบิล", b.id],
     ["วันที่ชำระ", thDateTxt(b.paidAt || new Date())],
-    ["ชำระเข้า", acc.method === "bank" ? (acc.bank || "") + " · " + (acc.account_name || "") : "พร้อมเพย์ · " + (acc.account_name || "")],
+    ["ชำระเข้า", [acc.method === "bank" ? acc.bank || "บัญชีธนาคาร" : "พร้อมเพย์", acc.account_name].filter(Boolean).join(" · ")],
   ];
   const name = esc(u.nickname || u.firstName);
   const inner = approved
