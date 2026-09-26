@@ -547,7 +547,7 @@ async function enrollRequest(d: Data, { p }: Ctx) {
     await adminEmails(),
     "มีคำขอเข้าเรียนใหม่: " + c.title,
     [["นักเรียน", `${u.firstName} ${u.lastName} (${u.nickname || ""})`], ["อีเมล", u.email], ["เบอร์", u.phone || ""],
-     ["คอร์ส", c.title], ["ยอดที่ต้องโอน", "฿" + c.price], ["รหัสคำขอ", pay.id]],
+     ["คอร์ส", c.title], ["ยอดที่ต้องโอน", "฿" + c.price], ["เลขคำสั่งซื้อ", pay.orderNumber || "-"], ["รหัสคำขอ", pay.id]],
     "เข้าหลังบ้าน → คำขอเข้าเรียน เพื่อตรวจสลิปและอนุมัติ",
     await ig()
   );
@@ -610,7 +610,7 @@ async function adminEnrollments(d: Data) {
     take: 200,
   });
   return rows.map((e) => ({
-    enroll_id: e.id, status: e.revokedAt ? "revoked" : e.status.toLowerCase(), amount: e.amount, note: e.rejectReason || e.note || "", created_at: iso(e.createdAt),
+    enroll_id: e.id, order_number: e.orderNumber || "", status: e.revokedAt ? "revoked" : e.status.toLowerCase(), amount: e.amount, note: e.rejectReason || e.note || "", created_at: iso(e.createdAt),
     decided_at: iso(e.reviewedAt), has_slip: !!e.slipImageUrl, course_id: e.course.slug, course_title: e.course.title,
     user_id: e.userId, name: `${e.user.firstName} ${e.user.lastName}`, nickname: e.user.nickname || "", email: e.user.email, phone: e.user.phone || "",
   }));
@@ -684,10 +684,11 @@ async function adminGrant(d: Data, _c: Ctx, admin: User) {
       reviewedBy: admin.id, reviewedAt: new Date(), source, reason,
     };
     const pending = await prisma.payment.findFirst({ where: { userId: u.id, courseId: c.id, status: "PENDING" }, orderBy: { createdAt: "desc" } });
-    if (pending) await prisma.payment.update({ where: { id: pending.id }, data: row });
-    else await prisma.payment.create({ data: { ...row, userId: u.id, courseId: c.id, promptpayRef: "GRANT-" + randToken(8) } });
+    const pay = pending
+      ? await prisma.payment.update({ where: { id: pending.id }, data: row })
+      : await prisma.payment.create({ data: { ...row, userId: u.id, courseId: c.id, promptpayRef: "GRANT-" + randToken(8) } });
     await activate(u.id, c.id, expires);
-    await log(admin, "grant", u.email + " → " + c.slug + " (" + source + (amount ? " ฿" + amount : "") + (expires ? " ถึง " + bkkDate(expires) : "") + ")");
+    await log(admin, "grant", (pay.orderNumber ? pay.orderNumber + " " : "") + u.email + " → " + c.slug + " (" + source + (amount ? " ฿" + amount : "") + (expires ? " ถึง " + bkkDate(expires) : "") + ")");
     out.added.push(em);
     if (source !== "test") mail.push(u);
   }
@@ -1032,6 +1033,7 @@ const ROUTES: Record<string, Handler> = {
   "fin.reopen": adminOnly(staff.finReopen),
   "fin.payout.paid": adminOnly(staff.finPayoutPaid),
   "admin.log": adminOnly((d) => staff.adminLog(d)),
+  "admin.orders.search": adminOnly((d) => staff.adminOrdersSearch(d)),
   "admin.legacy": adminOnly((d) => staff.adminLegacy(d)),
   "admin.legacy.import": adminOnly(staff.adminLegacyImport),
   "admin.legacy.decide": adminOnly(staff.adminLegacyDecide),
@@ -1039,11 +1041,24 @@ const ROUTES: Record<string, Handler> = {
   "admin.legacy.delete": adminOnly(staff.adminLegacyDelete),
 };
 
+const ORDER_KEYS = new Set(["order_number", "order_numbers", "orderNumber"]);
+function withoutOrderNumbers(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(withoutOrderNumbers);
+  if (v && typeof v === "object" && !(v instanceof Date) && !Buffer.isBuffer(v)) {
+    const o: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v)) if (!ORDER_KEYS.has(k)) o[k] = withoutOrderNumbers(x);
+    return o;
+  }
+  return v;
+}
 export async function handle(p: Payload) {
   try {
     const fn = ROUTES[String(p.action || "")];
     if (!fn) throw err("BAD_ACTION", "ไม่รู้จักคำสั่งนี้");
-    return { ok: true, data: await fn(p.data || {}, { p }) };
+    const data = await fn(p.data || {}, { p });
+    // Order numbers are for admins only (they reveal how much a subject sold): whatever a student-facing
+    // action returns, they never leave the server. Admin/staff actions filter them per viewer themselves.
+    return { ok: true, data: /^(admin|fin|staff)\./.test(String(p.action)) ? data : withoutOrderNumbers(data) };
   } catch (x) {
     if (x instanceof ApiError) return { ok: false, error: x.code, message: x.message };
     console.error("[ib]", p.action, x);

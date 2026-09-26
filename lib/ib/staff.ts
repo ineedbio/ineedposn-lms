@@ -81,7 +81,7 @@ export async function courseStudents(d: Data, _c: Ctx, me: User) {
       const st = e.revokedAt ? "revoked" : e.status === "APPROVED" && (expired || enr?.status !== "ACTIVE") ? "expired" : e.status.toLowerCase();
       const done = prog.find((x) => x.userId === e.userId)?._count || 0;
       return {
-        enroll_id: e.id, user_id: e.userId, name: fullName(e.user), nickname: e.user.nickname || "", email: admin ? e.user.email : "",
+        enroll_id: e.id, order_number: admin ? e.orderNumber || "" : undefined, user_id: e.userId, name: fullName(e.user), nickname: e.user.nickname || "", email: admin ? e.user.email : "",
         status: st, source: src, source_label: SOURCE_LABEL[src] || src, reason: e.reason || "", amount: admin ? e.amount : null,
         granted_by: by ? by.nickname || by.firstName : e.reviewedBy === "SYSTEM" ? "ระบบ" : "", since: iso(e.reviewedAt || e.createdAt), expires_at: iso(enr?.expiresAt),
         done, percent: ids.length ? Math.round((done / ids.length) * 100) : 0,
@@ -120,6 +120,28 @@ export async function adminLog(d: Data) {
   if (d.teachers_only) out = out.filter((r) => r.role === "teacher");
   if (q) out = out.filter((r) => [r.who, r.action, r.detail].join(" ").toLowerCase().includes(q));
   return out.slice(0, 300);
+}
+/** หลังบ้าน: find payments by order number (BIO-0042 / 0042), student name, email or course. Admins only. */
+export async function adminOrdersSearch(d: Data) {
+  const q = trim(d.q).slice(0, 80);
+  if (!q) return [];
+  const num = q.toUpperCase().replace(/\s+/g, "");
+  const or: Prisma.PaymentWhereInput[] = [
+    { orderNumber: { contains: num, mode: "insensitive" } },
+    { user: { OR: ["email", "firstName", "lastName", "nickname", "phone"].map((f) => ({ [f]: { contains: q, mode: "insensitive" } })) } },
+    { course: { OR: [{ title: { contains: q, mode: "insensitive" } }, { slug: { contains: q.toLowerCase() } }] } },
+    { billId: { contains: num } },
+  ];
+  const rows = await prisma.payment.findMany({ where: { OR: or }, include: { user: true, course: true }, orderBy: { createdAt: "desc" }, take: 50 });
+  return rows.map((e) => {
+    const src = sourceOf(e);
+    return {
+      order_number: e.orderNumber || "", enroll_id: e.id, created_at: iso(e.createdAt), decided_at: iso(e.reviewedAt),
+      status: e.revokedAt ? "revoked" : e.status.toLowerCase(), amount: e.amount, source: src, source_label: SOURCE_LABEL[src] || src,
+      student: fullName(e.user), nickname: e.user.nickname || "", email: e.user.email, course_id: e.course.slug, course_title: e.course.title,
+      bill_id: e.billId || ((e.note || "").match(/^บิล (\S+)/) || [])[1] || "", has_slip: !!e.slipImageUrl,
+    };
+  });
 }
 const roleOf = (u: User) => (u.role === "ADMIN" ? "admin" : u.role === "INSTRUCTOR" ? "teacher" : "student");
 async function systemLog(action: string, detail: string) {
@@ -170,7 +192,7 @@ function expenseOut(x: Expense, users: User[]) {
   };
 }
 type Income = {
-  enroll_id: string; date: string; course_id: string; course_title: string; subject: string; amount: number; source: string; source_label: string;
+  enroll_id: string; order_number?: string; date: string; course_id: string; course_title: string; subject: string; amount: number; source: string; source_label: string;
   student: string; nickname: string; bill_id: string; has_slip: boolean; account_label: string; held_by: string; revoked: boolean;
 };
 type SubjRow = { subject: string; name: string; income: number; expense: number; net: number; pct: number; platform: number; pool: number; unassigned: number; custom_missing: string[] };
@@ -202,7 +224,7 @@ async function finCompute(pr: string) {
     const b = bid ? bills.find((x) => x.id === bid) : null;
     const acc = b ? accs.find((a) => a.id === b.accountId) : null;
     income.push({
-      enroll_id: e.id, date: iso(e.reviewedAt || e.createdAt), course_id: c.slug, course_title: c.title, subject: subjectKey(c.subject), amount: e.amount,
+      enroll_id: e.id, order_number: e.orderNumber || "", date: iso(e.reviewedAt || e.createdAt), course_id: c.slug, course_title: c.title, subject: subjectKey(c.subject), amount: e.amount,
       source: src, source_label: SOURCE_LABEL[src] || src, student: fullName(e.user), nickname: e.user.nickname || "", bill_id: bid, has_slip: !!e.slipImageUrl,
       account_label: acc ? acc.label : b ? "บัญชีหลัก" : "—", held_by: acc?.ownerId || "", revoked: !!e.revokedAt,
     });
@@ -274,7 +296,7 @@ function finScope(r: FinData, me: User, subject: string) {
     t.net = r2(t.income - t.expense); out.totals = t;
   }
   if (!admin) {
-    for (const x of out.income as Income[]) x.bill_id = "";
+    for (const x of out.income as Income[]) { x.bill_id = ""; delete x.order_number; }
     for (const x of out.expenses as ReturnType<typeof expenseOut>[]) if (x.created_by !== me.id) x.created_by_name = x.created_by_name.replace(/\s*\(.*\)$/, "");
   }
   return out;
