@@ -250,3 +250,14 @@ export async function notifyAdmins(to: string[], subject: string, rows: [string,
     console.error("[mail] admin notify failed", e);
   }
 }
+
+/** A short notice with a button (e.g. new lessons from a playlist) to a list of addresses. */
+export async function sendNotice(to: string[], subject: string, title: string, bodyHtml: string, href: string, label: string, ig: string) {
+  if (!to.length || (await remainingQuota()) < to.length) return;
+  const inner = '<tr><td style="padding:0 32px 26px;font-size:15px;line-height:1.7;color:#525252;">' + bodyHtml + mailBtn(href, label) + "</td></tr>";
+  try {
+    await send(to, subject, shell(title, inner, ig));
+  } catch (e) {
+    console.error("[mail] notice send failed", e);
+  }
+}

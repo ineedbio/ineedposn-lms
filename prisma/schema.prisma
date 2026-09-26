@@ -69,6 +69,7 @@ model User {
   shopOrders           ShopOrder[]
   bills                Bill[]
   instructorSubjectKey String? // "bio" | "chem" | "phys" | "math" (when role is INSTRUCTOR)
+  subjects             String? // web app v4: subjects a teacher (INSTRUCTOR) looks after, comma-separated
   recordedExpenses     Expense[]        @relation("RecordedExpenses")
 }
 
@@ -161,6 +162,8 @@ model Course {
   instructor2Title String?
   instructor2Bio   String?
   instructor2Photo String?
+  playlists        Json    @default("[]") // YouTube playlists synced into the lessons: [{id, chapter, strip, title, last_sync, last_count}]
+  teacherSplit     Json    @default("[]") // revenue split between teachers: [{user_id, pct}] (empty = equal split among the subject's teachers)
 
   subjectId  String
   subject    Subject  @relation(fields: [subjectId], references: [id])
@@ -192,6 +195,9 @@ model Lesson {
   duration   Int? // seconds
   isPreview  Boolean    @default(false) // free "ทดลองเรียน" lesson, viewable without enrollment
   chapter    String? // groups lessons into chapters ("บทที่ 1 เซลล์") in the syllabus and admin list
+  hidden         Boolean @default(false) // removed from its YouTube playlist: hidden from students, kept for the record
+  sourcePlaylist String? // playlist id when the lesson came from a playlist sync
+  files          Json    @default("[]") // lesson files: [{fid, name, mime, size, blob_id} | {fid, name, url}]
 
   courseId String
   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -312,6 +318,10 @@ model Payment {
   reviewedBy   String?
   reviewedAt   DateTime?
   createdAt    DateTime  @default(now())
+  source       String? // web app v4: bill | manual | grant | test | legacy | request (empty on older rows: derived)
+  reason       String?
+  billId       String?
+  revokedAt    DateTime? // access taken back (the approval stays for the income record)
 
   user   User   @relation(fields: [userId], references: [id])
   course Course @relation(fields: [courseId], references: [id])
@@ -418,6 +428,7 @@ model PayAccount {
   status      String   @default("active") // "active" | "inactive"
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
+  ownerId     String? // teacher/admin who holds the money received here (finance: deducted from their share)
 }
 
 // Several courses sold together for a special price.
@@ -503,7 +514,7 @@ model Bill {
 model Expense {
   id           String   @id @default(cuid())
   title        String
-  amount       Int
+  amount       Float
   category     String?
   date         DateTime @default(now())
   note         String?
@@ -513,6 +524,9 @@ model Expense {
   course       Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
   recordedById String
   recordedBy   User     @relation("RecordedExpenses", fields: [recordedById], references: [id])
+  status       String   @default("approved") // pending (a teacher's, waiting for the admin) | approved | rejected
+  decidedById  String?
+  decidedAt    DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -520,4 +534,59 @@ model Expense {
   @@index([date])
   @@index([courseId])
   @@index([recordedById])
+}
+
+// ============= Finance (web app v4): closed months and teacher payouts =============
+model FinPeriod {
+  period   String   @id // "YYYY-MM" (Thai time)
+  closedAt DateTime @default(now())
+  closedBy String
+  snapshot Json // {by_subject, teachers, totals} at closing
+}
+
+model FinPayout {
+  id        String    @id // "PO…"
+  period    String
+  userId    String
+  subjects  String    @default("")
+  share     Float     @default(0)
+  held      Float     @default(0)
+  amount    Float     @default(0)
+  status    String    @default("pending") // pending | paid
+  paidAt    DateTime?
+  paidBy    String?
+  note      String    @default("")
+  createdAt DateTime  @default(now())
+
+  @@index([period])
+}
+
+// ============= Students from before the website (web app v4) =============
+model LegacyStudent {
+  id        String    @id // "LG…"
+  firstName String
+  lastName  String
+  nickname  String    @default("")
+  norm      String // normalized first+last name used for matching
+  courseIds String // course slugs, comma-separated
+  batch     String    @default("")
+  status    String    @default("open") // open | claimed | deleted
+  userId    String?
+  claimedAt DateTime?
+  match     String    @default("") // auto | auto-manual | admin
+  note      String    @default("")
+  createdAt DateTime  @default(now())
+
+  @@index([norm])
+}
+
+model LegacyClaim {
+  id        String    @id // "LC…"
+  userId    String
+  legacyIds String // comma-separated LegacyStudent ids
+  reason    String    @default("")
+  status    String    @default("pending") // pending | approved | rejected
+  createdAt DateTime  @default(now())
+  decidedBy String?
+  decidedAt DateTime?
 }
