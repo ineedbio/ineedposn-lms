@@ -28,6 +28,8 @@ export default function Home() {
       <Script src="/ineedbio/reviews.js" strategy="afterInteractive" />
       {/* เลขคำสั่งซื้อ (BIO-0001 …) บนหลังบ้าน เห็นเฉพาะแอดมิน */}
       <Script src="/ineedbio/admin-orders.js" strategy="afterInteractive" />
+      {/* "+ เพิ่มสิทธิ์ให้ผู้ใช้เอง": เลือกได้หลายคอร์สพร้อมกัน */}
+      <Script src="/ineedbio/grant-multi.js" strategy="afterInteractive" />
     </>
   );
 }
