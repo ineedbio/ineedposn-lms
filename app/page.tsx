@@ -26,6 +26,8 @@ export default function Home() {
       <Script src="/ineedbio/app.js" strategy="afterInteractive" />
       {/* "รีวิวจากน้องๆ" on the home page (added next to app.js, which stays unchanged) */}
       <Script src="/ineedbio/reviews.js" strategy="afterInteractive" />
+      {/* เลขคำสั่งซื้อ (BIO-0001 …) บนหลังบ้าน เห็นเฉพาะแอดมิน */}
+      <Script src="/ineedbio/admin-orders.js" strategy="afterInteractive" />
     </>
   );
 }

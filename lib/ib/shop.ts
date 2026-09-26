@@ -468,13 +468,24 @@ export async function adminBills(d: Data, me: User) {
   const lites = await courseLites();
   const mineItem = (it: { subject?: string; course_id: string }) => mine.includes(itemSubject(it, lites));
   const rows = await prisma.bill.findMany({ where: d.account_id ? { accountId: String(d.account_id) } : {}, include: { user: true } });
+  // Admin-only order numbers of the payments an approved bill created (searchable in the bills list too).
+  const nums: Record<string, string[]> = {};
+  if (!teacher) {
+    const ids = new Set(rows.map((b) => b.id));
+    // Payments from before Payment.billId existed point at their bill only through the note ("บิล OD…-1").
+    const pays = await prisma.payment.findMany({ where: { OR: [{ billId: { in: [...ids] } }, { billId: null, note: { startsWith: "บิล " } }] }, select: { billId: true, note: true, orderNumber: true } });
+    for (const p of pays) {
+      const bid = p.billId || ((p.note || "").match(/^บิล (\S+)/) || [])[1] || "";
+      if (ids.has(bid) && p.orderNumber) (nums[bid] = nums[bid] || []).push(p.orderNumber);
+    }
+  }
   const q = String(d.q || "").toLowerCase();
   const key = (b: Bill) => (b.submittedAt || b.createdAt).getTime();
   return rows
     .filter((b) => {
       const s = billStatus(b);
       if (teacher && !billItems(b).some(mineItem)) return false;
-      if (q && ![b.id, b.user.email, b.user.firstName, b.user.lastName, b.user.nickname, b.user.phone].join(" ").toLowerCase().includes(q)) return false;
+      if (q && ![b.id, b.user.email, b.user.firstName, b.user.lastName, b.user.nickname, b.user.phone, ...(nums[b.id] || [])].join(" ").toLowerCase().includes(q)) return false;
       return st === "closed" ? s === "expired" || s === "cancelled" : st === "all" ? true : s === st;
     })
     .sort((a, b) => (st === "reviewing" ? key(a) - key(b) : key(b) - key(a)))
@@ -483,7 +494,7 @@ export async function adminBills(d: Data, me: User) {
       const o = {
         ...billPublic(b), account_label: ((b.account || {}) as { label?: string }).label || "", user_id: b.userId,
         name: `${b.user.firstName} ${b.user.lastName}`, nickname: b.user.nickname || "", email: b.user.email, phone: b.user.phone || "", has_photo: !!b.user.photoBlobId,
-        checks: billChecks(b, b.user), can_decide: !teacher,
+        checks: billChecks(b, b.user), can_decide: !teacher, order_numbers: teacher ? undefined : (nums[b.id] || []).sort(),
       };
       if (teacher) { o.phone = ""; o.email = ""; o.has_photo = false; o.items = o.items.filter(mineItem); }
       return o;

@@ -322,6 +322,7 @@ model Payment {
   reason       String?
   billId       String?
   revokedAt    DateTime? // access taken back (the approval stays for the income record)
+  orderNumber  String?   @unique // admin-only reference BIO-0001 / CHEM-0001 …, set by a database trigger; never sent to students
 
   user   User   @relation(fields: [userId], references: [id])
   course Course @relation(fields: [courseId], references: [id])
@@ -589,4 +590,10 @@ model LegacyClaim {
   createdAt DateTime  @default(now())
   decidedBy String?
   decidedAt DateTime?
+}
+
+// Last order number used per subject prefix (BIO, CHEM, PHYS, MATH) — advanced by the Payment trigger.
+model OrderCounter {
+  prefix String @id
+  last   Int    @default(0)
 }
