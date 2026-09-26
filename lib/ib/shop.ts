@@ -551,16 +551,22 @@ export async function adminAccounts() {
 export async function adminAccountSave(d: Data, _c: Ctx, admin: User) {
   const method = d.method === "bank" ? "bank" : "promptpay";
   const data = {
-    label: req(d.label, "ชื่อเรียกบัญชี", 60), method, accountName: req(d.account_name, "ชื่อบัญชี", 100),
+    label: req(d.label, "ชื่อเรียกบัญชี", 60), method, accountName: clip(d.account_name, 100),
     promptpayId: String(d.promptpay_id || "").replace(/\D/g, ""), bank: clip(d.bank, 60), accountNo: clip(d.account_no, 30),
     qrUrl: clip(d.qr_url, 500), note: clip(d.note, 300), ig: clip(String(d.ig || "").replace(/^@/, ""), 40),
     subjects: csv(d.subjects).filter((s) => APP.SUBJECTS[s]).join(","), status: d.status === "inactive" ? "inactive" : "active", sortOrder: Number(d.sort_order) || 0,
     ownerId: clip(d.owner_id, 30) || null,
   };
   if (data.ownerId && !(await prisma.user.findFirst({ where: { id: data.ownerId, role: { in: ["ADMIN", "INSTRUCTOR"] } } }))) throw err("BAD_INPUT", "เจ้าของบัญชีต้องเป็นผู้สอนหรือแอดมิน");
-  if (method === "promptpay" && !/^(\d{10}|\d{13}|\d{15})$/.test(data.promptpayId)) throw err("BAD_INPUT", "เลขพร้อมเพย์ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตร/เลขผู้เสียภาษี 13 หลัก");
-  if (method === "bank" && (!data.bank || !data.accountNo)) throw err("BAD_INPUT", "กรอกธนาคารและเลขบัญชี");
+  // Account name and number are optional when there is a QR image (an uploaded one is /api/ib/file/<id>).
   if (data.qrUrl && !/^https:\/\//.test(data.qrUrl) && !/^\/[^/]/.test(data.qrUrl)) throw err("BAD_INPUT", "ลิงก์รูป QR ต้องขึ้นต้นด้วย https://");
+  if (method === "promptpay") {
+    if (data.promptpayId && !/^(\d{10}|\d{13}|\d{15})$/.test(data.promptpayId)) throw err("BAD_INPUT", "เลขพร้อมเพย์ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตร/เลขผู้เสียภาษี 13 หลัก");
+    if (!data.promptpayId && !data.qrUrl) throw err("BAD_INPUT", "ใส่เลขพร้อมเพย์ หรืออัปโหลดรูป QR อย่างน้อย 1 อย่าง");
+  } else {
+    if (data.accountNo && !data.bank) throw err("BAD_INPUT", "เลือกธนาคารของเลขบัญชีนี้");
+    if (!data.accountNo && !data.qrUrl) throw err("BAD_INPUT", "ใส่เลขบัญชี หรืออัปโหลดรูป QR อย่างน้อย 1 อย่าง");
+  }
   if (d.account_id) {
     const a = await prisma.payAccount.findUnique({ where: { id: String(d.account_id) } });
     if (!a) throw err("NOT_FOUND", "ไม่พบบัญชีนี้");
