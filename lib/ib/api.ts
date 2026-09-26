@@ -11,6 +11,7 @@ import type { Course, Lesson, Attachment, Payment, Enrollment, Prisma, Subject, 
 import { prisma } from "../prisma";
 import { rateLimit } from "../rate-limit";
 import { subjectKey } from "./subjects";
+import * as shop from "./shop";
 import { notifyAdmins, remainingQuota, sendDecisionEmail, sendOtpEmail } from "./mail";
 import {
   APP, ApiError, bkkDate, checkImageUrl, checkPassword, clip, err, iso, isRepeat, lines, normEmail, otpCode, parseFaq,
@@ -20,13 +21,14 @@ import {
 /** Accounts that are always admins (promoted on registration / next login). */
 const BOOTSTRAP_ADMINS = ["ineedbio1803@gmail.com"];
 
-type Data = Record<string, any>;
+export type Data = Record<string, any>;
 export type Payload = { action?: string; data?: Data; token?: string; device_id?: string; device_info?: string };
 export type Ctx = { p: Payload };
 type Handler = (d: Data, ctx: Ctx) => Promise<unknown>;
 
 // ───────────────────────── Settings ─────────────────────────
-const PUBLIC_SETTINGS = ["terms_text", "privacy_text", "hero_eyebrow", "hero_title", "hero_subtitle", "announcement", "promptpay_id", "promptpay_name", "contact_ig", "contact_phone"];
+const PUBLIC_SETTINGS = ["terms_text", "privacy_text", "hero_eyebrow", "hero_title", "hero_subtitle", "announcement", "promptpay_id", "promptpay_name", "contact_ig",
+  "pay_terms_text", "order_expire_hours", "proof_paid_at", "proof_amount", "proof_from_bank", "proof_payer_name", "proof_extra"];
 const DEFAULT_SETTINGS: Record<string, string> = {
   hero_eyebrow: "INeedBio Online",
   hero_title: "ติวเข้ม ม.ปลาย|กับ INeedBio",
@@ -35,10 +37,23 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   promptpay_id: process.env.PROMPTPAY_ID || "0910256171",
   promptpay_name: "INeedBio",
   contact_ig: "ineedbiochem",
-  contact_phone: "091-025-6171",
   admin_emails: process.env.ADMIN_NOTIFICATION_EMAIL || "",
   terms_text: "",
   privacy_text: "",
+  // Payment — {account} = name and number of the bill's account, {ig} = contact IG
+  pay_terms_text:
+    "- ชำระเงินโดยโอนเข้าบัญชี {account} ที่แสดงในหน้าชำระเงินของบิลนี้เท่านั้น\n" +
+    "- INeedBio ไม่รับผิดชอบทุกกรณี หากโอนเข้าบัญชีอื่นที่ไม่ได้แสดงในหน้านี้ แม้จะมีผู้อ้างว่าเป็นทีมงาน\n" +
+    "- ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว\n" +
+    "- โอนแล้วแนบสลิปและกรอกข้อมูลการโอนให้ครบ แล้วแจ้งการชำระเงินทาง IG @{ig} อีกครั้ง\n" +
+    "- สิทธิ์เข้าเรียนจะเปิดหลังแอดมินตรวจยอดเงินแล้ว",
+  order_expire_hours: "48",
+  proof_paid_at: "required",
+  proof_amount: "required",
+  proof_from_bank: "required",
+  proof_payer_name: "required",
+  proof_extra: "",
+  site_url: "https://ineedbio.shop",
 };
 
 async function allSettings() {
@@ -46,15 +61,15 @@ async function allSettings() {
   for (const r of await prisma.setting.findMany()) o[r.key] = r.value;
   return o;
 }
-async function getSetting(k: string) {
+export async function getSetting(k: string) {
   const r = await prisma.setting.findUnique({ where: { key: k } });
   return r ? r.value : DEFAULT_SETTINGS[k];
 }
 async function setSetting(k: string, v: string) {
   await prisma.setting.upsert({ where: { key: k }, create: { key: k, value: v }, update: { value: v } });
 }
-const ig = async () => (await getSetting("contact_ig")) || "ineedbiochem";
-const adminEmails = async () => String((await getSetting("admin_emails")) || "").split(",").map(trim).filter(Boolean);
+export const ig = async () => (await getSetting("contact_ig")) || "ineedbiochem";
+export const adminEmails = async () => String((await getSetting("admin_emails")) || "").split(",").map(trim).filter(Boolean);
 
 async function publicSettings() {
   const s = await allSettings();
@@ -64,13 +79,15 @@ async function publicSettings() {
   o.levels = APP.LEVELS;
   o.repeat_grades = APP.REPEAT_GRADES;
   o.terms_version = APP.TERMS_VERSION;
+  o.banks = shop.BANKS;
+  o.proof_extra_fields = await shop.proofExtra();
   return o;
 }
 
-async function log(admin: User, action: string, detail: string) {
+export async function log(admin: User, action: string, detail: string) {
   await prisma.auditLog.create({ data: { actorId: admin.id, action: "ib." + action, target: clip(detail, 500) } });
 }
-async function rate(key: string, limit: number, sec: number, msg: string) {
+export async function rate(key: string, limit: number, sec: number, msg: string) {
   const r = await rateLimit("ib", key, { limit, windowSeconds: sec });
   if (!r.allowed) throw err("RATE_LIMIT", msg);
 }
@@ -87,6 +104,8 @@ function publicUser(u: User) {
     current_faculty: u.currentFaculty || "", current_university: u.currentUniversity || "",
     dream_faculty: u.dreamFaculty || "", dream_university: u.dreamUniversity || "",
     is_repeat: isRepeat(u.gradeLevel), terms_version: u.termsVersion || "",
+    birthday: u.birthday || "", facebook: u.facebook || "", instagram: u.instagram || "", line_id: u.lineId || "",
+    has_photo: !!u.photoBlobId, data_consent: !!u.dataConsentAt,
     instructor_subject: instSubj,
     instructor_subject_name: instSubj && APP.SUBJECTS[instSubj] ? APP.SUBJECTS[instSubj] : "",
     is_super: isSuperAdmin(u),
@@ -112,14 +131,54 @@ function goals(d: Data, grade: string) {
   }
   return out;
 }
+/** Birthday (required) + contact channels Facebook / IG / LINE (at least one). */
+function contacts(d: Data) {
+  const bd = trim(d.birthday);
+  if (!bd) throw err("BAD_INPUT", "กรอกวันเดือนปีเกิด");
+  const m = bd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const t = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
+  if (!m || !t || isNaN(t.getTime()) || t.getUTCDate() !== +m[3]) throw err("BAD_INPUT", "วันเดือนปีเกิดไม่ถูกต้อง");
+  const age = (Date.now() - t.getTime()) / 31557600000;
+  if (age < 7 || age > 90) throw err("BAD_INPUT", "ตรวจปีเกิดอีกครั้ง (ใช้ปี พ.ศ.)");
+  const out = {
+    birthday: bd,
+    facebook: clip(d.facebook, 120),
+    instagram: clip(String(d.instagram || "").trim().replace(/^@/, ""), 60),
+    lineId: clip(String(d.line_id || "").trim().replace(/^@(?=\w)/, ""), 60),
+  };
+  if (!out.facebook && !out.instagram && !out.lineId) throw err("BAD_INPUT", "กรอกช่องทางติดต่ออย่างน้อย 1 ช่องทาง (Facebook, IG หรือ LINE)");
+  return out;
+}
 function profileFields(d: Data) {
   const grade = req(d.grade, "ระดับชั้น", 20);
   return {
     firstName: req(d.first_name, "ชื่อ", 60), lastName: req(d.last_name, "นามสกุล", 60),
     nickname: req(d.nickname, "ชื่อเล่น", 30), school: req(d.school, "โรงเรียน", 120),
-    gradeLevel: grade, phone: phone(d.phone), ...goals(d, grade),
+    gradeLevel: grade, phone: phone(d.phone), ...goals(d, grade), ...contacts(d),
   };
 }
+
+// Student photo: private FileBlob, visible only to its owner and admins.
+type Photo = { mime?: string; base64?: string } | null | undefined;
+function checkPhoto(ph: Photo, required: boolean) {
+  if (!ph || !ph.base64) {
+    if (required) throw err("BAD_INPUT", "ใส่รูปของน้องด้วย (รูปไหนก็ได้ ขอแค่เป็นรูปน้องเอง)");
+    return false;
+  }
+  if (!/^image\/(jpeg|png|webp)$/.test(ph.mime || "")) throw err("BAD_INPUT", "รูปถ่ายต้องเป็นไฟล์ JPG หรือ PNG");
+  if (String(ph.base64).length * 0.75 > APP.PHOTO_MAX_BYTES) throw err("BAD_INPUT", "รูปถ่ายใหญ่เกิน 1 MB ลองเลือกรูปใหม่");
+  return true;
+}
+async function savePhoto(ph: Photo) {
+  const b = await prisma.fileBlob.create({ data: { mime: ph!.mime!, data: Buffer.from(String(ph!.base64), "base64"), isPublic: false } });
+  return b.id;
+}
+async function photoOut(id: string | null | undefined) {
+  if (!id) return null;
+  const b = await prisma.fileBlob.findUnique({ where: { id } });
+  return b ? { mime: b.mime, base64: Buffer.from(b.data).toString("base64") } : null;
+}
+const accepted = (v: unknown) => v === true || v === "true";
 
 /** New session for this device; every other session of the user ends (1 account = 1 device). */
 async function newSession(u: User, p: Payload) {
@@ -140,7 +199,7 @@ async function endSessions(userId: string, reason: string) {
   await prisma.ibSession.updateMany({ where: { userId, endedAt: null }, data: { endedAt: new Date(), endReason: reason } });
 }
 
-async function auth(p: Payload) {
+export async function auth(p: Payload) {
   const token = String(p.token || "");
   if (!token) throw err("AUTH", "กรุณาเข้าสู่ระบบ");
   const s = await prisma.ibSession.findUnique({ where: { tokenHash: sha256(token) }, include: { user: true } });
@@ -203,13 +262,17 @@ async function registerStart(d: Data) {
   const email = normEmail(d.email);
   const f = profileFields(d);
   if (d.accept_terms !== true && d.accept_terms !== "true") throw err("BAD_INPUT", "กรุณายอมรับข้อตกลงการใช้งานและนโยบายความเป็นส่วนตัวก่อนสมัคร");
+  checkPhoto(d.photo, true);
+  if (!accepted(d.accept_data)) throw err("BAD_INPUT", "กรุณาติ๊กยินยอมให้เก็บรูปถ่ายและข้อมูลเพิ่มเติมก่อนสมัคร");
   checkPassword(d.password);
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing?.emailVerified) throw err("EMAIL_TAKEN", "อีเมลนี้สมัครไว้แล้ว ลองเข้าสู่ระบบหรือกดลืมรหัสผ่าน");
   await rate("otp1:" + email, 1, 60, "รอ 1 นาทีก่อนขอรหัสใหม่");
   await rate("otpH:" + email, 6, 3600, "ขอรหัสบ่อยเกินไป ลองใหม่ในอีก 1 ชั่วโมง");
   // The account is created unverified and only becomes usable once the emailed code is entered.
-  const data = { ...f, password: await hashPw(String(d.password)), termsVersion: APP.TERMS_VERSION, termsAcceptedAt: new Date() };
+  const photoBlobId = await savePhoto(d.photo);
+  if (existing?.photoBlobId) await prisma.fileBlob.delete({ where: { id: existing.photoBlobId } }).catch(() => {});
+  const data = { ...f, password: await hashPw(String(d.password)), termsVersion: APP.TERMS_VERSION, termsAcceptedAt: new Date(), photoBlobId, dataConsentAt: new Date() };
   const u = existing
     ? await prisma.user.update({ where: { id: existing.id }, data })
     : await prisma.user.create({ data: { ...data, email, emailVerified: false } });
@@ -279,16 +342,38 @@ async function passwordChange(d: Data, { p }: Ctx) {
 
 async function profileUpdate(d: Data, { p }: Ctx) {
   const u = await auth(p);
-  return publicUser(await prisma.user.update({ where: { id: u.id }, data: profileFields(d) }));
+  const data: Prisma.UserUpdateInput = profileFields(d);
+  if (!u.dataConsentAt) {
+    if (accepted(d.accept_data)) data.dataConsentAt = new Date();
+    else if (d.photo) throw err("BAD_INPUT", "กรุณาติ๊กยินยอมให้เก็บรูปถ่ายและข้อมูลเพิ่มเติมก่อน");
+  }
+  let oldPhoto = "";
+  if (d.photo) {
+    checkPhoto(d.photo, true);
+    await rate("photo:" + u.id, 10, 3600, "เปลี่ยนรูปบ่อยเกินไป ลองใหม่ภายหลัง");
+    oldPhoto = u.photoBlobId || "";
+    data.photoBlobId = await savePhoto(d.photo);
+  }
+  const v = await prisma.user.update({ where: { id: u.id }, data });
+  if (oldPhoto) await prisma.fileBlob.delete({ where: { id: oldPhoto } }).catch(() => {});
+  return publicUser(v);
+}
+async function myPhoto(_d: Data, { p }: Ctx) {
+  return photoOut((await auth(p)).photoBlobId);
+}
+async function adminUserPhoto(d: Data) {
+  const u = await prisma.user.findUnique({ where: { id: String(d.user_id || "") } });
+  if (!u) throw err("NOT_FOUND", "ไม่พบผู้ใช้");
+  return photoOut(u.photoBlobId);
 }
 
 // ───────────────────────── Courses ─────────────────────────
 type LessonRow = Lesson & { attachments: Attachment[] };
-type CourseRow = Course & { subject: Subject; lessons: LessonRow[] };
-const courseInclude = { subject: true, lessons: { orderBy: { order: "asc" }, include: { attachments: true } } } satisfies Prisma.CourseInclude;
+export type CourseRow = Course & { subject: Subject; lessons: LessonRow[] };
+export const courseInclude = { subject: true, lessons: { orderBy: { order: "asc" }, include: { attachments: true } } } satisfies Prisma.CourseInclude;
 const lessonMin = (l: Lesson) => Math.round((l.duration || 0) / 60);
 
-function courseCard(c: CourseRow) {
+export function courseCard(c: CourseRow) {
   const key = subjectKey(c.subject);
   return {
     course_id: c.slug, subject: key, subject_name: APP.SUBJECTS[key], title: c.title, subtitle: c.subtitle || "",
@@ -297,7 +382,7 @@ function courseCard(c: CourseRow) {
     lesson_count: c.lessons.length, total_min: c.lessons.reduce((a, l) => a + lessonMin(l), 0),
   };
 }
-function chapters<T>(lessons: LessonRow[], map: (l: LessonRow) => T) {
+export function chapters<T>(lessons: LessonRow[], map: (l: LessonRow) => T) {
   const out: { title: string; lessons: T[] }[] = [];
   const idx: Record<string, number> = {};
   for (const l of lessons) {
@@ -307,7 +392,7 @@ function chapters<T>(lessons: LessonRow[], map: (l: LessonRow) => T) {
   }
   return out;
 }
-async function courseBySlug(id: unknown) {
+export async function courseBySlug(id: unknown) {
   const s = String(id || "").trim();
   return s ? prisma.course.findUnique({ where: { slug: s }, include: courseInclude }) : null;
 }
@@ -349,8 +434,10 @@ async function courseDetail(d: Data, { p }: Ctx) {
   out.trailer_id = x.trailerYoutube || "";
   out.highlights = lines(x.highlights, 12, 200);
   out.audience = lines(x.audience, 10, 200);
-  out.instructor = x.instructorName ? { name: x.instructorName, title: x.instructorTitle || "", bio: x.instructorBio || "", photo: x.instructorPhoto || "" } : null;
+  out.instructors = shop.instructors(x);
+  out.instructor = (out.instructors as unknown[])[0] || null;
   out.faq = parseFaq(x.faq);
+  out.bundles = (await shop.publicBundles()).filter((b) => b.course_ids.includes(x.slug));
   out.enrollment = null;
   if (p.token) {
     try {
@@ -358,6 +445,7 @@ async function courseDetail(d: Data, { p }: Ctx) {
       const e = await enrollState(u.id, x.id);
       out.enrollment = e ? e.status : null;
       out.note = e ? e.note : "";
+      out.bill = await shop.openBillFor(u.id, x.slug);
     } catch {}
   }
   return out;
@@ -455,7 +543,7 @@ async function adminStats(_d: Data, _c: Ctx, admin: User) {
   const today = bkkDate(), month = today.slice(0, 7);
   const dayStart = new Date(Date.parse(today + "T00:00:00+07:00"));
   const verified = { emailVerified: true } as const;
-  const [usersTotal, usersToday, repeatCount, dreams, pending, oldest, approved] = await Promise.all([
+  const [usersTotal, usersToday, repeatCount, dreams, pending, oldest, approved, reviewing, awaiting] = await Promise.all([
     isInst
       ? prisma.enrollment.count({
           where: { status: "ACTIVE", course: { subject: { slug: SUBJECT_SLUG[instSubj!] || instSubj! } } },
@@ -490,6 +578,9 @@ async function adminStats(_d: Data, _c: Ctx, admin: User) {
       },
       include: { course: { include: { subject: true } } },
     }),
+    // Bills (the cart) are reviewed by the main admin only.
+    isInst ? [] : prisma.bill.findMany({ where: { status: "reviewing" }, select: { submittedAt: true } }),
+    isInst ? 0 : prisma.bill.count({ where: { status: "awaiting_payment", OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }] } }),
   ]);
   const subj: Record<string, { subject: string; name: string; count: number; revenue: number }> = {};
   for (const k of Object.keys(APP.SUBJECTS)) {
@@ -513,8 +604,10 @@ async function adminStats(_d: Data, _c: Ctx, admin: User) {
     dream_top: topCount(dreams.map((u) => (u.dreamFaculty && u.dreamUniversity ? u.dreamFaculty + " · " + u.dreamUniversity : "")), 6),
     repeat_count: repeatCount,
     users_today: usersToday,
-    pending,
-    oldest_pending: iso(oldest?.createdAt),
+    pending: pending + reviewing.length,
+    pending_legacy: pending,
+    awaiting,
+    oldest_pending: [iso(oldest?.createdAt), ...reviewing.map((b) => iso(b.submittedAt))].filter(Boolean).sort()[0] || "",
     month_revenue: revenue,
     month_count: approved.filter((e) => !isInst || subjectKey(e.course.subject) === instSubj).length,
     by_subject: Object.values(subj),
@@ -564,7 +657,7 @@ async function adminSlip(d: Data, _c: Ctx, admin: User) {
   return { mime: r.headers.get("content-type") || "image/jpeg", base64: Buffer.from(await r.arrayBuffer()).toString("base64") };
 }
 
-async function activate(userId: string, courseId: string) {
+export async function activate(userId: string, courseId: string) {
   await prisma.enrollment.upsert({
     where: { userId_courseId: { userId, courseId } },
     create: { userId, courseId, status: "ACTIVE", enrolledAt: new Date() },
@@ -637,7 +730,8 @@ async function adminCourses(_d: Data, _c: Ctx, admin: User) {
     ...courseCard(x), sort_order: x.sortOrder,
     trailer_youtube: x.trailerYoutube || "", highlights: x.highlights || "", audience: x.audience || "",
     instructor_name: x.instructorName || "", instructor_title: x.instructorTitle || "", instructor_bio: x.instructorBio || "",
-    instructor_photo: x.instructorPhoto || "", faq: x.faq || "", students: x._count.enrollments,
+    instructor_photo: x.instructorPhoto || "", faq: x.faq || "", students: x._count.enrollments, pay_account_id: x.payAccountId || "",
+    instructor2_name: x.instructor2Name || "", instructor2_title: x.instructor2Title || "", instructor2_bio: x.instructor2Bio || "", instructor2_photo: x.instructor2Photo || "",
   }));
 }
 
@@ -675,9 +769,12 @@ async function adminCourseSave(d: Data, _c: Ctx, admin: User) {
     instructorName: clip(d.instructor_name, 80), instructorTitle: clip(d.instructor_title, 160),
     instructorBio: clip(d.instructor_bio, 1500), instructorPhoto: clip(d.instructor_photo, 500) || null, faq: clip(d.faq, 5000),
     trailerYoutube: trailer || null,
+    instructor2Name: clip(d.instructor2_name, 80), instructor2Title: clip(d.instructor2_title, 160), instructor2Bio: clip(d.instructor2_bio, 1500),
+    instructor2Photo: clip(d.instructor2_photo, 500) || null, payAccountId: clip(d.pay_account_id, 20) || null,
   };
   checkImageUrl(patch.coverImage || "");
   checkImageUrl(patch.instructorPhoto || "");
+  checkImageUrl(patch.instructor2Photo || "");
   const subject = await subjectFor(d.subject);
   if (d.course_id) {
     const x = await courseBySlug(d.course_id);
@@ -740,6 +837,14 @@ async function adminLessonSave(d: Data, _c: Ctx, admin: User) {
   return { lesson_id: id, youtube_id: yt };
 }
 
+async function adminLessonsBulk(d: Data, c: Ctx, admin: User) {
+  if (admin.role === "INSTRUCTOR") {
+    const course = await courseBySlug(d.course_id);
+    if (course && subjectKey(course.subject) !== instructorSubject(admin)) throw err("FORBIDDEN", "ไม่มีสิทธิ์เพิ่มบทเรียนในวิชาอื่น");
+  }
+  return shop.adminLessonsBulk(d, c, admin);
+}
+
 async function adminLessonDelete(d: Data, _c: Ctx, admin: User) {
   const l = await prisma.lesson.findUnique({ where: { id: String(d.lesson_id || "") }, include: { course: { include: { subject: true } } } });
   if (!l) throw err("NOT_FOUND", "ไม่พบบทเรียน");
@@ -772,7 +877,7 @@ async function adminUsers(d: Data) {
   const users = await prisma.user.findMany({
     where: {
       emailVerified: true,
-      ...(q ? { OR: ["email", "firstName", "lastName", "nickname", "phone", "school"].map((f) => ({ [f]: { contains: q, mode: "insensitive" } })) } : {}),
+      ...(q ? { OR: ["email", "firstName", "lastName", "nickname", "phone", "school", "facebook", "instagram", "lineId"].map((f) => ({ [f]: { contains: q, mode: "insensitive" } })) } : {}),
     },
     include: {
       enrollments: { where: { status: "ACTIVE" }, include: { course: { select: { title: true } } } },
@@ -1131,15 +1236,23 @@ const ROUTES: Record<string, Handler> = {
   "courses.list": () => publishedCourses(),
   "course.detail": courseDetail,
   "results.list": () => publicResults(),
+  "bundles.list": () => shop.publicBundles(),
+  "bundle.detail": (d) => shop.bundleDetail(d),
+  "cart.quote": (d, c) => shop.cartQuote(d, c),
   // นักเรียน
   me: async (_d, { p }) => publicUser(await auth(p)),
   logout,
   "profile.update": profileUpdate,
   "password.change": passwordChange,
+  "my.photo": myPhoto,
   "my.courses": myCourses,
   "learn.get": learnGet,
   "progress.set": progressSet,
   "enroll.request": enrollRequest,
+  "order.create": (d, c) => shop.orderCreate(d, c),
+  "my.orders": (d, c) => shop.myOrders(d, c),
+  "bill.proof": (d, c) => shop.billProof(d, c),
+  "bill.cancel": (d, c) => shop.billCancel(d, c),
   // แอดมิน & ผู้สอน
   "admin.stats": adminOnly(adminStats),
   "admin.enrollments": adminOnly(adminEnrollments),
@@ -1152,12 +1265,14 @@ const ROUTES: Record<string, Handler> = {
   "admin.lesson.save": adminOnly(adminLessonSave),
   "admin.lesson.delete": adminOnly(adminLessonDelete),
   "admin.lessons.reorder": adminOnly(adminLessonsReorder),
+  "admin.lessons.bulk": adminOnly(adminLessonsBulk),
   "admin.results": adminOnly(adminResults),
   "admin.result.save": adminOnly(adminResultSave),
   "admin.result.delete": adminOnly(adminResultDelete),
   "admin.upload": adminOnly(adminUpload),
   // ผู้ใช้และตั้งค่า (เฉพาะแอดมินหลัก)
   "admin.users": superAdminOnly(adminUsers),
+  "admin.user.photo": superAdminOnly(adminUserPhoto),
   "admin.user.update": superAdminOnly(adminUserUpdate),
   "admin.user.resetDevice": superAdminOnly(adminResetDevice),
   "admin.settings": superAdminOnly(adminSettings),
@@ -1169,6 +1284,19 @@ const ROUTES: Record<string, Handler> = {
   "admin.finance.expense.save": adminOnly(adminFinanceExpenseSave),
   "admin.finance.expense.delete": adminOnly(adminFinanceExpenseDelete),
   "admin.finance.expense.slip": adminOnly(adminFinanceExpenseSlip),
+  // ร้านค้า: คำสั่งซื้อ บัญชีรับเงิน แพ็กเกจ โค้ดส่วนลด (เฉพาะแอดมินหลัก — บิลหนึ่งใบอาจมีหลายวิชา)
+  "admin.bills": superAdminOnly((d) => shop.adminBills(d)),
+  "admin.bill.slip": superAdminOnly((d) => shop.adminBillSlip(d)),
+  "admin.bill.decide": superAdminOnly((d, c, a) => shop.adminBillDecide(d, c, a)),
+  "admin.accounts": superAdminOnly(() => shop.adminAccounts()),
+  "admin.account.save": superAdminOnly((d, c, a) => shop.adminAccountSave(d, c, a)),
+  "admin.account.delete": superAdminOnly((d, c, a) => shop.adminAccountDelete(d, c, a)),
+  "admin.bundles": superAdminOnly(() => shop.adminBundles()),
+  "admin.bundle.save": superAdminOnly((d, c, a) => shop.adminBundleSave(d, c, a)),
+  "admin.bundle.delete": superAdminOnly((d, c, a) => shop.adminBundleDelete(d, c, a)),
+  "admin.coupons": superAdminOnly(() => shop.adminCoupons()),
+  "admin.coupon.save": superAdminOnly((d, c, a) => shop.adminCouponSave(d, c, a)),
+  "admin.coupon.delete": superAdminOnly((d, c, a) => shop.adminCouponDelete(d, c, a)),
 };
 
 /** Runs one action and returns the { ok, data } / { ok:false, error, message } envelope the web app expects. */

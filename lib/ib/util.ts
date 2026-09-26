@@ -7,6 +7,7 @@ export const APP = {
   OTP_MINUTES: 10,
   OTP_MAX_TRIES: 5,
   SLIP_MAX_BYTES: 3 * 1024 * 1024,
+  PHOTO_MAX_BYTES: 1024 * 1024,
   SUBJECTS: { bio: "ชีววิทยา", chem: "เคมี", phys: "ฟิสิกส์", math: "คณิตศาสตร์" } as Record<string, string>,
   TERMS_VERSION: "2026-09-25",
   REPEAT_GRADES: ["จบ ม.6 แล้ว", "อื่นๆ"],
