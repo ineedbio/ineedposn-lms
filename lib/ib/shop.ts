@@ -8,9 +8,10 @@ import { prisma } from "../prisma";
 import { sendBillEmail, sendOrderEmail, notifyAdmins, type MailBill } from "./mail";
 import { subjectKey } from "./subjects";
 import {
-  auth, activate, adminEmails, chapters, courseBySlug, courseCard, courseInclude, getSetting, ig, log, rate,
-  type CourseRow, type Ctx, type Data,
+  auth, activate, adminEmails, canSubject, chapters, courseBySlug, courseCard, courseInclude, getSetting, ig, isAdminUser, log, rate,
+  subjectsOf, type CourseRow, type Ctx, type Data,
 } from "./api";
+import { activeWhere } from "./staff";
 import { APP, checkImageUrl, clip, err, iso, lines, req, sha256, trim, youtubeId } from "./util";
 
 const BILL_OPEN = ["awaiting_payment", "reviewing", "rejected"]; // still in progress: its courses can't go in the cart again
@@ -60,7 +61,7 @@ async function expireBills() {
 async function ownedMap(uid: string) {
   const o: Record<string, string> = {};
   const [enrs, pays, bills] = await Promise.all([
-    prisma.enrollment.findMany({ where: { userId: uid, status: "ACTIVE" }, include: { course: { select: { slug: true } } } }),
+    prisma.enrollment.findMany({ where: { userId: uid, ...activeWhere() }, include: { course: { select: { slug: true } } } }),
     prisma.payment.findMany({ where: { userId: uid, status: "PENDING" }, include: { course: { select: { slug: true } } } }),
     prisma.bill.findMany({ where: { userId: uid, status: { in: BILL_OPEN } } }),
   ]);
@@ -74,7 +75,7 @@ async function paidMap(uid: string | undefined) {
   const o: Record<string, number> = {};
   if (!uid) return o;
   const [enrs, pays] = await Promise.all([
-    prisma.enrollment.findMany({ where: { userId: uid, status: "ACTIVE" }, include: { course: { select: { slug: true } } } }),
+    prisma.enrollment.findMany({ where: { userId: uid, ...activeWhere() }, include: { course: { select: { slug: true } } } }),
     prisma.payment.findMany({ where: { userId: uid, status: "APPROVED" }, include: { course: { select: { slug: true } } } }),
   ]);
   for (const e of enrs) o[e.course.slug] = 0;
@@ -302,7 +303,7 @@ export async function orderCreate(d: Data, { p }: Ctx) {
   // A bill that comes to 0 baht (e.g. a 100% code) opens the courses right away.
   for (const f of free) {
     await prisma.payment.create({
-      data: { userId: u.id, courseId: f.courseId, amount: 0, promptpayRef: "BILL-" + f.billId + "-" + shortId(6), status: "APPROVED", note: "บิล " + f.billId + " (0 บาท)", reviewedBy: "SYSTEM", reviewedAt: now },
+      data: { userId: u.id, courseId: f.courseId, amount: 0, promptpayRef: "BILL-" + f.billId + "-" + shortId(6), status: "APPROVED", note: "บิล " + f.billId + " (0 บาท)", reviewedBy: "SYSTEM", reviewedAt: now, source: "bill", billId: f.billId },
     });
     await activate(u.id, f.courseId);
   }
@@ -460,26 +461,40 @@ function billChecks(b: Bill, u: User) {
   }
   return out;
 }
-export async function adminBills(d: Data) {
-  const st = String(d.status || "reviewing");
+/** A bill's items in the viewer's subjects (a teacher only sees and handles those). */
+const itemSubject = (it: { subject?: string; course_id: string }, lites: Record<string, { subject: string }>) => it.subject || lites[it.course_id]?.subject || "";
+export async function adminBills(d: Data, me: User) {
+  const st = String(d.status || "reviewing"), teacher = !isAdminUser(me), mine = subjectsOf(me);
+  const lites = await courseLites();
+  const mineItem = (it: { subject?: string; course_id: string }) => mine.includes(itemSubject(it, lites));
   const rows = await prisma.bill.findMany({ where: d.account_id ? { accountId: String(d.account_id) } : {}, include: { user: true } });
   const q = String(d.q || "").toLowerCase();
   const key = (b: Bill) => (b.submittedAt || b.createdAt).getTime();
   return rows
     .filter((b) => {
       const s = billStatus(b);
+      if (teacher && !billItems(b).some(mineItem)) return false;
       if (q && ![b.id, b.user.email, b.user.firstName, b.user.lastName, b.user.nickname, b.user.phone].join(" ").toLowerCase().includes(q)) return false;
       return st === "closed" ? s === "expired" || s === "cancelled" : st === "all" ? true : s === st;
     })
     .sort((a, b) => (st === "reviewing" ? key(a) - key(b) : key(b) - key(a)))
     .slice(0, 200)
-    .map((b) => ({
-      ...billPublic(b), account_label: ((b.account || {}) as { label?: string }).label || "", user_id: b.userId,
-      name: `${b.user.firstName} ${b.user.lastName}`, nickname: b.user.nickname || "", email: b.user.email, phone: b.user.phone || "", has_photo: !!b.user.photoBlobId, checks: billChecks(b, b.user),
-    }));
+    .map((b) => {
+      const o = {
+        ...billPublic(b), account_label: ((b.account || {}) as { label?: string }).label || "", user_id: b.userId,
+        name: `${b.user.firstName} ${b.user.lastName}`, nickname: b.user.nickname || "", email: b.user.email, phone: b.user.phone || "", has_photo: !!b.user.photoBlobId,
+        checks: billChecks(b, b.user), can_decide: !teacher,
+      };
+      if (teacher) { o.phone = ""; o.email = ""; o.has_photo = false; o.items = o.items.filter(mineItem); }
+      return o;
+    });
 }
-export async function adminBillSlip(d: Data) {
+export async function adminBillSlip(d: Data, me: User) {
   const b = await prisma.bill.findUnique({ where: { id: String(d.bill_id || "") } });
+  if (b && !isAdminUser(me)) {
+    const lites = await courseLites();
+    if (!billItems(b).some((it) => canSubject(me, itemSubject(it, lites)))) throw err("FORBIDDEN", "บิลนี้ไม่ได้อยู่ในวิชาที่คุณดูแล");
+  }
   const blob = b?.slipBlobId ? await prisma.fileBlob.findUnique({ where: { id: b.slipBlobId } }) : null;
   if (!blob) throw err("NOT_FOUND", "ไม่พบสลิป");
   return { mime: blob.mime, base64: Buffer.from(blob.data).toString("base64") };
@@ -500,14 +515,14 @@ export async function adminBillDecide(d: Data, _c: Ctx, admin: User) {
   });
   if (!changed.count) throw err("ALREADY", "บิลนี้ถูกตัดสินไปแล้ว");
   if (ok) {
-    const owned = new Set((await prisma.enrollment.findMany({ where: { userId: x.userId, status: "ACTIVE" }, include: { course: { select: { slug: true } } } })).map((e) => e.course.slug));
+    const owned = new Set((await prisma.enrollment.findMany({ where: { userId: x.userId, ...activeWhere() }, include: { course: { select: { slug: true } } } })).map((e) => e.course.slug));
     for (const it of billItems(x)) {
       if (owned.has(it.course_id)) continue;
       const c = await prisma.course.findUnique({ where: { slug: it.course_id } });
       if (!c) continue;
       await prisma.payment.create({
         data: {
-          userId: x.userId, courseId: c.id, amount: money(it.net), promptpayRef: "BILL-" + x.id + "-" + shortId(6), slipImageUrl: x.slipBlobId ? "blob:" + x.slipBlobId : null,
+          userId: x.userId, courseId: c.id, amount: money(it.net), promptpayRef: "BILL-" + x.id + "-" + shortId(6), slipImageUrl: x.slipBlobId ? "blob:" + x.slipBlobId : null, source: "bill", billId: x.id,
           status: "APPROVED", note: "บิล " + x.id, reviewedBy: admin.id, reviewedAt: new Date(), createdAt: x.createdAt,
         },
       });
@@ -528,7 +543,7 @@ export async function adminAccounts() {
   ]);
   return accs.map((a) => ({
     account_id: a.id, label: a.label, method: a.method, promptpay_id: a.promptpayId, bank: a.bank, account_no: a.accountNo, account_name: a.accountName,
-    qr_url: a.qrUrl, note: a.note, ig: a.ig, subjects: csv(a.subjects), status: a.status, sort_order: String(a.sortOrder), created_at: iso(a.createdAt),
+    qr_url: a.qrUrl, note: a.note, ig: a.ig, subjects: csv(a.subjects), status: a.status, sort_order: String(a.sortOrder), created_at: iso(a.createdAt), owner_id: a.ownerId || "",
     courses: courses.filter((c) => c.payAccountId === a.id).map((c) => c.title),
     pending: bills.filter((b) => b.accountId === a.id && billStatus(b) === "reviewing").length,
   }));
@@ -540,7 +555,9 @@ export async function adminAccountSave(d: Data, _c: Ctx, admin: User) {
     promptpayId: String(d.promptpay_id || "").replace(/\D/g, ""), bank: clip(d.bank, 60), accountNo: clip(d.account_no, 30),
     qrUrl: clip(d.qr_url, 500), note: clip(d.note, 300), ig: clip(String(d.ig || "").replace(/^@/, ""), 40),
     subjects: csv(d.subjects).filter((s) => APP.SUBJECTS[s]).join(","), status: d.status === "inactive" ? "inactive" : "active", sortOrder: Number(d.sort_order) || 0,
+    ownerId: clip(d.owner_id, 30) || null,
   };
+  if (data.ownerId && !(await prisma.user.findFirst({ where: { id: data.ownerId, role: { in: ["ADMIN", "INSTRUCTOR"] } } }))) throw err("BAD_INPUT", "เจ้าของบัญชีต้องเป็นผู้สอนหรือแอดมิน");
   if (method === "promptpay" && !/^(\d{10}|\d{13}|\d{15})$/.test(data.promptpayId)) throw err("BAD_INPUT", "เลขพร้อมเพย์ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตร/เลขผู้เสียภาษี 13 หลัก");
   if (method === "bank" && (!data.bank || !data.accountNo)) throw err("BAD_INPUT", "กรอกธนาคารและเลขบัญชี");
   if (data.qrUrl && !/^https:\/\//.test(data.qrUrl) && !/^\/[^/]/.test(data.qrUrl)) throw err("BAD_INPUT", "ลิงก์รูป QR ต้องขึ้นต้นด้วย https://");
@@ -631,9 +648,11 @@ export async function adminCouponDelete(d: Data, _c: Ctx, admin: User) {
 }
 
 // ───────────────────────── Admin: bundles ─────────────────────────
-export async function adminBundles() {
+export async function adminBundles(me?: User) {
   const courses = await courseLites();
-  return (await prisma.bundle.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] })).map((b) => bundleOut(b, courses));
+  return (await prisma.bundle.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }))
+    .map((b) => bundleOut(b, courses))
+    .filter((b) => !me || isAdminUser(me) || (b.courses || []).some((c: { subject: string }) => canSubject(me, c.subject)));
 }
 export async function adminBundleSave(d: Data, _c: Ctx, admin: User) {
   const ids = csv(d.course_ids);
@@ -683,7 +702,7 @@ export async function adminLessonsBulk(d: Data, _c: Ctx, admin: User) {
   });
   const c = await courseBySlug(d.course_id);
   if (!c) throw err("NOT_FOUND", "ไม่พบคอร์ส");
-  const max = c.lessons.reduce((m, l) => Math.max(m, l.order), 0);
+  const max = (await prisma.lesson.aggregate({ where: { courseId: c.id }, _max: { order: true } }))._max.order || 0;
   await prisma.lesson.createMany({ data: rows.map((r, i) => ({ ...r, type: "VIDEO" as const, order: max + (i + 1) * 10, courseId: c.id })) });
   await log(admin, "lesson.bulk", c.slug + " +" + rows.length);
   return { added: rows.length };
