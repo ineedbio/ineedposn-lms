@@ -660,9 +660,17 @@ async function adminDecide(d: Data, _c: Ctx, admin: User) {
 
 /** Give access (free, or paid some other way) to one or more emails. Teachers: their subjects only, no amount. */
 async function adminGrant(d: Data, _c: Ctx, admin: User) {
-  const c = await staff.courseFor(admin, d.course_id);
-  const twin = await staff.publishedTwin(c);
-  if (twin) throw err("BAD_INPUT", "คอร์สนี้เป็นฉบับร่างที่ชื่อซ้ำกับคอร์สที่เปิดขายแล้ว (" + twin.slug.toUpperCase() + ") ให้สิทธิ์ที่คอร์สนั้นแทน นักเรียนจะได้เห็นคลิปครบ");
+  // One course (course_id) or several at once (course_ids: array, or course_id "a,b,c").
+  const raw = Array.isArray(d.course_ids) ? d.course_ids : String(d.course_ids || d.course_id || "").split(",");
+  const ids = raw.map((x) => String(x).trim()).filter((x, i, a) => x && a.indexOf(x) === i).slice(0, 30);
+  if (!ids.length) throw err("BAD_INPUT", "เลือกคอร์สอย่างน้อย 1 คอร์ส");
+  const courses = [];
+  for (const id of ids) {
+    const c = await staff.courseFor(admin, id);
+    const twin = await staff.publishedTwin(c);
+    if (twin) throw err("BAD_INPUT", (ids.length > 1 ? c.title + ": " : "") + "คอร์สนี้เป็นฉบับร่างที่ชื่อซ้ำกับคอร์สที่เปิดขายแล้ว (" + twin.slug.toUpperCase() + ") ให้สิทธิ์ที่คอร์สนั้นแทน นักเรียนจะได้เห็นคลิปครบ");
+    courses.push(c);
+  }
   let emails = String(d.emails || d.email || "").split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
   emails = emails.filter((x, i) => emails.indexOf(x) === i).slice(0, 200);
   if (!emails.length) throw err("BAD_INPUT", "ใส่อีเมลของนักเรียน");
@@ -673,29 +681,35 @@ async function adminGrant(d: Data, _c: Ctx, admin: User) {
     expires = new Date(exp.length === 10 ? exp + "T23:59:59+07:00" : exp);
     if (isNaN(expires.getTime())) throw err("BAD_INPUT", "วันหมดอายุไม่ถูกต้อง");
   }
-  const reason = clip(d.note || d.reason, 300), out = { added: [] as string[], skipped: [] as { email: string; why: string }[] }, mail: User[] = [];
+  const multi = courses.length > 1;
+  const reason = clip(d.note || d.reason, 300), out = { added: [] as string[], skipped: [] as { email: string; why: string }[], granted: 0 };
+  const mail = new Map<string, { u: User; titles: string[] }>();
   for (const em of emails) {
     const u = await prisma.user.findUnique({ where: { email: em } });
     if (!u || !u.emailVerified) { out.skipped.push({ email: em, why: "ยังไม่ได้สมัครสมาชิก" }); continue; }
-    if (await staff.hasAccess(u.id, c.id)) { out.skipped.push({ email: em, why: "มีสิทธิ์อยู่แล้ว" }); continue; }
-    const source = amount > 0 ? "manual" : u.id === admin.id ? "test" : "grant";
-    const row = {
-      status: "APPROVED" as const, amount, note: reason || (source === "test" ? "ทดสอบโดยทีมงาน" : amount > 0 ? "รับเงินช่องทางอื่น" : "ให้สิทธิ์ฟรี"),
-      reviewedBy: admin.id, reviewedAt: new Date(), source, reason,
-    };
-    const pending = await prisma.payment.findFirst({ where: { userId: u.id, courseId: c.id, status: "PENDING" }, orderBy: { createdAt: "desc" } });
-    const pay = pending
-      ? await prisma.payment.update({ where: { id: pending.id }, data: row })
-      : await prisma.payment.create({ data: { ...row, userId: u.id, courseId: c.id, promptpayRef: "GRANT-" + randToken(8) } });
-    await activate(u.id, c.id, expires);
-    await log(admin, "grant", (pay.orderNumber ? pay.orderNumber + " " : "") + u.email + " → " + c.slug + " (" + source + (amount ? " ฿" + amount : "") + (expires ? " ถึง " + bkkDate(expires) : "") + ")");
-    out.added.push(em);
-    if (source !== "test") mail.push(u);
+    for (const c of courses) {
+      if (await staff.hasAccess(u.id, c.id)) { out.skipped.push({ email: multi ? em + " · " + c.title : em, why: "มีสิทธิ์อยู่แล้ว" }); continue; }
+      const source = amount > 0 ? "manual" : u.id === admin.id ? "test" : "grant";
+      const row = {
+        status: "APPROVED" as const, amount, note: reason || (source === "test" ? "ทดสอบโดยทีมงาน" : amount > 0 ? "รับเงินช่องทางอื่น" : "ให้สิทธิ์ฟรี"),
+        reviewedBy: admin.id, reviewedAt: new Date(), source, reason,
+      };
+      const pending = await prisma.payment.findFirst({ where: { userId: u.id, courseId: c.id, status: "PENDING" }, orderBy: { createdAt: "desc" } });
+      const pay = pending
+        ? await prisma.payment.update({ where: { id: pending.id }, data: row })
+        : await prisma.payment.create({ data: { ...row, userId: u.id, courseId: c.id, promptpayRef: "GRANT-" + randToken(8) } });
+      await activate(u.id, c.id, expires);
+      await log(admin, "grant", (pay.orderNumber ? pay.orderNumber + " " : "") + u.email + " → " + c.slug + " (" + source + (amount ? " ฿" + amount : "") + (expires ? " ถึง " + bkkDate(expires) : "") + ")");
+      out.granted++;
+      if (!out.added.includes(em)) out.added.push(em);
+      if (source !== "test") { const m = mail.get(u.id) || { u, titles: [] }; m.titles.push(c.title); mail.set(u.id, m); }
+    }
   }
-  for (const u of mail) await sendDecisionEmail(u, c.title, true, "", await ig());
+  // One email per student, listing every course they just got.
+  for (const { u, titles } of mail.values()) await sendDecisionEmail(u, titles.join(", "), true, "", await ig());
   if (emails.length === 1 && !out.added.length) {
     const already = out.skipped[0].why === "มีสิทธิ์อยู่แล้ว";
-    throw err(already ? "ALREADY" : "NOT_FOUND", already ? "ผู้ใช้นี้มีสิทธิ์คอร์สนี้อยู่แล้ว" : "ไม่พบผู้ใช้อีเมลนี้ (ต้องสมัครสมาชิกก่อน)");
+    throw err(already ? "ALREADY" : "NOT_FOUND", already ? (multi ? "ผู้ใช้นี้มีสิทธิ์ทุกคอร์สที่เลือกอยู่แล้ว" : "ผู้ใช้นี้มีสิทธิ์คอร์สนี้อยู่แล้ว") : "ไม่พบผู้ใช้อีเมลนี้ (ต้องสมัครสมาชิกก่อน)");
   }
   return out;
 }
