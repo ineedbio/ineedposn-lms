@@ -12,7 +12,8 @@
 - `public/ineedbio/app.js` — ตัวเว็บทั้งหมด (vanilla JS, hash route `/#/...`) **อย่า refactor เป็น React** ถ้าไม่ได้ถูกขอ
 - `app/ineedbio.css` — สไตล์ทั้งหมด (global)
 - `public/images/courses/` — ปกคอร์ส ปกแพ็กเกจ รูปผู้สอน (ใช้ลิงก์ `https://ineedbio.shop/images/courses/<ชื่อไฟล์>`)
-- `backend/Code.gs` — หลังบ้าน **ไม่ได้รันบน Next.js** ต้องวางใน Google Apps Script
+- `backend/Code.gs` — หลังบ้าน **ไม่ได้รันบน Next.js** ต้องวางใน Google Apps Script (`backend/appsscript.json` = manifest สำหรับ clasp เปิด YouTube Data API ไว้แล้ว)
+- สิทธิ์ผู้สอน/แอดมินตรวจที่หลังบ้าน (`staffOnly_`, `courseFor_`, `canSubject_`) ห้ามย้ายการตรวจสิทธิ์ไปไว้ที่หน้าเว็บอย่างเดียว
 - `backend/lessons/*.txt` — รายการตอนของแต่ละคอร์ส (ชื่อไฟล์ = รหัสคอร์สตัวเล็ก) สำหรับวางที่ "+ วางหลายตอนพร้อมกัน" ในหลังบ้าน ห้ามใส่ลิงก์จริงลงเดโม
 
 ## งานที่ทำได้เลย

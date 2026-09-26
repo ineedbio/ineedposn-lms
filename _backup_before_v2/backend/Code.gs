@@ -17,7 +17,6 @@ var APP = {
   OTP_MAX_TRIES: 5,
   HASH_ROUNDS: 300,
   SLIP_MAX_BYTES: 3 * 1024 * 1024,
-  LESSON_FILE_MAX_BYTES: 10 * 1024 * 1024,
   PHOTO_MAX_BYTES: 1024 * 1024,
   SUBJECTS: { bio: 'ชีววิทยา', chem: 'เคมี', phys: 'ฟิสิกส์', math: 'คณิตศาสตร์' },
   TERMS_VERSION: '2026-09-25',
@@ -28,28 +27,23 @@ var APP = {
 var SCHEMA = {
   Users:       ['user_id','email','password_hash','salt','first_name','last_name','nickname','school','grade','phone','role','status','created_at','last_login_at',
                 'current_faculty','current_university','dream_faculty','dream_university','terms_version','terms_accepted_at',
-                'birthday','facebook','instagram','line_id','photo_file_id','data_consent_at','subjects'],
+                'birthday','facebook','instagram','line_id','photo_file_id','data_consent_at'],
   Sessions:    ['token_hash','user_id','device_id','device_info','created_at','expires_at'],
   Courses:     ['course_id','subject','title','subtitle','description','cover_url','price','status','sort_order','created_at',
                 'trailer_youtube','highlights','audience','instructor_name','instructor_title','instructor_bio','instructor_photo','faq','full_price','level','pay_account_id',
-                'instructor2_name','instructor2_title','instructor2_bio','instructor2_photo','playlists','teacher_split'],
-  Lessons:     ['lesson_id','course_id','chapter','title','youtube_id','duration_min','attachment_url','is_preview','sort_order','hidden','source_playlist','files'],
-  Enrollments: ['enroll_id','user_id','course_id','status','amount','slip_file_id','note','created_at','decided_by','decided_at','source','reason','expires_at','bill_id'],
+                'instructor2_name','instructor2_title','instructor2_bio','instructor2_photo'],
+  Lessons:     ['lesson_id','course_id','chapter','title','youtube_id','duration_min','attachment_url','is_preview','sort_order'],
+  Enrollments: ['enroll_id','user_id','course_id','status','amount','slip_file_id','note','created_at','decided_by','decided_at'],
   Progress:    ['user_id','course_id','lesson_id','completed_at'],
   AdminLog:    ['time','admin_id','action','detail'],
   Settings:    ['key','value'],
   Results:     ['result_id','year','subject','nickname','school','center','review','photo_url','status','sort_order','created_at'],
-  PayAccounts: ['account_id','label','method','promptpay_id','bank','account_no','account_name','qr_url','note','ig','subjects','status','sort_order','created_at','owner_id'],
+  PayAccounts: ['account_id','label','method','promptpay_id','bank','account_no','account_name','qr_url','note','ig','subjects','status','sort_order','created_at'],
   Bundles:     ['bundle_id','title','subtitle','course_ids','price','cover_url','status','sort_order','created_at'],
   Coupons:     ['code','kind','value','max_discount','scope','targets','min_total','max_uses','per_user','starts_at','ends_at','status','note','created_at'],
   Orders:      ['order_id','user_id','subtotal','discount','total','coupon_code','pay_terms_hash','terms_accepted_at','created_at','expires_at'],
   Bills:       ['bill_id','order_id','user_id','account_id','account','items','subtotal','discount','total','status','proof','slip_file_id','slip_hash',
-                'submitted_at','note','decided_by','decided_at','created_at','expires_at'],
-  Expenses:    ['expense_id','date','subject','category','amount','note','receipt_file_id','status','created_by','created_at','decided_by','decided_at'],
-  Periods:     ['period','closed_at','closed_by','snapshot'],
-  Payouts:     ['payout_id','period','user_id','subjects','share','held','amount','status','paid_at','paid_by','note','created_at'],
-  LegacyStudents: ['legacy_id','first_name','last_name','nickname','norm','course_ids','batch','status','user_id','claimed_at','match','note','created_at'],
-  LegacyClaims: ['claim_id','user_id','legacy_ids','reason','status','created_at','decided_by','decided_at']
+                'submitted_at','note','decided_by','decided_at','created_at','expires_at']
 };
 
 var PUBLIC_SETTINGS = ['terms_text','privacy_text','hero_eyebrow','hero_title','hero_subtitle','announcement','promptpay_id','promptpay_name','contact_ig',
@@ -74,8 +68,7 @@ var DEFAULT_SETTINGS = {
   order_expire_hours: '48',
   proof_paid_at: 'required', proof_amount: 'required', proof_from_bank: 'required', proof_payer_name: 'required',
   proof_extra: '',
-  site_url: 'https://ineedbio.shop',
-  platform_pct: '{}'
+  site_url: 'https://ineedbio.shop'
 };
 
 // ───────────────────────── Entry points ─────────────────────────
@@ -125,20 +118,19 @@ var ROUTES = {
   'my.photo':          myPhoto_,
   'bill.proof':        billProof_,
   'bill.cancel':       billCancel_,
-  'legacy.claim':      legacyClaim_,
   // แอดมิน
-  'admin.stats':       staffOnly_(adminStats_),
+  'admin.stats':       adminOnly_(adminStats_),
   'admin.enrollments': adminOnly_(adminEnrollments_),
   'admin.slip':        adminOnly_(adminSlip_),
   'admin.decide':      adminOnly_(adminDecide_),
-  'admin.grant':       staffOnly_(adminGrant_),
-  'admin.courses':     staffOnly_(adminCourses_),
-  'admin.course.save': staffOnly_(adminCourseSave_),
-  'admin.lessons':     staffOnly_(adminLessons_),
-  'admin.lesson.save': staffOnly_(adminLessonSave_),
-  'admin.lesson.delete': staffOnly_(adminLessonDelete_),
-  'admin.lessons.bulk': staffOnly_(adminLessonsBulk_),
-  'admin.lessons.reorder': staffOnly_(adminLessonsReorder_),
+  'admin.grant':       adminOnly_(adminGrant_),
+  'admin.courses':     adminOnly_(adminCourses_),
+  'admin.course.save': adminOnly_(adminCourseSave_),
+  'admin.lessons':     adminOnly_(adminLessons_),
+  'admin.lesson.save': adminOnly_(adminLessonSave_),
+  'admin.lesson.delete': adminOnly_(adminLessonDelete_),
+  'admin.lessons.bulk': adminOnly_(adminLessonsBulk_),
+  'admin.lessons.reorder': adminOnly_(adminLessonsReorder_),
   'admin.users':       adminOnly_(adminUsers_),
   'admin.user.photo':  adminOnly_(adminUserPhoto_),
   'admin.user.update': adminOnly_(adminUserUpdate_),
@@ -149,44 +141,19 @@ var ROUTES = {
   'admin.results':     adminOnly_(adminResults_),
   'admin.result.save': adminOnly_(adminResultSave_),
   'admin.result.delete': adminOnly_(adminResultDelete_),
-  'admin.upload':      staffOnly_(adminUpload_),
-  'admin.bills':       staffOnly_(adminBills_),
-  'admin.bill.slip':   staffOnly_(adminBillSlip_),
+  'admin.upload':      adminOnly_(adminUpload_),
+  'admin.bills':       adminOnly_(adminBills_),
+  'admin.bill.slip':   adminOnly_(adminBillSlip_),
   'admin.bill.decide': adminOnly_(adminBillDecide_),
   'admin.accounts':    adminOnly_(adminAccounts_),
   'admin.account.save': adminOnly_(adminAccountSave_),
   'admin.account.delete': adminOnly_(adminAccountDelete_),
-  'admin.bundles':     staffOnly_(adminBundles_),
+  'admin.bundles':     adminOnly_(adminBundles_),
   'admin.bundle.save': adminOnly_(adminBundleSave_),
   'admin.bundle.delete': adminOnly_(adminBundleDelete_),
   'admin.coupons':     adminOnly_(adminCoupons_),
   'admin.coupon.save': adminOnly_(adminCouponSave_),
-  'admin.coupon.delete': adminOnly_(adminCouponDelete_),
-  // ผู้สอน + แอดมิน (จำกัดตามวิชาที่หลังบ้าน)
-  'staff.course.students': staffOnly_(courseStudents_),
-  'staff.chapter.rename': staffOnly_(chapterRename_),
-  'staff.lesson.file.add': staffOnly_(lessonFileAdd_),
-  'staff.lesson.file.delete': staffOnly_(lessonFileDelete_),
-  'learn.file':        learnFile_,
-  'staff.revoke':      staffOnly_(staffRevoke_),
-  'staff.playlists.save': staffOnly_(playlistsSave_),
-  'staff.course.sync': staffOnly_(courseSync_),
-  'fin.summary':       staffOnly_(finSummary_),
-  'fin.expense.save':  staffOnly_(finExpenseSave_),
-  'fin.expense.delete': staffOnly_(finExpenseDelete_),
-  'fin.receipt':       staffOnly_(finReceipt_),
-  'fin.expense.decide': adminOnly_(finExpenseDecide_),
-  'fin.rules':         adminOnly_(finRules_),
-  'fin.rules.save':    adminOnly_(finRulesSave_),
-  'fin.close':         adminOnly_(finClose_),
-  'fin.reopen':        adminOnly_(finReopen_),
-  'fin.payout.paid':   adminOnly_(finPayoutPaid_),
-  'admin.log':         adminOnly_(adminLog_),
-  'admin.legacy':      adminOnly_(adminLegacy_),
-  'admin.legacy.import': adminOnly_(adminLegacyImport_),
-  'admin.legacy.decide': adminOnly_(adminLegacyDecide_),
-  'admin.legacy.release': adminOnly_(adminLegacyRelease_),
-  'admin.legacy.delete': adminOnly_(adminLegacyDelete_)
+  'admin.coupon.delete': adminOnly_(adminCouponDelete_)
 };
 
 // ───────────────────────── Setup (รันเองใน editor) ─────────────────────────
@@ -232,8 +199,6 @@ function cleanup() {
 function installTriggers() {
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'cleanup') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('cleanup').timeBased().everyDays(1).atHour(3).create();
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'syncPlaylists') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('syncPlaylists').timeBased().everyMinutes(15).create();
 }
 
 // ───────────────────────── Auth ─────────────────────────
@@ -267,7 +232,7 @@ function registerVerify_(d, p) {
   var email = normEmail_(d.email);
   var key = 'reg:' + email;
   var st = checkOtp_(key, d.otp);
-  var res = withLock_(function () {
+  return withLock_(function () {
     ensureCols_('Users');
     if (userByEmail_(email)) throw err_('EMAIL_TAKEN', 'อีเมลนี้สมัครไว้แล้ว');
     var f = st.f;
@@ -282,13 +247,9 @@ function registerVerify_(d, p) {
     };
     append_('Users', u);
     cache_().remove(key);
-    return { token: newSession_(u.user_id, p), user: publicUser_(u), _u: u };
+    return { token: newSession_(u.user_id, p), user: publicUser_(u) };
   });
-  var r = res; delete r._u;
-  try { r.legacy = legacyMatchUser_(res2u_(r.user), false); } catch (e) { console.error(e); }
-  return r;
 }
-function res2u_(pu) { return findOne_('Users', function (x) { return x.user_id === pu.user_id; }); }
 
 function login_(d, p) {
   var email = normEmail_(d.email);
@@ -411,37 +372,6 @@ function adminOnly_(fn) {
   };
 }
 
-/** ผู้สอนและแอดมิน — ฟังก์ชันข้างในต้องเช็กวิชาเองด้วย courseFor_/canSubject_ */
-function staffOnly_(fn) {
-  return function (d, p) {
-    var u = auth_(p);
-    if (!isStaff_(u)) throw err_('FORBIDDEN', 'หน้านี้สำหรับแอดมินและผู้สอนเท่านั้น');
-    return fn(d, p, u);
-  };
-}
-function isStaff_(u) { return u.role === 'admin' || u.role === 'teacher'; }
-function isAdmin_(u) { return u.role === 'admin'; }
-function subjectsOf_(u) {
-  if (u.role === 'admin') return Object.keys(APP.SUBJECTS);
-  if (u.role !== 'teacher') return [];
-  return csv_(u.subjects).filter(function (s) { return APP.SUBJECTS[s]; });
-}
-function canSubject_(u, s) { return subjectsOf_(u).indexOf(s) >= 0; }
-function courseFor_(u, cid) {
-  var c = findOne_('Courses', function (r) { return r.course_id === cid; });
-  if (!c) throw err_('NOT_FOUND', 'ไม่พบคอร์ส');
-  if (!canSubject_(u, c.subject)) throw err_('FORBIDDEN', 'คอร์สนี้ไม่ได้อยู่ในวิชาที่คุณดูแล');
-  return c;
-}
-function lessonFor_(u, lid) {
-  var l = findOne_('Lessons', function (r) { return r.lesson_id === lid; });
-  if (!l) throw err_('NOT_FOUND', 'ไม่พบบทเรียน');
-  courseFor_(u, l.course_id);
-  return l;
-}
-/** สิทธิ์เข้าเรียนที่ยังใช้ได้ (อนุมัติแล้ว และยังไม่หมดอายุ) */
-function enrollActive_(e) { return !!e && e.status === 'approved' && (!e.expires_at || new Date(e.expires_at).getTime() > Date.now()); }
-
 function checkOtp_(key, otp) {
   var raw = cache_().get(key);
   if (!raw) throw err_('OTP_EXPIRED', 'รหัสหมดอายุแล้ว กดขอรหัสใหม่');
@@ -459,7 +389,7 @@ function checkOtp_(key, otp) {
 function publishedCourses_() {
   var c = cache_().get('pub_courses');
   if (c) return JSON.parse(c);
-  var lessons = visible_(read_('Lessons'));
+  var lessons = read_('Lessons');
   var list = read_('Courses').filter(function (x) { return x.status === 'published'; })
     .sort(bySort_).map(function (x) { return courseCard_(x, lessons); });
   cache_().put('pub_courses', JSON.stringify(list), 300);
@@ -483,7 +413,7 @@ function instructors_(x) {
 function bundleDetail_(d) {
   var b = publicBundles_().filter(function (x) { return x.bundle_id === d.bundle_id; })[0];
   if (!b) throw err_('NOT_FOUND', 'ไม่พบแพ็กเกจนี้ หรือยังไม่เปิดขาย');
-  var courses = read_('Courses'), lessons = visible_(read_('Lessons')), seen = {};
+  var courses = read_('Courses'), lessons = read_('Lessons'), seen = {};
   b.items = b.course_ids.map(function (id) {
     var x = courses.filter(function (c) { return c.course_id === id; })[0];
     var card = courseCard_(x, lessons);
@@ -502,7 +432,7 @@ function bundleDetail_(d) {
 function courseDetail_(d, p) {
   var x = findOne_('Courses', function (r) { return r.course_id === d.course_id; });
   if (!x || x.status !== 'published') throw err_('NOT_FOUND', 'ไม่พบคอร์สนี้');
-  var lessons = visible_(read_('Lessons'));
+  var lessons = read_('Lessons');
   var out = courseCard_(x, lessons);
   out.chapters = chapters_(lessons.filter(function (l) { return l.course_id === x.course_id; }), function (l) {
     var pv = truthy_(l.is_preview);
@@ -529,7 +459,7 @@ function courseDetail_(d, p) {
 // ───────────────────────── นักเรียน ─────────────────────────
 function myCourses_(d, p) {
   var u = auth_(p);
-  var courses = read_('Courses'), lessons = visible_(read_('Lessons'));
+  var courses = read_('Courses'), lessons = read_('Lessons');
   var prog = read_('Progress').filter(function (r) { return r.user_id === u.user_id; });
   var seen = {};
   return read_('Enrollments').filter(function (e) { return e.user_id === u.user_id; })
@@ -537,7 +467,7 @@ function myCourses_(d, p) {
     .filter(function (e) { if (seen[e.course_id]) return false; seen[e.course_id] = 1; return true; })
     .map(function (e) {
       var c = courses.filter(function (x) { return x.course_id === e.course_id; })[0];
-      if (!c || e.status === 'revoked' || (e.status === 'approved' && !enrollActive_(e))) return null;
+      if (!c) return null;
       var card = courseCard_(c, lessons);
       var ids = lessons.filter(function (l) { return l.course_id === c.course_id; }).map(function (l) { return l.lesson_id; });
       var done = prog.filter(function (r) { return ids.indexOf(r.lesson_id) >= 0; });
@@ -555,18 +485,17 @@ function learnGet_(d, p) {
   var x = findOne_('Courses', function (r) { return r.course_id === d.course_id; });
   if (!x) throw err_('NOT_FOUND', 'ไม่พบคอร์สนี้');
   var e = latestEnroll_(u.user_id, x.course_id);
-  var preview = !enrollActive_(e) && isStaff_(u) && canSubject_(u, x.subject);
-  if (!enrollActive_(e) && !preview) throw err_('NO_ACCESS', e && e.status === 'approved' ? 'สิทธิ์เข้าเรียนคอร์สนี้หมดอายุแล้ว' : 'คอร์สนี้ยังไม่ได้รับสิทธิ์เข้าเรียน');
-  var lessons = visible_(read_('Lessons'));
+  var ok = u.role === 'admin' || (e && e.status === 'approved');
+  if (!ok) throw err_('NO_ACCESS', 'คอร์สนี้ยังไม่ได้รับสิทธิ์เข้าเรียน');
+  var lessons = read_('Lessons');
   var done = {};
   read_('Progress').forEach(function (r) { if (r.user_id === u.user_id && r.course_id === x.course_id) done[r.lesson_id] = 1; });
   var out = courseCard_(x, lessons);
   out.chapters = chapters_(lessons.filter(function (l) { return l.course_id === x.course_id; }), function (l) {
     return { lesson_id: l.lesson_id, title: l.title, duration_min: Number(l.duration_min) || 0, youtube_id: l.youtube_id,
-             attachment_url: l.attachment_url, files: filesOut_(l), done: !!done[l.lesson_id] };
+             attachment_url: l.attachment_url, done: !!done[l.lesson_id] };
   });
   out.watermark = u.email + ' · ' + u.user_id;
-  out.preview = preview;
   return out;
 }
 
@@ -575,11 +504,7 @@ function progressSet_(d, p) {
   var l = findOne_('Lessons', function (r) { return r.lesson_id === d.lesson_id; });
   if (!l) throw err_('NOT_FOUND', 'ไม่พบบทเรียน');
   var e = latestEnroll_(u.user_id, l.course_id);
-  if (!enrollActive_(e)) {
-    var c0 = findOne_('Courses', function (r) { return r.course_id === l.course_id; });
-    if (isStaff_(u) && c0 && canSubject_(u, c0.subject)) return { lesson_id: l.lesson_id, done: false, preview: true };
-    throw err_('NO_ACCESS', 'ยังไม่ได้รับสิทธิ์');
-  }
+  if (u.role !== 'admin' && !(e && e.status === 'approved')) throw err_('NO_ACCESS', 'ยังไม่ได้รับสิทธิ์');
   withLock_(function () {
     var rows = read_('Progress').filter(function (r) { return r.user_id === u.user_id && r.lesson_id === l.lesson_id; });
     if (d.done && !rows.length) append_('Progress', { user_id: u.user_id, course_id: l.course_id, lesson_id: l.lesson_id, completed_at: now_() });
@@ -655,9 +580,7 @@ function billStatus_(b) { return isExpired_(b) ? 'expired' : b.status; }
 /** คอร์สที่ผู้ใช้มีสิทธิ์แล้ว หรืออยู่ในบิลที่ค้างอยู่ */
 function ownedMap_(uid) {
   var o = {};
-  var last = {};
-  read_('Enrollments').forEach(function (e) { if (e.user_id === uid && (!last[e.course_id] || last[e.course_id].created_at <= e.created_at)) last[e.course_id] = e; });
-  Object.keys(last).forEach(function (cid) { var e = last[cid]; if (enrollActive_(e)) o[cid] = 'owned'; else if (e.status === 'pending') o[cid] = 'pending'; });
+  read_('Enrollments').forEach(function (e) { if (e.user_id === uid && (e.status === 'approved' || e.status === 'pending')) o[e.course_id] = e.status === 'approved' ? 'owned' : 'pending'; });
   read_('Bills').forEach(function (b) {
     if (b.user_id !== uid || BILL_OPEN.indexOf(billStatus_(b)) < 0) return;
     jsonParse_(b.items, []).forEach(function (it) { if (!o[it.course_id]) o[it.course_id] = 'in_bill'; });
@@ -770,7 +693,7 @@ function orderCreate_(d, p) {
         submitted_at: '', note: b.total > 0 ? '' : 'ยอด 0 บาท เปิดสิทธิ์อัตโนมัติ', decided_by: b.total > 0 ? '' : 'SYSTEM', decided_at: b.total > 0 ? '' : now, created_at: now, expires_at: exp });
       if (!(b.total > 0)) b.items.forEach(function (it) {
         append_('Enrollments', { enroll_id: 'E' + id_(), user_id: u.user_id, course_id: it.course_id, status: 'approved', amount: '0', slip_file_id: '',
-          note: 'บิล ' + oid + '-' + (i + 1) + ' (0 บาท)', created_at: now, decided_by: 'SYSTEM', decided_at: now, source: 'bill', bill_id: oid + '-' + (i + 1) });
+          note: 'บิล ' + oid + '-' + (i + 1) + ' (0 บาท)', created_at: now, decided_by: 'SYSTEM', decided_at: now });
       });
     });
     return { order_id: oid, total: q.total, discount: q.discount, coupon: q.coupon ? q.coupon.code : '', exp: exp };
@@ -939,11 +862,7 @@ function applyBundles_(ok, u) {
   }).filter(Boolean).sort(function (a, b) { return a.extra - b.extra; }).slice(0, 2);
   return { applied: applied, suggest: suggest };
 }
-function adminBundles_(d, p, u) {
-  var courses = read_('Courses');
-  return read_('Bundles').sort(bySort_).map(function (b) { return bundleOut_(b, courses); })
-    .filter(function (b) { return !u || isAdmin_(u) || (b.courses || []).some(function (c) { return canSubject_(u, c.subject); }); });
-}
+function adminBundles_() { var courses = read_('Courses'); return read_('Bundles').sort(bySort_).map(function (b) { return bundleOut_(b, courses); }); }
 function adminBundleSave_(d, p, admin) {
   var ids = csv_(d.course_ids);
   if (ids.length < 2) throw err_('BAD_INPUT', 'แพ็กเกจต้องมีอย่างน้อย 2 คอร์ส');
@@ -1120,12 +1039,10 @@ function billChecks_(b, u) {
   }
   return out;
 }
-function adminBills_(d, p, me) {
-  var st = d.status || 'reviewing', teacher = me && !isAdmin_(me);
-  var users = read_('Users'), mine = me ? subjectsOf_(me) : [];
-  var mineItem = function (it) { return mine.indexOf(it.subject || subjectOfCourse_(it.course_id)) >= 0; };
+function adminBills_(d) {
+  var st = d.status || 'reviewing';
+  var users = read_('Users');
   return read_('Bills').filter(function (b) {
-    if (teacher && !jsonParse_(b.items, []).some(mineItem)) return false;
     var s = billStatus_(b);
     if (d.account_id && b.account_id !== d.account_id) return false;
     if (d.q) { var u0 = users.filter(function (x) { return x.user_id === b.user_id; })[0] || {}; if ([b.bill_id, u0.email, u0.first_name, u0.last_name, u0.nickname, u0.phone].join(' ').toLowerCase().indexOf(String(d.q).toLowerCase()) < 0) return false; }
@@ -1139,16 +1056,12 @@ function adminBills_(d, p, me) {
     o.account_label = acc.label || ''; o.user_id = b.user_id;
     o.name = (u.first_name || '') + ' ' + (u.last_name || ''); o.nickname = u.nickname || ''; o.email = u.email || ''; o.phone = u.phone || ''; o.has_photo = !!u.photo_file_id;
     o.checks = billChecks_(b, u);
-    o.can_decide = !teacher;
-    if (teacher) { o.phone = ''; o.email = ''; o.has_photo = false; o.items = o.items.filter(mineItem); }
     return o;
   });
 }
-function subjectOfCourse_(cid) { var c = findOne_('Courses', function (r) { return r.course_id === cid; }); return c ? c.subject : ''; }
-function adminBillSlip_(d, p, me) {
+function adminBillSlip_(d) {
   var b = findOne_('Bills', function (r) { return r.bill_id === d.bill_id; });
   if (!b || !b.slip_file_id) throw err_('NOT_FOUND', 'ไม่พบสลิป');
-  if (me && !isAdmin_(me) && !jsonParse_(b.items, []).some(function (it) { return canSubject_(me, it.subject || subjectOfCourse_(it.course_id)); })) throw err_('FORBIDDEN', 'บิลนี้ไม่ได้อยู่ในวิชาที่คุณดูแล');
   var blob = DriveApp.getFileById(b.slip_file_id).getBlob();
   return { mime: blob.getContentType(), base64: Utilities.base64Encode(blob.getBytes()) };
 }
@@ -1167,11 +1080,11 @@ function adminBillDecide_(d, p, admin) {
     if (decision === 'rejected') patch.expires_at = new Date(Date.now() + expireHours_() * 36e5).toISOString();
     update_('Bills', x._row, patch);
     if (decision === 'approved') {
-      var own = ownedMap_(x.user_id);
+      var have = read_('Enrollments').filter(function (e) { return e.user_id === x.user_id && e.status === 'approved'; }).map(function (e) { return e.course_id; });
       jsonParse_(x.items, []).forEach(function (it) {
-        if (own[it.course_id] === 'owned') return;
+        if (have.indexOf(it.course_id) >= 0) return;
         append_('Enrollments', { enroll_id: 'E' + id_(), user_id: x.user_id, course_id: it.course_id, status: 'approved', amount: String(it.net), slip_file_id: x.slip_file_id,
-          note: 'บิล ' + x.bill_id, created_at: x.created_at, decided_by: admin.user_id, decided_at: now_(), source: 'bill', bill_id: x.bill_id });
+          note: 'บิล ' + x.bill_id, created_at: x.created_at, decided_by: admin.user_id, decided_at: now_() });
       });
     }
     log_(admin, 'bill.' + decision, x.bill_id);
@@ -1273,8 +1186,7 @@ function adminAccountSave_(d, p, admin) {
     promptpay_id: String(d.promptpay_id || '').replace(/\D/g, ''), bank: clip_(d.bank, 60), account_no: clip_(d.account_no, 30),
     qr_url: clip_(d.qr_url, 500), note: clip_(d.note, 300), ig: clip_(String(d.ig || '').replace(/^@/, ''), 40),
     subjects: csv_(d.subjects).filter(function (s) { return APP.SUBJECTS[s]; }).join(','), status: d.status === 'inactive' ? 'inactive' : 'active',
-    sort_order: String(Number(d.sort_order) || 0), owner_id: clip_(d.owner_id, 30) };
-  if (patch.owner_id && !findOne_('Users', function (r) { return r.user_id === patch.owner_id && isStaff_(r); })) throw err_('BAD_INPUT', 'เจ้าของบัญชีต้องเป็นผู้สอนหรือแอดมิน');
+    sort_order: String(Number(d.sort_order) || 0) };
   if (method === 'promptpay' && !/^(\d{10}|\d{13}|\d{15})$/.test(patch.promptpay_id)) throw err_('BAD_INPUT', 'เลขพร้อมเพย์ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตร/เลขผู้เสียภาษี 13 หลัก');
   if (method === 'bank' && (!patch.bank || !patch.account_no)) throw err_('BAD_INPUT', 'กรอกธนาคารและเลขบัญชี');
   if (patch.qr_url && !/^https:\/\//.test(patch.qr_url)) throw err_('BAD_INPUT', 'ลิงก์รูป QR ต้องขึ้นต้นด้วย https://');
@@ -1362,15 +1274,14 @@ function adminCouponDelete_(d, p, admin) {
 }
 
 // ───────────────────────── แอดมิน ─────────────────────────
-function adminStats_(d, p, me) {
-  if (me && !isAdmin_(me)) return teacherStats_(me);
+function adminStats_() {
   var users = read_('Users'), en = read_('Enrollments'), courses = read_('Courses'), bills = read_('Bills');
   var today = now_().slice(0, 10), month = now_().slice(0, 7);
   var subj = {};
   Object.keys(APP.SUBJECTS).forEach(function (k) { subj[k] = { subject: k, name: APP.SUBJECTS[k], count: 0, revenue: 0 }; });
   var revenue = 0, monthCount = 0;
   en.forEach(function (e) {
-    if ((e.status !== 'approved' && e.status !== 'revoked') || !(Number(e.amount) > 0) || String(e.decided_at).slice(0, 7) !== month) return;
+    if (e.status !== 'approved' || String(e.decided_at).slice(0, 7) !== month) return;
     var c = courses.filter(function (x) { return x.course_id === e.course_id; })[0];
     var amt = Number(e.amount) || 0; revenue += amt; monthCount++;
     if (c && subj[c.subject]) { subj[c.subject].count++; subj[c.subject].revenue += amt; }
@@ -1387,27 +1298,8 @@ function adminStats_(d, p, me) {
       .concat(bills.filter(function (b) { return b.status === 'reviewing'; }).map(function (b) { return b.submitted_at; })).sort()[0] || '',
     month_revenue: revenue, month_count: monthCount,
     by_subject: Object.keys(subj).map(function (k) { return subj[k]; }),
-    email_quota: MailApp.getRemainingDailyQuota(),
-    legacy_pending: read_('LegacyClaims').filter(function (c) { return c.status === 'pending'; }).length,
-    expense_pending: read_('Expenses').filter(function (x) { return x.status === 'pending'; }).length
+    email_quota: MailApp.getRemainingDailyQuota()
   };
-}
-/** ภาพรวมของผู้สอน: เฉพาะวิชาตัวเอง ไม่มีข้อมูลสมาชิกทั้งเว็บ */
-function teacherStats_(me) {
-  var mine = subjectsOf_(me), courses = read_('Courses').filter(function (c) { return mine.indexOf(c.subject) >= 0; });
-  var ids = courses.map(function (c) { return c.course_id; }), month = now_().slice(0, 7), en = read_('Enrollments');
-  var subj = mine.map(function (k) { return { subject: k, name: APP.SUBJECTS[k], count: 0, revenue: 0, students: 0 }; });
-  en.forEach(function (e) {
-    var c = courses.filter(function (x) { return x.course_id === e.course_id; })[0]; if (!c) return;
-    var row = subj.filter(function (x) { return x.subject === c.subject; })[0];
-    if (enrollActive_(e)) row.students++;
-    if ((e.status === 'approved' || e.status === 'revoked') && Number(e.amount) > 0 && String(e.decided_at).slice(0, 7) === month) { row.count++; row.revenue += Number(e.amount) || 0; }
-  });
-  var reviewing = read_('Bills').filter(function (b) { return b.status === 'reviewing' && jsonParse_(b.items, []).some(function (it) { return ids.indexOf(it.course_id) >= 0; }); }).length;
-  return { teacher: true, subjects: mine, by_subject: subj, reviewing: reviewing, pending: 0, pending_legacy: 0,
-    month_revenue: subj.reduce(function (a, x) { return a + x.revenue; }, 0), month_count: subj.reduce(function (a, x) { return a + x.count; }, 0),
-    courses: courses.length, students: subj.reduce(function (a, x) { return a + x.students; }, 0),
-    expense_pending: read_('Expenses').filter(function (x) { return x.status === 'pending' && x.created_by === me.user_id; }).length };
 }
 
 function adminEnrollments_(d) {
@@ -1447,57 +1339,36 @@ function adminDecide_(d, p, admin) {
   return { enroll_id: info.enroll_id, status: decision };
 }
 
-/** ให้สิทธิ์เข้าเรียน (ฟรี หรือรับเงินผ่านช่องทางอื่น) — ผู้สอนให้ได้เฉพาะคอร์สวิชาตัวเอง และใส่ยอดเงินไม่ได้ */
 function adminGrant_(d, p, admin) {
-  var c = courseFor_(admin, d.course_id);
-  var emails = String(d.emails || d.email || '').split(/[\s,;]+/).map(function (x) { return x.trim().toLowerCase(); }).filter(String);
-  emails = emails.filter(function (x, i) { return emails.indexOf(x) === i; }).slice(0, 200);
-  if (!emails.length) throw err_('BAD_INPUT', 'ใส่อีเมลของนักเรียน');
-  var amount = isAdmin_(admin) ? Math.max(0, Number(d.amount) || 0) : 0;
-  var exp = String(d.expires_at || '').trim();
-  if (exp) { var t = new Date(exp.length === 10 ? exp + 'T23:59:59+07:00' : exp); if (isNaN(t)) throw err_('BAD_INPUT', 'วันหมดอายุไม่ถูกต้อง'); exp = t.toISOString(); }
-  var reason = clip_(d.note || d.reason, 300), out = { added: [], skipped: [] }, mail = [];
+  var u = userByEmail_(normEmail_(d.email));
+  if (!u) throw err_('NOT_FOUND', 'ไม่พบผู้ใช้อีเมลนี้ (ต้องสมัครสมาชิกก่อน)');
+  var c = findOne_('Courses', function (r) { return r.course_id === d.course_id; });
+  if (!c) throw err_('NOT_FOUND', 'ไม่พบคอร์ส');
+  var prev = latestEnroll_(u.user_id, c.course_id);
+  if (prev && prev.status === 'approved') throw err_('ALREADY', 'ผู้ใช้นี้มีสิทธิ์คอร์สนี้อยู่แล้ว');
   withLock_(function () {
-    emails.forEach(function (em) {
-      var u = userByEmail_(em);
-      if (!u) { out.skipped.push({ email: em, why: 'ยังไม่ได้สมัครสมาชิก' }); return; }
-      var prev = latestEnroll_(u.user_id, c.course_id);
-      if (enrollActive_(prev)) { out.skipped.push({ email: em, why: 'มีสิทธิ์อยู่แล้ว' }); return; }
-      var source = amount > 0 ? 'manual' : u.user_id === admin.user_id ? 'test' : 'grant';
-      var row = { status: 'approved', amount: String(amount), note: reason || (source === 'test' ? 'ทดสอบโดยทีมงาน' : amount > 0 ? 'รับเงินช่องทางอื่น' : 'ให้สิทธิ์ฟรี'),
-        decided_by: admin.user_id, decided_at: now_(), source: source, reason: reason, expires_at: exp };
-      if (prev && prev.status === 'pending') update_('Enrollments', prev._row, row);
-      else append_('Enrollments', Object.assign({ enroll_id: 'E' + id_(), user_id: u.user_id, course_id: c.course_id, slip_file_id: '', created_at: now_() }, row));
-      log_(admin, 'grant', u.email + ' → ' + c.course_id + ' (' + source + (amount ? ' ฿' + amount : '') + (exp ? ' ถึง ' + exp.slice(0, 10) : '') + ')');
-      out.added.push(em); if (source !== 'test') mail.push(u);
-    });
+    if (prev && prev.status === 'pending') update_('Enrollments', prev._row, { status: 'approved', note: 'อนุมัติโดยการเพิ่มสิทธิ์', decided_by: admin.user_id, decided_at: now_() });
+    else append_('Enrollments', { enroll_id: 'E' + id_(), user_id: u.user_id, course_id: c.course_id, status: 'approved',
+      amount: String(d.amount == null || d.amount === '' ? 0 : Number(d.amount) || 0), slip_file_id: '', note: clip_(d.note || 'เพิ่มสิทธิ์โดยแอดมิน', 300),
+      created_at: now_(), decided_by: admin.user_id, decided_at: now_() });
+    log_(admin, 'grant', u.email + ' → ' + c.course_id);
   });
-  mail.forEach(function (u) { try { sendDecisionEmail_(u, c, 'approved', ''); } catch (e) { console.error(e); } });
-  if (emails.length === 1 && !out.added.length) throw err_(out.skipped[0].why === 'มีสิทธิ์อยู่แล้ว' ? 'ALREADY' : 'NOT_FOUND', out.skipped[0].why === 'มีสิทธิ์อยู่แล้ว' ? 'ผู้ใช้นี้มีสิทธิ์คอร์สนี้อยู่แล้ว' : 'ไม่พบผู้ใช้อีเมลนี้ (ต้องสมัครสมาชิกก่อน)');
-  return out;
+  sendDecisionEmail_(u, c, 'approved', '');
+  return true;
 }
 
-function adminCourses_(d, p, u) {
+function adminCourses_() {
   var lessons = read_('Lessons'), en = read_('Enrollments');
-  return read_('Courses').filter(function (x) { return !u || canSubject_(u, x.subject); }).sort(bySort_).map(function (x) {
-    var card = courseCard_(x, visible_(lessons));
+  return read_('Courses').sort(bySort_).map(function (x) {
+    var card = courseCard_(x, lessons);
     card.sort_order = Number(x.sort_order) || 0;
     ['trailer_youtube','highlights','audience','instructor_name','instructor_title','instructor_bio','instructor_photo','faq','pay_account_id','instructor2_name','instructor2_title','instructor2_bio','instructor2_photo'].forEach(function (k) { card[k] = x[k] || ''; });
-    card.students = en.filter(function (e) { return e.course_id === x.course_id && enrollActive_(e); }).length;
-    card.playlists = jsonParse_(x.playlists, []);
-    card.can_edit_sales = !u || isAdmin_(u);
+    card.students = en.filter(function (e) { return e.course_id === x.course_id && e.status === 'approved'; }).length;
     return card;
   });
 }
 
 function adminCourseSave_(d, p, admin) {
-  var lockedFrom = null;
-  if (!isAdmin_(admin)) {
-    // ผู้สอน: แก้ได้เฉพาะคอร์สในวิชาตัวเอง และแก้ราคา สถานะ วิชา บัญชีรับเงิน ลำดับ ไม่ได้
-    if (!d.course_id) throw err_('FORBIDDEN', 'สร้างคอร์สใหม่ได้เฉพาะแอดมิน');
-    lockedFrom = courseFor_(admin, d.course_id);
-    d = Object.assign({}, d, { subject: lockedFrom.subject, price: lockedFrom.price || 0 });
-  }
   if (!APP.SUBJECTS[d.subject]) throw err_('BAD_INPUT', 'เลือกวิชา');
   var price = Number(d.price);
   if (!(price >= 0)) throw err_('BAD_INPUT', 'ราคาต้องเป็นตัวเลข');
@@ -1517,7 +1388,6 @@ function adminCourseSave_(d, p, admin) {
   patch.trailer_youtube = tr ? youtubeId_(tr) : '';
   if (tr && !patch.trailer_youtube) throw err_('BAD_INPUT', 'ลิงก์คลิปแนะนำคอร์สไม่ใช่ลิงก์ YouTube');
   ['cover_url', 'instructor_photo', 'instructor2_photo'].forEach(function (k) { if (patch[k] && !/^https:\/\//.test(patch[k])) throw err_('BAD_INPUT', 'ลิงก์รูปต้องขึ้นต้นด้วย https://'); });
-  if (lockedFrom) ['subject', 'price', 'full_price', 'status', 'sort_order', 'pay_account_id'].forEach(function (k) { patch[k] = lockedFrom[k] || ''; });
   var id = withLock_(function () {
     ensureCols_('Courses');
     if (d.course_id) {
@@ -1534,18 +1404,15 @@ function adminCourseSave_(d, p, admin) {
   return { course_id: id };
 }
 
-function adminLessons_(d, p, u) {
-  courseFor_(u, d.course_id);
+function adminLessons_(d) {
   var list = read_('Lessons').filter(function (l) { return l.course_id === d.course_id; }).sort(bySort_);
   return list.map(function (l) {
     return { lesson_id: l.lesson_id, course_id: l.course_id, chapter: l.chapter, title: l.title, youtube_id: l.youtube_id,
-      duration_min: Number(l.duration_min) || 0, attachment_url: l.attachment_url, is_preview: truthy_(l.is_preview), sort_order: Number(l.sort_order) || 0,
-      hidden: truthy_(l.hidden), from_playlist: !!l.source_playlist, files: filesOut_(l) };
+      duration_min: Number(l.duration_min) || 0, attachment_url: l.attachment_url, is_preview: truthy_(l.is_preview), sort_order: Number(l.sort_order) || 0 };
   });
 }
 
 function adminLessonSave_(d, p, admin) {
-  if (d.lesson_id) d.course_id = lessonFor_(admin, d.lesson_id).course_id; else courseFor_(admin, d.course_id);
   var yt = youtubeId_(d.youtube);
   if (!yt) throw err_('BAD_INPUT', 'ลิงก์ YouTube ไม่ถูกต้อง ลองคัดลอกจากปุ่มแชร์ใต้คลิป');
   var att = clip_(d.attachment_url, 500);
@@ -1573,7 +1440,6 @@ function adminLessonSave_(d, p, admin) {
 
 /** เพิ่มหลายตอนพร้อมกัน: items = [{ chapter, title, youtube, duration_min, is_preview }] (ต่อท้ายตอนเดิม) */
 function adminLessonsBulk_(d, p, admin) {
-  courseFor_(admin, d.course_id);
   var items = Array.isArray(d.items) ? d.items.slice(0, 300) : [];
   if (!items.length) throw err_('BAD_INPUT', 'ไม่มีรายการตอน');
   var rows = items.map(function (it, i) {
@@ -1603,7 +1469,6 @@ function adminLessonsBulk_(d, p, admin) {
 }
 
 function adminLessonDelete_(d, p, admin) {
-  lessonFor_(admin, d.lesson_id);
   withLock_(function () {
     var rows = read_('Lessons').filter(function (r) { return r.lesson_id === d.lesson_id; });
     if (!rows.length) throw err_('NOT_FOUND', 'ไม่พบบทเรียน');
@@ -1614,7 +1479,6 @@ function adminLessonDelete_(d, p, admin) {
 }
 
 function adminLessonsReorder_(d, p, admin) {
-  courseFor_(admin, d.course_id);
   var order = (d.order || []).map(String);
   withLock_(function () {
     read_('Lessons').forEach(function (l) {
@@ -1647,14 +1511,10 @@ function adminUserUpdate_(d, p, admin) {
     if (!u) throw err_('NOT_FOUND', 'ไม่พบผู้ใช้');
     if (u.user_id === admin.user_id) throw err_('BAD_INPUT', 'แก้สิทธิ์ของตัวเองไม่ได้');
     var patch = {};
-    if (d.role === 'admin' || d.role === 'student' || d.role === 'teacher') patch.role = d.role;
-    if (d.role === 'teacher') {
-      patch.subjects = csv_(d.subjects).filter(function (s) { return APP.SUBJECTS[s]; }).join(',');
-      if (!patch.subjects) throw err_('BAD_INPUT', 'เลือกวิชาที่ผู้สอนดูแลอย่างน้อย 1 วิชา');
-    } else if (patch.role) patch.subjects = '';
+    if (d.role === 'admin' || d.role === 'student') patch.role = d.role;
     if (d.status === 'active' || d.status === 'banned') patch.status = d.status;
     update_('Users', u._row, patch);
-    if (patch.status === 'banned' || (patch.role && patch.role !== u.role)) killSessions_(u.user_id);
+    if (patch.status === 'banned') killSessions_(u.user_id);
     log_(admin, 'user.update', u.email + ' ' + JSON.stringify(patch));
   });
   return true;
@@ -1804,17 +1664,7 @@ function ss_() {
   if (!id) throw err_('SETUP', 'ยังไม่ได้รัน setup()');
   return (_ss = SpreadsheetApp.openById(id));
 }
-function sheet_(name) {
-  var s = ss_(), sh = s.getSheetByName(name);
-  if (!sh && SCHEMA[name]) { sh = s.insertSheet(name); ensureCols_(name); }
-  return sh;
-}
-/** ถ้ามีคอลัมน์ใหม่ในโค้ดที่ชีตยังไม่มี (ลืมรัน setup) เพิ่มให้ก่อนเขียน กันข้อมูลหาย */
-function colsFor_(name, obj) {
-  var head = headers_(name), want = SCHEMA[name] || [];
-  if (Object.keys(obj).some(function (k) { return head.indexOf(k) < 0 && want.indexOf(k) >= 0; })) { ensureCols_(name); head = headers_(name); }
-  return head;
-}
+function sheet_(name) { return ss_().getSheetByName(name); }
 
 /** อ่านทั้งแท็บเป็น array ของ object (อ้างคอลัมน์ตามชื่อหัวตาราง) */
 function read_(name) {
@@ -1844,14 +1694,14 @@ function ensureCols_(name) {
 }
 function findOne_(name, pred) { return read_(name).filter(pred)[0] || null; }
 function append_(name, obj) {
-  var sh = sheet_(name), head = colsFor_(name, obj);
+  var sh = sheet_(name), head = headers_(name);
   var row = head.map(function (h) { return obj[h] == null ? '' : String(obj[h]); });
   var r = sh.getLastRow() + 1;
   sh.getRange(r, 1, 1, head.length).setNumberFormat('@').setValues([row]);
   delete _cache[name];
 }
 function update_(name, rowNum, patch) {
-  var sh = sheet_(name), head = colsFor_(name, patch);
+  var sh = sheet_(name), head = headers_(name);
   var rng = sh.getRange(rowNum, 1, 1, head.length), cur = rng.getValues()[0];
   head.forEach(function (h, i) { if (h in patch) cur[i] = patch[h] == null ? '' : String(patch[h]); });
   rng.setNumberFormat('@').setValues([cur]);
@@ -1945,7 +1795,7 @@ function publicUser_(u) {
     current_faculty: u.current_faculty || '', current_university: u.current_university || '', dream_faculty: u.dream_faculty || '', dream_university: u.dream_university || '',
     is_repeat: isRepeat_(u.grade), terms_version: u.terms_version || '',
     birthday: u.birthday || '', facebook: u.facebook || '', instagram: u.instagram || '', line_id: u.line_id || '',
-    has_photo: !!u.photo_file_id, data_consent: !!u.data_consent_at, subjects: u.role === 'teacher' ? subjectsOf_(u) : [] };
+    has_photo: !!u.photo_file_id, data_consent: !!u.data_consent_at };
 }
 // ── รูปถ่ายผู้เรียน: เก็บในโฟลเดอร์ส่วนตัว (โฟลเดอร์เดียวกับสลิป) เห็นเฉพาะเจ้าของและแอดมิน ──
 function checkPhoto_(ph, required) {
@@ -2017,632 +1867,4 @@ function rate_(key, limit, sec, msg) {
   var c = cache_(), n = Number(c.get('rl:' + key) || 0);
   if (n >= limit) throw err_('RATE_LIMIT', msg);
   c.put('rl:' + key, String(n + 1), sec);
-}
-
-// ═════════════════════════ ผู้สอน: นักเรียนในคอร์ส · ถอนสิทธิ์ · บันทึกการแก้ไข ═════════════════════════
-function visible_(lessons) { return lessons.filter(function (l) { return !truthy_(l.hidden); }); }
-var SOURCE_LABEL = { bill: 'ซื้อผ่านเว็บ', manual: 'รับเงินช่องทางอื่น', grant: 'ให้ฟรี', test: 'ทดสอบ', legacy: 'นักเรียนรุ่นเก่า', request: 'ส่งสลิป (แบบเดิม)' };
-/** ที่มาของสิทธิ์: แถวเก่าที่ยังไม่มี source เดาจากยอดเงินและหมายเหตุ */
-function sourceOf_(e) {
-  if (e.source) return e.source;
-  if (/^บิล /.test(e.note || '')) return 'bill';
-  if (e.slip_file_id) return 'request';
-  return Number(e.amount) > 0 ? 'manual' : 'grant';
-}
-function courseStudents_(d, p, me) {
-  var c = courseFor_(me, d.course_id), admin = isAdmin_(me);
-  var users = read_('Users'), ids = visible_(read_('Lessons')).filter(function (l) { return l.course_id === c.course_id; }).map(function (l) { return l.lesson_id; });
-  var prog = read_('Progress').filter(function (r) { return r.course_id === c.course_id; });
-  var last = {};
-  read_('Enrollments').forEach(function (e) { if (e.course_id === c.course_id && (!last[e.user_id] || last[e.user_id].created_at <= e.created_at)) last[e.user_id] = e; });
-  return Object.keys(last).map(function (uid) {
-    var e = last[uid], u = users.filter(function (x) { return x.user_id === uid; })[0] || {};
-    var by = users.filter(function (x) { return x.user_id === e.decided_by; })[0];
-    var done = prog.filter(function (r) { return r.user_id === uid && ids.indexOf(r.lesson_id) >= 0; }).length;
-    var st = e.status === 'approved' && !enrollActive_(e) ? 'expired' : e.status, src = sourceOf_(e);
-    return { enroll_id: e.enroll_id, user_id: uid, name: (u.first_name || '') + ' ' + (u.last_name || ''), nickname: u.nickname || '', email: admin ? u.email || '' : '',
-      status: st, source: src, source_label: SOURCE_LABEL[src] || src, reason: e.reason || '', amount: admin ? Number(e.amount) || 0 : null,
-      granted_by: by ? by.nickname || by.first_name : e.decided_by === 'SYSTEM' ? 'ระบบ' : '', since: e.decided_at || e.created_at, expires_at: e.expires_at || '',
-      done: done, percent: ids.length ? Math.round(done / ids.length * 100) : 0,
-      can_revoke: e.status === 'approved' && (admin || src === 'grant' || src === 'test') };
-  }).filter(function (r) { return r.status !== 'rejected'; }).sort(function (a, b) { return a.since < b.since ? 1 : -1; });
-}
-function staffRevoke_(d, p, me) {
-  var e = findOne_('Enrollments', function (r) { return r.enroll_id === d.enroll_id; });
-  if (!e) throw err_('NOT_FOUND', 'ไม่พบสิทธิ์นี้');
-  courseFor_(me, e.course_id);
-  var src = sourceOf_(e);
-  if (!isAdmin_(me) && src !== 'grant' && src !== 'test') throw err_('FORBIDDEN', 'ผู้สอนถอนได้เฉพาะสิทธิ์ที่ให้ฟรีหรือทดสอบ สิทธิ์ที่ซื้อแล้วต้องให้แอดมินถอน');
-  if (e.status !== 'approved') throw err_('ALREADY', 'สิทธิ์นี้ถูกถอนไปแล้ว');
-  withLock_(function () {
-    var x = findOne_('Enrollments', function (r) { return r.enroll_id === d.enroll_id; });
-    update_('Enrollments', x._row, { status: 'revoked', note: clip_(d.note || 'ถอนสิทธิ์โดยทีมงาน', 300) });
-    if (src === 'legacy') read_('LegacyStudents').forEach(function (l) { if (l.user_id === x.user_id && csv_(l.course_ids).indexOf(x.course_id) >= 0) update_('LegacyStudents', l._row, { status: 'open', user_id: '', claimed_at: '', match: '' }); });
-    log_(me, 'revoke', x.user_id + ' → ' + x.course_id + ' (' + src + ')');
-  });
-  return true;
-}
-function adminLog_(d) {
-  var users = read_('Users'), q = String(d.q || '').toLowerCase();
-  var rows = read_('AdminLog').slice(-1500).reverse().map(function (r) {
-    var u = users.filter(function (x) { return x.user_id === r.admin_id; })[0] || {};
-    return { time: r.time, who: u.nickname || u.first_name || r.admin_id, role: u.role || '', action: r.action, detail: r.detail };
-  });
-  if (d.teachers_only) rows = rows.filter(function (r) { return r.role === 'teacher'; });
-  if (q) rows = rows.filter(function (r) { return [r.who, r.action, r.detail].join(' ').toLowerCase().indexOf(q) >= 0; });
-  return rows.slice(0, 300);
-}
-
-// ═════════════════════════ การเงิน: รายรับ รายจ่าย ส่วนแบ่ง ปิดงวด ═════════════════════════
-var EXPENSE_CATS = ['โฆษณา', 'เอกสาร/ชีท', 'อุปกรณ์', 'ค่าตอบแทน', 'ซอฟต์แวร์/โดเมน', 'อื่นๆ'];
-function r2_(n) { return Math.round((Number(n) || 0) * 100) / 100; }
-function periodOf_(iso) { var t = new Date(iso); if (isNaN(t)) return ''; return new Date(t.getTime() + 7 * 36e5).toISOString().slice(0, 7); } // เวลาไทย
-function checkPeriod_(pr) { if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(pr || ''))) throw err_('BAD_INPUT', 'เลือกเดือน'); return String(pr); }
-function platformPct_() { var o = jsonParse_(getSetting_('platform_pct'), {}) || {}; var out = {}; Object.keys(APP.SUBJECTS).forEach(function (k) { out[k] = Math.min(100, Math.max(0, Number(o[k]) || 0)); }); return out; }
-function periodRow_(pr) { return findOne_('Periods', function (r) { return r.period === pr; }); }
-function isClosed_(pr) { return !!periodRow_(pr); }
-function teachersAll_() { return read_('Users').filter(function (u) { return u.role === 'teacher'; }); }
-/** สัดส่วนผู้สอนของคอร์ส: ตั้งเองต่อคอร์ส ถ้าไม่ได้ตั้ง แบ่งเท่ากันระหว่างผู้สอนของวิชานั้น */
-function splitOf_(c, teachers) {
-  var sp = (jsonParse_(c.teacher_split, []) || []).filter(function (x) { return Number(x.pct) > 0 && teachers.some(function (t) { return t.user_id === x.user_id; }); });
-  var tot = sp.reduce(function (a, x) { return a + Number(x.pct); }, 0);
-  if (tot > 0) return { custom: true, parts: sp.map(function (x) { return { user_id: x.user_id, w: Number(x.pct) / tot }; }) };
-  var ts = teachers.filter(function (t) { return csv_(t.subjects).indexOf(c.subject) >= 0; });
-  return { custom: false, parts: ts.map(function (t) { return { user_id: t.user_id, w: 1 / ts.length }; }) };
-}
-/** คำนวณทั้งเดือน (ทุกวิชา) — แยกกรองตามสิทธิ์ผู้ดูทีหลัง */
-function finCompute_(pr) {
-  var users = read_('Users'), courses = read_('Courses'), bills = read_('Bills'), accs = read_('PayAccounts'), teachers = teachersAll_(), pct = platformPct_();
-  var uname = function (id) { var u = users.filter(function (x) { return x.user_id === id; })[0]; return u ? (u.nickname ? u.nickname + ' ' : '') + '(' + (u.first_name || '') + ' ' + (u.last_name || '') + ')' : ''; };
-  var income = [], free = { grant: 0, legacy: 0, test: 0, bill0: 0 };
-  read_('Enrollments').forEach(function (e) {
-    var c = courses.filter(function (x) { return x.course_id === e.course_id; })[0]; if (!c) return;
-    var when = e.decided_at || e.created_at; if (periodOf_(when) !== pr) return;
-    var amt = Number(e.amount) || 0, src = sourceOf_(e);
-    if (amt <= 0 || (e.status !== 'approved' && e.status !== 'revoked')) { if (e.status === 'approved') { if (src === 'bill') free.bill0++; else if (free[src] != null) free[src]++; } return; }
-    var bid = e.bill_id || ((e.note || '').match(/^บิล (\S+)/) || [])[1] || '';
-    var b = bid ? bills.filter(function (x) { return x.bill_id === bid; })[0] : null;
-    var acc = b ? accs.filter(function (a) { return a.account_id === b.account_id; })[0] : null;
-    var u = users.filter(function (x) { return x.user_id === e.user_id; })[0] || {};
-    income.push({ enroll_id: e.enroll_id, date: when, course_id: c.course_id, course_title: c.title, subject: c.subject, amount: amt, source: src, source_label: SOURCE_LABEL[src] || src,
-      student: (u.first_name || '') + ' ' + (u.last_name || ''), nickname: u.nickname || '', bill_id: bid, has_slip: !!e.slip_file_id,
-      account_label: acc ? acc.label : b ? 'บัญชีหลัก' : '—', held_by: acc && acc.owner_id ? acc.owner_id : '', revoked: e.status === 'revoked' });
-  });
-  var expenses = read_('Expenses').filter(function (x) { return periodOf_(x.date + 'T12:00:00+07:00') === pr; }).map(function (x) {
-    return { expense_id: x.expense_id, date: x.date, subject: x.subject, subject_name: APP.SUBJECTS[x.subject] || 'ส่วนกลาง', category: x.category, amount: Number(x.amount) || 0,
-      note: x.note, status: x.status, has_receipt: !!x.receipt_file_id, created_by: x.created_by, created_by_name: uname(x.created_by) };
-  }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
-  var subj = {}, tt = {};
-  Object.keys(APP.SUBJECTS).forEach(function (k) { subj[k] = { subject: k, name: APP.SUBJECTS[k], income: 0, expense: 0, net: 0, pct: pct[k], platform: 0, pool: 0, unassigned: 0, custom_missing: [] }; });
-  var tw = {}; // tw[subject][user] = ยอดขายถ่วงสัดส่วน
-  income.forEach(function (it) {
-    var S0 = subj[it.subject]; if (!S0) return; S0.income += it.amount;
-    var c = courses.filter(function (x) { return x.course_id === it.course_id; })[0], sp = splitOf_(c, teachers);
-    if (!sp.parts.length) { S0.unassigned += it.amount; return; }
-    tw[it.subject] = tw[it.subject] || {};
-    sp.parts.forEach(function (x) { tw[it.subject][x.user_id] = (tw[it.subject][x.user_id] || 0) + it.amount * x.w; });
-  });
-  expenses.forEach(function (x) { if (x.status === 'approved' && subj[x.subject]) subj[x.subject].expense += x.amount; });
-  var shared = expenses.filter(function (x) { return x.status === 'approved' && !subj[x.subject]; }).reduce(function (a, x) { return a + x.amount; }, 0);
-  Object.keys(subj).forEach(function (k) {
-    var S0 = subj[k], assigned = S0.income - S0.unassigned;
-    S0.net = r2_(S0.income - S0.expense);
-    // ยอดที่มีผู้สอน: หักรายจ่ายตามสัดส่วน แล้วหักส่วนแบ่งแพลตฟอร์ม · ยอดที่ไม่มีผู้สอน เข้าแพลตฟอร์มทั้งหมด
-    var expAssigned = S0.income > 0 ? S0.expense * assigned / S0.income : (Object.keys(tw[k] || {}).length ? S0.expense : 0);
-    var netAssigned = assigned - expAssigned;
-    S0.pool = r2_(netAssigned * (1 - S0.pct / 100));
-    S0.platform = r2_(S0.net - S0.pool);
-    var totW = Object.keys(tw[k] || {}).reduce(function (a, u) { return a + tw[k][u]; }, 0);
-    Object.keys(tw[k] || {}).forEach(function (uid) {
-      tt[uid] = tt[uid] || { user_id: uid, name: uname(uid), subjects: [], share: 0, held: 0 };
-      if (tt[uid].subjects.indexOf(k) < 0) tt[uid].subjects.push(k);
-      tt[uid].share += totW > 0 ? S0.pool * tw[k][uid] / totW : 0;
-    });
-    if (!totW && S0.expense && !S0.income) { // มีแต่รายจ่าย: ผู้สอนของวิชารับส่วนที่เป็นของตัวเอง
-      var ts = teachers.filter(function (t) { return csv_(t.subjects).indexOf(k) >= 0; });
-      if (ts.length) { S0.pool = r2_(-S0.expense * (1 - S0.pct / 100)); S0.platform = r2_(S0.net - S0.pool); ts.forEach(function (t) { tt[t.user_id] = tt[t.user_id] || { user_id: t.user_id, name: uname(t.user_id), subjects: [], share: 0, held: 0 }; if (tt[t.user_id].subjects.indexOf(k) < 0) tt[t.user_id].subjects.push(k); tt[t.user_id].share += S0.pool / ts.length; }); }
-    }
-    S0.income = r2_(S0.income); S0.expense = r2_(S0.expense); S0.unassigned = r2_(S0.unassigned);
-  });
-  income.forEach(function (it) { if (it.held_by) { tt[it.held_by] = tt[it.held_by] || { user_id: it.held_by, name: uname(it.held_by), subjects: [], share: 0, held: 0 }; tt[it.held_by].held += it.amount; } });
-  var tlist = Object.keys(tt).map(function (k) { var t = tt[k]; t.share = r2_(t.share); t.held = r2_(t.held); t.settle = r2_(t.share - t.held); return t; })
-    .sort(function (a, b) { return b.share - a.share; });
-  var totals = { income: 0, expense: 0, platform: 0, teachers: 0 };
-  Object.keys(subj).forEach(function (k) { totals.income += subj[k].income; totals.expense += subj[k].expense; totals.platform += subj[k].platform; totals.teachers += subj[k].pool; });
-  totals.expense += shared; totals.platform -= shared;
-  Object.keys(totals).forEach(function (k) { totals[k] = r2_(totals[k]); });
-  totals.shared = r2_(shared); totals.net = r2_(totals.income - totals.expense);
-  return { income: income, expenses: expenses, by_subject: Object.keys(subj).map(function (k) { return subj[k]; }), teachers: tlist, totals: totals, free: free };
-}
-/** ตัดข้อมูลให้เหลือเฉพาะที่ผู้ดูมีสิทธิ์เห็น */
-function finScope_(r, me, subject) {
-  var mine = subjectsOf_(me), admin = isAdmin_(me);
-  var want = subject && mine.indexOf(subject) >= 0 ? [subject] : mine;
-  var allSubj = admin && !subject;
-  var out = {
-    income: r.income.filter(function (x) { return want.indexOf(x.subject) >= 0; }),
-    expenses: r.expenses.filter(function (x) { return want.indexOf(x.subject) >= 0 || (allSubj && !APP.SUBJECTS[x.subject]); }),
-    by_subject: r.by_subject.filter(function (x) { return want.indexOf(x.subject) >= 0; }),
-    teachers: admin ? r.teachers.filter(function (t) { return allSubj || t.subjects.some(function (s) { return want.indexOf(s) >= 0; }); }) : r.teachers.filter(function (t) { return t.user_id === me.user_id; }),
-    free: r.free
-  };
-  if (allSubj) out.totals = r.totals;
-  else {
-    var t = { income: 0, expense: 0, platform: 0, teachers: 0, shared: 0 };
-    out.by_subject.forEach(function (x) { t.income += x.income; t.expense += x.expense; t.platform += x.platform; t.teachers += x.pool; });
-    Object.keys(t).forEach(function (k) { t[k] = r2_(t[k]); }); t.net = r2_(t.income - t.expense); out.totals = t;
-  }
-  if (!admin) { out.income.forEach(function (x) { x.bill_id = ''; }); out.expenses.forEach(function (x) { if (x.created_by !== me.user_id) x.created_by_name = x.created_by_name.replace(/\s*\(.*\)$/, ''); }); }
-  return out;
-}
-function finSummary_(d, p, me) {
-  var pr = d.period ? checkPeriod_(d.period) : periodOf_(now_());
-  var row = periodRow_(pr), live = finCompute_(pr);
-  if (row) { var snap = jsonParse_(row.snapshot, null); if (snap) { live.by_subject = snap.by_subject; live.teachers = snap.teachers; live.totals = snap.totals; } }
-  var out = finScope_(live, me, d.subject);
-  out.period = pr; out.closed = !!row; out.closed_at = row ? row.closed_at : '';
-  out.subjects = subjectsOf_(me); out.admin = isAdmin_(me); out.categories = EXPENSE_CATS;
-  out.payouts = read_('Payouts').filter(function (x) { return x.period === pr && (isAdmin_(me) || x.user_id === me.user_id); }).map(function (x) {
-    return { payout_id: x.payout_id, user_id: x.user_id, amount: Number(x.amount) || 0, share: Number(x.share) || 0, held: Number(x.held) || 0, status: x.status, paid_at: x.paid_at, note: x.note };
-  });
-  return out;
-}
-function finExpenseSave_(d, p, me) {
-  var date = String(d.date || '').slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw err_('BAD_INPUT', 'เลือกวันที่');
-  var subject = String(d.subject || '');
-  if (subject && !APP.SUBJECTS[subject]) throw err_('BAD_INPUT', 'เลือกวิชา');
-  if (!isAdmin_(me) && !canSubject_(me, subject)) throw err_('FORBIDDEN', 'บันทึกรายจ่ายได้เฉพาะวิชาที่คุณดูแล');
-  var amount = r2_(d.amount);
-  if (!(amount > 0)) throw err_('BAD_INPUT', 'ใส่ยอดเงินมากกว่า 0');
-  if (isClosed_(periodOf_(date + 'T12:00:00+07:00'))) throw err_('LOCKED', 'เดือนนี้ปิดงวดแล้ว ลงรายจ่ายในเดือนถัดไปแทน');
-  var patch = { date: date, subject: subject, category: EXPENSE_CATS.indexOf(d.category) >= 0 ? d.category : 'อื่นๆ', amount: String(amount), note: clip_(d.note, 300) };
-  if (d.receipt && d.receipt.base64) {
-    if (!/^image\/(jpeg|png|webp)$|^application\/pdf$/.test(d.receipt.mime || '')) throw err_('BAD_INPUT', 'ใบเสร็จต้องเป็นรูปหรือ PDF');
-    if (d.receipt.base64.length * 0.75 > APP.SLIP_MAX_BYTES) throw err_('BAD_INPUT', 'ไฟล์ใบเสร็จใหญ่เกิน 3 MB');
-    var folder = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('SLIP_FOLDER_ID'));
-    patch.receipt_file_id = folder.createFile(Utilities.newBlob(Utilities.base64Decode(d.receipt.base64), d.receipt.mime, 'receipt_' + id_())).getId();
-  }
-  var id = withLock_(function () {
-    if (d.expense_id) {
-      var x = findOne_('Expenses', function (r) { return r.expense_id === d.expense_id; });
-      if (!x) throw err_('NOT_FOUND', 'ไม่พบรายการนี้');
-      if (isClosed_(periodOf_(x.date + 'T12:00:00+07:00'))) throw err_('LOCKED', 'รายการนี้อยู่ในเดือนที่ปิดงวดแล้ว แก้ไม่ได้');
-      if (!isAdmin_(me) && (x.created_by !== me.user_id || x.status !== 'pending')) throw err_('FORBIDDEN', 'แก้ได้เฉพาะรายการของคุณที่ยังรอแอดมินอนุมัติ');
-      update_('Expenses', x._row, patch); log_(me, 'expense.edit', x.expense_id + ' ฿' + amount); return x.expense_id;
-    }
-    patch.expense_id = 'X' + id_().slice(-8); patch.status = isAdmin_(me) ? 'approved' : 'pending'; patch.created_by = me.user_id; patch.created_at = now_();
-    if (isAdmin_(me)) { patch.decided_by = me.user_id; patch.decided_at = now_(); }
-    append_('Expenses', patch); log_(me, 'expense.create', patch.expense_id + ' ' + (subject || 'ส่วนกลาง') + ' ฿' + amount); return patch.expense_id;
-  });
-  return { expense_id: id };
-}
-function finExpenseDecide_(d, p, me) {
-  var st = d.decision === 'approve' ? 'approved' : d.decision === 'reject' ? 'rejected' : '';
-  if (!st) throw err_('BAD_INPUT', 'เลือกอนุมัติหรือไม่อนุมัติ');
-  withLock_(function () {
-    var x = findOne_('Expenses', function (r) { return r.expense_id === d.expense_id; });
-    if (!x) throw err_('NOT_FOUND', 'ไม่พบรายการนี้');
-    if (isClosed_(periodOf_(x.date + 'T12:00:00+07:00'))) throw err_('LOCKED', 'เดือนนี้ปิดงวดแล้ว');
-    update_('Expenses', x._row, { status: st, decided_by: me.user_id, decided_at: now_() }); log_(me, 'expense.' + st, x.expense_id);
-  });
-  return true;
-}
-function finExpenseDelete_(d, p, me) {
-  withLock_(function () {
-    var x = findOne_('Expenses', function (r) { return r.expense_id === d.expense_id; });
-    if (!x) throw err_('NOT_FOUND', 'ไม่พบรายการนี้');
-    if (isClosed_(periodOf_(x.date + 'T12:00:00+07:00'))) throw err_('LOCKED', 'เดือนนี้ปิดงวดแล้ว ลบไม่ได้');
-    if (!isAdmin_(me) && (x.created_by !== me.user_id || x.status !== 'pending')) throw err_('FORBIDDEN', 'ลบได้เฉพาะรายการของคุณที่ยังรออนุมัติ');
-    deleteRows_('Expenses', [x]); log_(me, 'expense.delete', x.expense_id + ' ฿' + x.amount);
-  });
-  return true;
-}
-function finReceipt_(d, p, me) {
-  var x = findOne_('Expenses', function (r) { return r.expense_id === d.expense_id; });
-  if (!x || !x.receipt_file_id) throw err_('NOT_FOUND', 'ไม่มีใบเสร็จ');
-  if (!isAdmin_(me) && !canSubject_(me, x.subject)) throw err_('FORBIDDEN', 'ไม่มีสิทธิ์ดูรายการนี้');
-  return photoOut_(x.receipt_file_id);
-}
-function finRules_() {
-  var teachers = teachersAll_(), users = read_('Users');
-  return {
-    platform_pct: platformPct_(),
-    teachers: teachers.map(function (t) { return { user_id: t.user_id, name: (t.nickname ? t.nickname + ' · ' : '') + t.first_name + ' ' + t.last_name, subjects: csv_(t.subjects) }; }),
-    owners: users.filter(isStaff_).map(function (t) { return { user_id: t.user_id, name: (t.nickname ? t.nickname + ' · ' : '') + t.first_name + ' ' + t.last_name, role: t.role }; }),
-    courses: read_('Courses').sort(bySort_).map(function (c) {
-      var sp = splitOf_(c, teachers);
-      return { course_id: c.course_id, title: c.title, subject: c.subject, custom: sp.custom, split: (jsonParse_(c.teacher_split, []) || []),
-        effective: sp.parts.map(function (x) { return { user_id: x.user_id, pct: r2_(x.w * 100) }; }) };
-    })
-  };
-}
-function finRulesSave_(d, p, me) {
-  withLock_(function () {
-    if (d.platform_pct) {
-      var o = {}; Object.keys(APP.SUBJECTS).forEach(function (k) { var v = Number(d.platform_pct[k]); if (!(v >= 0 && v <= 100)) throw err_('BAD_INPUT', 'ส่วนแบ่งต้องอยู่ระหว่าง 0–100%'); o[k] = v; });
-      setSetting_('platform_pct', JSON.stringify(o)); log_(me, 'finance.pct', JSON.stringify(o));
-    }
-    (d.splits || []).forEach(function (sp) {
-      var c = findOne_('Courses', function (r) { return r.course_id === sp.course_id; }); if (!c) return;
-      var parts = (sp.split || []).map(function (x) { return { user_id: String(x.user_id), pct: r2_(x.pct) }; }).filter(function (x) { return x.pct > 0; });
-      var tot = parts.reduce(function (a, x) { return a + x.pct; }, 0);
-      if (parts.length && Math.abs(tot - 100) > 0.01) throw err_('BAD_INPUT', 'สัดส่วนของ ' + c.title + ' รวมกันต้องได้ 100%');
-      update_('Courses', c._row, { teacher_split: parts.length ? JSON.stringify(parts) : '' }); log_(me, 'finance.split', c.course_id + ' ' + JSON.stringify(parts));
-    });
-  });
-  cache_().remove('settings');
-  return finRules_();
-}
-function finClose_(d, p, me) {
-  var pr = checkPeriod_(d.period);
-  if (pr > periodOf_(now_())) throw err_('BAD_INPUT', 'ปิดงวดล่วงหน้าไม่ได้');
-  var r = finCompute_(pr);
-  withLock_(function () {
-    if (isClosed_(pr)) throw err_('ALREADY', 'เดือนนี้ปิดงวดไปแล้ว');
-    if (r.expenses.some(function (x) { return x.status === 'pending'; })) throw err_('BAD_INPUT', 'ยังมีรายจ่ายรออนุมัติในเดือนนี้ อนุมัติหรือไม่อนุมัติก่อนปิดงวด');
-    append_('Periods', { period: pr, closed_at: now_(), closed_by: me.user_id, snapshot: JSON.stringify({ by_subject: r.by_subject, teachers: r.teachers, totals: r.totals }) });
-    r.teachers.forEach(function (t) {
-      append_('Payouts', { payout_id: 'PO' + id_().slice(-8), period: pr, user_id: t.user_id, subjects: t.subjects.join(','), share: t.share, held: t.held, amount: t.settle,
-        status: t.settle === 0 ? 'paid' : 'pending', paid_at: t.settle === 0 ? now_() : '', paid_by: '', note: '', created_at: now_() });
-    });
-    log_(me, 'finance.close', pr + ' รายรับ ฿' + r.totals.income);
-  });
-  return finSummary_({ period: pr }, p, me);
-}
-function finReopen_(d, p, me) {
-  var pr = checkPeriod_(d.period);
-  withLock_(function () {
-    var row = periodRow_(pr); if (!row) throw err_('NOT_FOUND', 'เดือนนี้ยังไม่ได้ปิดงวด');
-    var pays = read_('Payouts').filter(function (x) { return x.period === pr; });
-    if (pays.some(function (x) { return x.status === 'paid' && Number(x.amount) !== 0; })) throw err_('LOCKED', 'มีการจ่ายเงินผู้สอนของเดือนนี้แล้ว เปิดงวดใหม่ไม่ได้ ลงรายการปรับปรุงในเดือนถัดไปแทน');
-    deleteRows_('Payouts', pays); deleteRows_('Periods', [row]); log_(me, 'finance.reopen', pr);
-  });
-  return finSummary_({ period: pr }, p, me);
-}
-function finPayoutPaid_(d, p, me) {
-  withLock_(function () {
-    var x = findOne_('Payouts', function (r) { return r.payout_id === d.payout_id; });
-    if (!x) throw err_('NOT_FOUND', 'ไม่พบรายการ');
-    update_('Payouts', x._row, { status: 'paid', paid_at: now_(), paid_by: me.user_id, note: clip_(d.note, 300) }); log_(me, 'finance.paid', x.payout_id + ' ฿' + x.amount);
-  });
-  return true;
-}
-
-// ═════════════════════════ นักเรียนรุ่นเก่า (สมัครก่อนมีเว็บ) ═════════════════════════
-var NAME_PREFIX = /^(นางสาว|นาย|นาง|น\.ส\.?|ด\.ช\.?|ด\.ญ\.?|เด็กชาย|เด็กหญิง|mr\.?|mrs\.?|ms\.?|miss)\s*/i;
-function normName_(s) {
-  return String(s || '').normalize('NFC').replace(/[\u200b-\u200d\ufeff]/g, '').replace(/\([^)]*\)?/g, '').trim().replace(NAME_PREFIX, '').replace(/[\s.\-_'’"()]/g, '').toLowerCase();
-}
-/** ชื่อ+นามสกุลต่อกันโดยไม่สนช่องว่าง (กันกรณีแบ่งชื่อ/นามสกุลคนละตำแหน่ง เช่น นามสกุลหลายคำ) */
-function nameKey_(first, last) { return normName_(first) + normName_(String(last || '').replace(NAME_PREFIX, '')); }
-function editDist_(a, b) {
-  if (Math.abs(a.length - b.length) > 2) return 9;
-  var prev = [], i, j; for (j = 0; j <= b.length; j++) prev[j] = j;
-  for (i = 1; i <= a.length; i++) { var cur = [i]; for (j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
-  return prev[b.length];
-}
-function legacyGrant_(uid, rec, by) {
-  csv_(rec.course_ids).forEach(function (cid) {
-    if (!findOne_('Courses', function (c) { return c.course_id === cid; })) return;
-    if (enrollActive_(latestEnroll_(uid, cid))) return;
-    append_('Enrollments', { enroll_id: 'E' + id_(), user_id: uid, course_id: cid, status: 'approved', amount: '0', slip_file_id: '', note: 'ย้ายจากระบบเก่า' + (rec.batch ? ' · ' + rec.batch : ''),
-      created_at: now_(), decided_by: by, decided_at: now_(), source: 'legacy', reason: rec.batch || '' });
-  });
-}
-/** จับคู่ชื่อ-นามสกุล: ตรงเป๊ะ มีคนเดียว และยังไม่มีใครใช้ → ให้สิทธิ์ทันที · กรณีอื่นเข้าคิวให้แอดมินดู */
-function legacyMatchUser_(u, manual) {
-  if (!u || u.role !== 'student') return { matched: false };
-  return withLock_(function () {
-    var key = nameKey_(u.first_name, u.last_name), recs = read_('LegacyStudents').filter(function (r) { return r.status !== 'deleted' && r.norm === key; });
-    var claims = read_('LegacyClaims'), hasPending = claims.some(function (c) { return c.user_id === u.user_id && c.status === 'pending'; });
-    var queue = function (ids, why) {
-      if (hasPending) return { matched: false, queued: true, message: 'ส่งเรื่องให้แอดมินตรวจแล้ว รอไม่เกิน 1–2 วัน' };
-      append_('LegacyClaims', { claim_id: 'LC' + id_().slice(-8), user_id: u.user_id, legacy_ids: ids.join(','), reason: why, status: 'pending', created_at: now_() });
-      return { matched: false, queued: true, message: 'ส่งเรื่องให้แอดมินตรวจแล้ว รอไม่เกิน 1–2 วัน' };
-    };
-    var mineAlready = recs.filter(function (r) { return r.user_id === u.user_id; });
-    var open = recs.filter(function (r) { return r.status === 'open'; }), taken = recs.filter(function (r) { return r.status === 'claimed' && r.user_id !== u.user_id; });
-    var sig = {}, dupe = open.some(function (r) { var k = r.course_ids; if (sig[k]) return true; sig[k] = 1; return false; });
-    if (!open.length && mineAlready.length) return { matched: true, already: true, courses: [] };
-    // ชื่อเดียวกันอยู่หลายรายชื่อได้ (เช่น ชุดชีวะ + ชุดเคมี) → รับทุกชุดให้เลย · ถ้ามี 2 รายการคอร์สเดียวกัน (อาจเป็นคนละคน) หรือมีคนใช้ชื่อนี้ไปแล้ว → ให้แอดมินดู
-    if (open.length && !dupe && !taken.length) {
-      var got = [];
-      open.forEach(function (r) {
-        update_('LegacyStudents', r._row, { status: 'claimed', user_id: u.user_id, claimed_at: now_(), match: manual ? 'auto-manual' : 'auto' });
-        legacyGrant_(u.user_id, r, 'SYSTEM'); got = got.concat(csv_(r.course_ids));
-      });
-      append_('AdminLog', { time: now_(), admin_id: 'SYSTEM', action: 'legacy.auto', detail: u.email + ' ← ' + open.map(function (r) { return r.legacy_id; }).join(',') });
-      return { matched: true, courses: got };
-    }
-    if (open.length && dupe) return queue(open.map(function (r) { return r.legacy_id; }), 'ชื่อ-นามสกุลนี้มีหลายคนในรายชื่อเก่า');
-    if (taken.length) return queue(taken.concat(open).map(function (r) { return r.legacy_id; }), 'รายชื่อนี้ถูกบัญชีอื่นใช้ไปแล้ว');
-    if (mineAlready.length) return { matched: true, already: true, courses: [] };
-    if (!manual) return { matched: false };
-    var near = read_('LegacyStudents').filter(function (r) { return r.status === 'open' && editDist_(r.norm, key) <= 2; });
-    if (near.length) return queue(near.slice(0, 5).map(function (r) { return r.legacy_id; }), 'ชื่อใกล้เคียง (สะกดต่างกันเล็กน้อย)');
-    return { matched: false, message: 'ไม่พบชื่อ-นามสกุลนี้ในรายชื่อนักเรียนรุ่นเก่า ตรวจว่าสะกดตรงกับตอนสมัครครั้งแรก หรือทักแอดมินทาง IG' };
-  });
-}
-function legacyClaim_(d, p) {
-  var u = auth_(p);
-  rate_('legacy:' + u.user_id, 5, 3600, 'ลองบ่อยเกินไป ลองใหม่ภายหลัง');
-  return legacyMatchUser_(u, true);
-}
-function adminLegacy_(d) {
-  var users = read_('Users'), recs = read_('LegacyStudents').filter(function (r) { return r.status !== 'deleted'; }), courses = read_('Courses');
-  var uinfo = function (id) { var u = users.filter(function (x) { return x.user_id === id; })[0]; return u ? { user_id: u.user_id, name: u.first_name + ' ' + u.last_name, nickname: u.nickname, email: u.email, has_photo: !!u.photo_file_id, created_at: u.created_at } : null; };
-  var ctitle = function (ids) { return csv_(ids).map(function (id) { var c = courses.filter(function (x) { return x.course_id === id; })[0]; return c ? c.title : id; }); };
-  var q = normName_(d.q || ''), st = d.status || 'claimed';
-  var list = recs.filter(function (r) { return (st === 'all' || r.status === st) && (!q || (r.norm + normName_(r.nickname)).indexOf(q) >= 0); })
-    .sort(function (a, b) { return (a.claimed_at || a.created_at) < (b.claimed_at || b.created_at) ? 1 : -1; }).slice(0, 300)
-    .map(function (r) { return { legacy_id: r.legacy_id, name: r.first_name + ' ' + r.last_name, nickname: r.nickname, courses: ctitle(r.course_ids), batch: r.batch, status: r.status, match: r.match, claimed_at: r.claimed_at, user: uinfo(r.user_id) }; });
-  var claims = read_('LegacyClaims').filter(function (c) { return c.status === 'pending'; }).map(function (c) {
-    return { claim_id: c.claim_id, reason: c.reason, created_at: c.created_at, user: uinfo(c.user_id),
-      candidates: csv_(c.legacy_ids).map(function (id) { var r = recs.filter(function (x) { return x.legacy_id === id; })[0]; return r ? { legacy_id: r.legacy_id, name: r.first_name + ' ' + r.last_name, nickname: r.nickname, batch: r.batch, courses: ctitle(r.course_ids), status: r.status, user: uinfo(r.user_id) } : null; }).filter(Boolean) };
-  });
-  var batches = {}; recs.forEach(function (r) { var b = r.batch || '—'; batches[b] = batches[b] || { batch: b, total: 0, claimed: 0 }; batches[b].total++; if (r.status === 'claimed') batches[b].claimed++; });
-  return { total: recs.length, claimed: recs.filter(function (r) { return r.status === 'claimed'; }).length, open: recs.filter(function (r) { return r.status === 'open'; }).length,
-    batches: Object.keys(batches).map(function (k) { return batches[k]; }), claims: claims, list: list };
-}
-function adminLegacyImport_(d, p, me) {
-  var rows = (Array.isArray(d.rows) ? d.rows : []).slice(0, 3000);
-  var cids = csv_(d.course_ids).filter(function (id) { return findOne_('Courses', function (c) { return c.course_id === id; }); });
-  if (!cids.length) throw err_('BAD_INPUT', 'เลือกคอร์สที่นักเรียนชุดนี้เคยซื้อ');
-  if (!rows.length) throw err_('BAD_INPUT', 'ไม่มีรายชื่อ');
-  var batch = clip_(d.batch, 80), added = 0, dup = 0, bad = [];
-  var names = withLock_(function () {
-    var have = read_('LegacyStudents'), sh = sheet_('LegacyStudents'), head = colsFor_('LegacyStudents', { norm: 1 }), vals = [], keys = [];
-    rows.forEach(function (r, i) {
-      var f = clip_(r.first_name, 60).replace(NAME_PREFIX, ''), l = clip_(r.last_name, 60);
-      if (!f || !l) { bad.push(i + 1); return; }
-      var key = nameKey_(f, l);
-      if (have.some(function (x) { return x.norm === key && x.course_ids === cids.join(',') && x.batch === batch && x.status !== 'deleted'; }) || keys.indexOf(key) >= 0) { dup++; return; }
-      keys.push(key);
-      var o = { legacy_id: 'LG' + id_().slice(-7) + i, first_name: f, last_name: l, nickname: clip_(r.nickname, 40), norm: key, course_ids: cids.join(','), batch: batch, status: 'open', note: clip_(r.note, 200), created_at: now_() };
-      vals.push(head.map(function (h) { return o[h] == null ? '' : String(o[h]); }));
-    });
-    if (vals.length) { sh.getRange(sh.getLastRow() + 1, 1, vals.length, head.length).setNumberFormat('@').setValues(vals); delete _cache.LegacyStudents; }
-    added = vals.length;
-    log_(me, 'legacy.import', (batch || '-') + ' +' + added + ' → ' + cids.join(','));
-    return keys;
-  });
-  // เทียบย้อนหลังกับนักเรียนที่สมัครบนเว็บไปแล้ว
-  var matched = 0;
-  read_('Users').filter(function (u) { return u.role === 'student' && names.indexOf(nameKey_(u.first_name, u.last_name)) >= 0; }).forEach(function (u) { var r = legacyMatchUser_(u, false); if (r.matched && !r.already) matched++; });
-  return { added: added, duplicate: dup, invalid_rows: bad, matched_existing: matched };
-}
-function adminLegacyDecide_(d, p, me) {
-  var out = withLock_(function () {
-    var c = findOne_('LegacyClaims', function (r) { return r.claim_id === d.claim_id; });
-    if (!c || c.status !== 'pending') throw err_('ALREADY', 'คำขอนี้ถูกตัดสินไปแล้ว');
-    if (d.decision !== 'approve') { update_('LegacyClaims', c._row, { status: 'rejected', decided_by: me.user_id, decided_at: now_() }); log_(me, 'legacy.reject', c.claim_id); return { status: 'rejected' }; }
-    var rec = findOne_('LegacyStudents', function (r) { return r.legacy_id === d.legacy_id; });
-    if (!rec || csv_(c.legacy_ids).indexOf(rec.legacy_id) < 0) throw err_('BAD_INPUT', 'เลือกรายชื่อที่ตรงกับนักเรียนคนนี้');
-    if (rec.user_id && rec.user_id !== c.user_id) { // ย้ายสิทธิ์จากบัญชีเดิม
-      read_('Enrollments').forEach(function (e) { if (e.user_id === rec.user_id && e.source === 'legacy' && e.status === 'approved' && csv_(rec.course_ids).indexOf(e.course_id) >= 0) update_('Enrollments', e._row, { status: 'revoked', note: 'ย้ายสิทธิ์นักเรียนเก่าไปบัญชีอื่น' }); });
-    }
-    update_('LegacyStudents', rec._row, { status: 'claimed', user_id: c.user_id, claimed_at: now_(), match: 'admin' });
-    legacyGrant_(c.user_id, rec, me.user_id);
-    update_('LegacyClaims', c._row, { status: 'approved', decided_by: me.user_id, decided_at: now_() });
-    log_(me, 'legacy.approve', c.user_id + ' ← ' + rec.legacy_id);
-    return { status: 'approved' };
-  });
-  return out;
-}
-function adminLegacyRelease_(d, p, me) {
-  withLock_(function () {
-    var rec = findOne_('LegacyStudents', function (r) { return r.legacy_id === d.legacy_id; });
-    if (!rec || !rec.user_id) throw err_('NOT_FOUND', 'รายชื่อนี้ยังไม่มีใครใช้');
-    read_('Enrollments').forEach(function (e) { if (e.user_id === rec.user_id && e.source === 'legacy' && e.status === 'approved' && csv_(rec.course_ids).indexOf(e.course_id) >= 0) update_('Enrollments', e._row, { status: 'revoked', note: 'แอดมินถอนสิทธิ์นักเรียนเก่า' }); });
-    update_('LegacyStudents', rec._row, { status: 'open', user_id: '', claimed_at: '', match: '' });
-    log_(me, 'legacy.release', rec.legacy_id + ' จาก ' + rec.user_id);
-  });
-  return true;
-}
-function adminLegacyDelete_(d, p, me) {
-  withLock_(function () {
-    var rec = findOne_('LegacyStudents', function (r) { return r.legacy_id === d.legacy_id; });
-    if (!rec) throw err_('NOT_FOUND', 'ไม่พบรายชื่อ');
-    if (rec.user_id) throw err_('IN_USE', 'รายชื่อนี้มีคนใช้อยู่ ถอนสิทธิ์ก่อนแล้วค่อยลบ');
-    update_('LegacyStudents', rec._row, { status: 'deleted' }); log_(me, 'legacy.delete', rec.legacy_id);
-  });
-  return true;
-}
-
-// ═════════════════════════ ดึงคลิปจากเพลย์ลิสต์ YouTube อัตโนมัติ ═════════════════════════
-// ต้องเปิดบริการ YouTube Data API ใน Apps Script (Services → YouTube Data API v3) และรัน installTriggers() หนึ่งครั้ง
-function playlistId_(u) {
-  var s = String(u || '').trim(), m = s.match(/[?&]list=([A-Za-z0-9_-]+)/);
-  if (m) return m[1];
-  return /^(PL|UU|OL|FL)[A-Za-z0-9_-]{10,}$/.test(s) ? s : '';
-}
-function playlistsSave_(d, p, me) {
-  var c = courseFor_(me, d.course_id);
-  var old = jsonParse_(c.playlists, []) || [];
-  var list = (Array.isArray(d.playlists) ? d.playlists : []).slice(0, 10).map(function (x, i) {
-    var id = playlistId_(x.url || x.id);
-    if (!id) throw err_('BAD_INPUT', 'แถวที่ ' + (i + 1) + ': ลิงก์เพลย์ลิสต์ไม่ถูกต้อง (ต้องมี list=...)');
-    var prev = old.filter(function (o) { return o.id === id; })[0] || {};
-    return { id: id, chapter: clip_(x.chapter, 120), strip: clip_(x.strip, 60), title: prev.title || '', last_sync: prev.last_sync || '', last_count: prev.last_count || 0 };
-  });
-  withLock_(function () { var x = findOne_('Courses', function (r) { return r.course_id === c.course_id; }); update_('Courses', x._row, { playlists: JSON.stringify(list) }); log_(me, 'playlists.save', c.course_id + ' ' + list.map(function (l) { return l.id; }).join(',')); });
-  return list;
-}
-function courseSync_(d, p, me) {
-  var c = courseFor_(me, d.course_id);
-  rate_('sync:' + c.course_id, 6, 600, 'กดซิงก์บ่อยเกินไป รอสักครู่');
-  var r = syncCourse_(c);
-  log_(me, 'playlists.sync', c.course_id + ' +' + r.added + ' ซ่อน ' + r.hidden);
-  return r;
-}
-/** ตัวตั้งเวลา: เช็กทุกคอร์สที่ผูกเพลย์ลิสต์ไว้ (รันทุก 15 นาที) */
-function syncPlaylists() {
-  _cache = {};
-  read_('Courses').filter(function (c) { return (jsonParse_(c.playlists, []) || []).length; }).forEach(function (c) {
-    try { var r = syncCourse_(c); if (r.added) notifySync_(c, r); } catch (e) { console.error(c.course_id + ': ' + (e.message || e)); }
-  });
-}
-function ytItems_(pid) {
-  if (typeof YouTube === 'undefined') throw err_('SETUP', 'ยังไม่ได้เปิด YouTube Data API ใน Apps Script (Services → เพิ่ม YouTube Data API v3)');
-  var out = [], token = '', guard = 0, meta = '';
-  do {
-    var res = YouTube.PlaylistItems.list('snippet,contentDetails,status', { playlistId: pid, maxResults: 50, pageToken: token || undefined });
-    (res.items || []).forEach(function (it) {
-      var priv = (it.status && it.status.privacyStatus) || '';
-      out.push({ id: it.contentDetails.videoId, title: it.snippet.title, pos: it.snippet.position, ok: priv !== 'private' && !/^(Private|Deleted) video$/.test(it.snippet.title) });
-    });
-    token = res.nextPageToken || '';
-  } while (token && ++guard < 40);
-  try { var pl = YouTube.Playlists.list('snippet', { id: pid }); meta = pl.items && pl.items[0] ? pl.items[0].snippet.title : ''; } catch (e) {}
-  return { items: out.sort(function (a, b) { return a.pos - b.pos; }), title: meta };
-}
-function ytMinutes_(ids) {
-  var out = {};
-  for (var i = 0; i < ids.length; i += 50) {
-    var res = YouTube.Videos.list('contentDetails', { id: ids.slice(i, i + 50).join(',') });
-    (res.items || []).forEach(function (v) {
-      var m = String(v.contentDetails.duration || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/) || [];
-      out[v.id] = Math.round((Number(m[1]) || 0) * 60 + (Number(m[2]) || 0) + (Number(m[3]) || 0) / 60);
-    });
-  }
-  return out;
-}
-function cleanTitle_(t, strip) {
-  var s = String(t || '');
-  if (strip) s = s.split(strip).join('');
-  return s.replace(/^[\s|·\-–—:]+|[\s|·\-–—:]+$/g, '').replace(/\s{2,}/g, ' ').slice(0, 160) || String(t || '').slice(0, 160);
-}
-function syncCourse_(c) {
-  var pls = jsonParse_(c.playlists, []) || [];
-  if (!pls.length) throw err_('BAD_INPUT', 'คอร์สนี้ยังไม่ได้ผูกเพลย์ลิสต์');
-  var fetched = pls.map(function (pl) { return { pl: pl, data: ytItems_(pl.id) }; });
-  var result = { added: 0, hidden: 0, restored: 0, titles: [], playlists: [] };
-  withLock_(function () {
-    var mine = read_('Lessons').filter(function (l) { return l.course_id === c.course_id; }).sort(bySort_);
-    var byYt = {}; mine.forEach(function (l) { byYt[l.youtube_id] = l; });
-    var max = mine.reduce(function (m, l) { return Math.max(m, Number(l.sort_order) || 0); }, 0);
-    var lastChap = mine.length ? mine[mine.length - 1].chapter : 'ตอนใหม่';
-    var newOnes = [];
-    fetched.forEach(function (f) {
-      var live = {};
-      f.data.items.forEach(function (it) {
-        if (!it.ok) return; live[it.id] = 1;
-        var l = byYt[it.id];
-        if (l) { if (truthy_(l.hidden) && l.source_playlist === f.pl.id) { update_('Lessons', l._row, { hidden: 'FALSE' }); result.restored++; } return; }
-        byYt[it.id] = { pending: true };
-        newOnes.push({ it: it, pl: f.pl });
-      });
-      mine.forEach(function (l) {
-        if (l.source_playlist === f.pl.id && !live[l.youtube_id] && !truthy_(l.hidden)) { update_('Lessons', l._row, { hidden: 'TRUE' }); result.hidden++; }
-      });
-      f.pl.title = f.data.title || f.pl.title; f.pl.last_sync = now_(); f.pl.last_count = f.data.items.filter(function (x) { return x.ok; }).length;
-      result.playlists.push({ id: f.pl.id, title: f.pl.title, count: f.pl.last_count });
-    });
-    if (newOnes.length) {
-      var mins = ytMinutes_(newOnes.map(function (x) { return x.it.id; }));
-      var sh = sheet_('Lessons'), head = colsFor_('Lessons', { hidden: 1, source_playlist: 1 });
-      var vals = newOnes.map(function (x, i) {
-        var o = { lesson_id: 'L' + id_() + i, course_id: c.course_id, chapter: x.pl.chapter || lastChap, title: cleanTitle_(x.it.title, x.pl.strip), youtube_id: x.it.id,
-          duration_min: String(mins[x.it.id] || 0), attachment_url: '', is_preview: 'FALSE', sort_order: String(max + (i + 1) * 10), hidden: 'FALSE', source_playlist: x.pl.id };
-        result.titles.push(o.title);
-        return head.map(function (h) { return o[h] == null ? '' : String(o[h]); });
-      });
-      sh.getRange(sh.getLastRow() + 1, 1, vals.length, head.length).setNumberFormat('@').setValues(vals);
-      delete _cache.Lessons;
-      result.added = vals.length;
-    }
-    var x = findOne_('Courses', function (r) { return r.course_id === c.course_id; });
-    update_('Courses', x._row, { playlists: JSON.stringify(fetched.map(function (f) { return f.pl; })) });
-    if (result.added || result.hidden || result.restored) append_('AdminLog', { time: now_(), admin_id: 'SYSTEM', action: 'playlists.sync', detail: c.course_id + ' +' + result.added + ' ซ่อน ' + result.hidden + ' คืน ' + result.restored });
-  });
-  cache_().remove('pub_courses');
-  return result;
-}
-function notifySync_(c, r) {
-  var to = read_('Users').filter(function (u) { return u.role === 'teacher' && csv_(u.subjects).indexOf(c.subject) >= 0; }).map(function (u) { return u.email; });
-  if (!to.length) to = String(getSetting_('admin_emails') || '').split(',').map(trim_).filter(String);
-  if (!to.length) return;
-  var body = '<p style="margin:0 0 12px">มีตอนใหม่จากเพลย์ลิสต์ขึ้นในคอร์ส <b>' + esc_(c.title) + '</b> แล้ว ' + r.added + ' ตอน</p><ul style="margin:0 0 16px;padding-left:18px">' +
-    r.titles.slice(0, 20).map(function (t) { return '<li>' + esc_(t) + '</li>'; }).join('') + '</ul>' + mailBtn_(siteUrl_() + '/#/admin/course/' + encodeURIComponent(c.course_id), 'ดูในหลังบ้าน');
-  MailApp.sendEmail({ to: to.join(','), subject: 'ตอนใหม่ขึ้นเว็บแล้ว · ' + c.title + ' (+' + r.added + ')', htmlBody: mailShell_('ตอนใหม่จากเพลย์ลิสต์', body), name: APP.NAME });
-}
-
-
-// ═════════════════════════ ไฟล์ประกอบบทเรียน (เห็นเฉพาะคนที่มีสิทธิ์เรียน) ═════════════════════════
-// ไฟล์เก็บในโฟลเดอร์ส่วนตัวบน Drive (ไม่แชร์ลิงก์) · นักเรียนโหลดผ่าน learn.file ซึ่งเช็กสิทธิ์ทุกครั้ง
-function filesOut_(l) { return (jsonParse_(l.files, []) || []).map(function (f) { return { fid: f.fid, name: f.name, mime: f.mime || '', size: f.size || 0, url: f.url || '' }; }); }
-function lessonFolder_() {
-  var props = PropertiesService.getScriptProperties(), id = props.getProperty('LESSON_FOLDER_ID');
-  if (id) return DriveApp.getFolderById(id);
-  var f = DriveApp.createFolder('INeedBio Lesson Files (ส่วนตัว)');
-  props.setProperty('LESSON_FOLDER_ID', f.getId());
-  return f;
-}
-function lessonFileAdd_(d, p, me) {
-  var l = lessonFor_(me, d.lesson_id);
-  var name = clip_(d.name, 120), item;
-  if (d.url) {
-    var url = clip_(d.url, 500);
-    if (!/^https:\/\//.test(url)) throw err_('BAD_INPUT', 'ลิงก์ต้องขึ้นต้นด้วย https://');
-    item = { fid: 'U' + id_().slice(-8), name: name || 'ลิงก์ประกอบ', url: url };
-  } else {
-    if (!d.base64) throw err_('BAD_INPUT', 'เลือกไฟล์');
-    var bytes = Math.round(String(d.base64).length * 0.75);
-    if (bytes > APP.LESSON_FILE_MAX_BYTES) throw err_('BAD_INPUT', 'ไฟล์ใหญ่เกิน 10 MB ย่อไฟล์หรือแยกเป็นหลายไฟล์');
-    if (!name) throw err_('BAD_INPUT', 'ตั้งชื่อไฟล์');
-    var mime = /^[\w.+-]+\/[\w.+-]+$/.test(d.mime || '') ? d.mime : 'application/octet-stream';
-    var file = lessonFolder_().createFile(Utilities.newBlob(Utilities.base64Decode(d.base64), mime, l.course_id + '_' + l.lesson_id + '_' + name));
-    item = { fid: 'F' + id_().slice(-8), drive_id: file.getId(), name: name, mime: mime, size: bytes };
-  }
-  withLock_(function () {
-    var x = findOne_('Lessons', function (r) { return r.lesson_id === l.lesson_id; });
-    var list = jsonParse_(x.files, []) || [];
-    if (list.length >= 20) throw err_('BAD_INPUT', 'แนบได้สูงสุด 20 ไฟล์ต่อตอน');
-    list.push(item); update_('Lessons', x._row, { files: JSON.stringify(list) });
-    log_(me, 'lesson.file.add', l.lesson_id + ' ' + item.name);
-  });
-  return filesOut_({ files: JSON.stringify((jsonParse_(findOne_('Lessons', function (r) { return r.lesson_id === l.lesson_id; }).files, []) || [])) });
-}
-function lessonFileDelete_(d, p, me) {
-  var l = lessonFor_(me, d.lesson_id), gone = null;
-  withLock_(function () {
-    var x = findOne_('Lessons', function (r) { return r.lesson_id === l.lesson_id; });
-    var list = jsonParse_(x.files, []) || [];
-    gone = list.filter(function (f) { return f.fid === d.fid; })[0];
-    if (!gone) throw err_('NOT_FOUND', 'ไม่พบไฟล์นี้');
-    update_('Lessons', x._row, { files: JSON.stringify(list.filter(function (f) { return f.fid !== d.fid; })) });
-    log_(me, 'lesson.file.delete', l.lesson_id + ' ' + gone.name);
-  });
-  if (gone.drive_id) try { DriveApp.getFileById(gone.drive_id).setTrashed(true); } catch (e) {}
-  return true;
-}
-function learnFile_(d, p) {
-  var u = auth_(p);
-  var l = findOne_('Lessons', function (r) { return r.lesson_id === d.lesson_id; });
-  if (!l || truthy_(l.hidden)) throw err_('NOT_FOUND', 'ไม่พบบทเรียน');
-  var c = findOne_('Courses', function (r) { return r.course_id === l.course_id; });
-  if (!enrollActive_(latestEnroll_(u.user_id, l.course_id)) && !(isStaff_(u) && c && canSubject_(u, c.subject))) throw err_('NO_ACCESS', 'ไฟล์นี้สำหรับผู้ที่ลงทะเบียนคอร์สแล้วเท่านั้น');
-  var f = (jsonParse_(l.files, []) || []).filter(function (x) { return x.fid === d.fid; })[0];
-  if (!f) throw err_('NOT_FOUND', 'ไม่พบไฟล์นี้');
-  if (f.url) return { name: f.name, url: f.url };
-  rate_('file:' + u.user_id, 120, 3600, 'เปิดไฟล์บ่อยเกินไป ลองใหม่ภายหลัง');
-  var blob = DriveApp.getFileById(f.drive_id).getBlob();
-  return { name: f.name, mime: f.mime || blob.getContentType(), base64: Utilities.base64Encode(blob.getBytes()) };
-}
-/** เปลี่ยนชื่อบท (หัวข้อสีเขียว) ทุกตอนที่อยู่บทนี้ในคอร์สเดียวกัน */
-function chapterRename_(d, p, me) {
-  var c = courseFor_(me, d.course_id), from = String(d.from || ''), to = clip_(d.to, 120).replace(/\s*›\s*/g, ' › ');
-  if (!to) throw err_('BAD_INPUT', 'ใส่ชื่อบทใหม่');
-  var n = withLock_(function () {
-    var rows = read_('Lessons').filter(function (l) { return l.course_id === c.course_id && l.chapter === from; });
-    if (!rows.length) throw err_('NOT_FOUND', 'ไม่พบบทนี้ ลองรีเฟรชหน้า');
-    rows.forEach(function (l) { update_('Lessons', l._row, { chapter: to }); });
-    var x = findOne_('Courses', function (r) { return r.course_id === c.course_id; }), pls = jsonParse_(x.playlists, []) || [];
-    if (pls.some(function (pl) { return pl.chapter === from; })) update_('Courses', x._row, { playlists: JSON.stringify(pls.map(function (pl) { if (pl.chapter === from) pl.chapter = to; return pl; })) });
-    log_(me, 'chapter.rename', c.course_id + ': ' + from + ' → ' + to);
-    return rows.length;
-  });
-  cache_().remove('pub_courses');
-  return { renamed: n, chapter: to };
 }
