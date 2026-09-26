@@ -661,6 +661,8 @@ async function adminDecide(d: Data, _c: Ctx, admin: User) {
 /** Give access (free, or paid some other way) to one or more emails. Teachers: their subjects only, no amount. */
 async function adminGrant(d: Data, _c: Ctx, admin: User) {
   const c = await staff.courseFor(admin, d.course_id);
+  const twin = await staff.publishedTwin(c);
+  if (twin) throw err("BAD_INPUT", "คอร์สนี้เป็นฉบับร่างที่ชื่อซ้ำกับคอร์สที่เปิดขายแล้ว (" + twin.slug.toUpperCase() + ") ให้สิทธิ์ที่คอร์สนั้นแทน นักเรียนจะได้เห็นคลิปครบ");
   let emails = String(d.emails || d.email || "").split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
   emails = emails.filter((x, i) => emails.indexOf(x) === i).slice(0, 200);
   if (!emails.length) throw err("BAD_INPUT", "ใส่อีเมลของนักเรียน");
