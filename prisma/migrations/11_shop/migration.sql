@@ -1,15 +1,17 @@
+-- Safe to run again: every statement skips what already exists (an earlier copy of this
+-- migration ran on some databases under the name 10_shop).
 -- Shop for the web app: cart → orders → one bill per receiving account, discount codes,
 -- bundles, receiving accounts, and a second instructor per course (backend/Code.gs "ร้านค้า").
 
 -- AlterTable
-ALTER TABLE "Course" ADD COLUMN     "instructor2Bio" TEXT,
-ADD COLUMN     "instructor2Name" TEXT,
-ADD COLUMN     "instructor2Photo" TEXT,
-ADD COLUMN     "instructor2Title" TEXT,
-ADD COLUMN     "payAccountId" TEXT;
+ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS "instructor2Bio" TEXT,
+ADD COLUMN IF NOT EXISTS "instructor2Name" TEXT,
+ADD COLUMN IF NOT EXISTS "instructor2Photo" TEXT,
+ADD COLUMN IF NOT EXISTS "instructor2Title" TEXT,
+ADD COLUMN IF NOT EXISTS "payAccountId" TEXT;
 
 -- CreateTable
-CREATE TABLE "PayAccount" (
+CREATE TABLE IF NOT EXISTS "PayAccount" (
     "id" TEXT NOT NULL,
     "label" TEXT NOT NULL,
     "method" TEXT NOT NULL DEFAULT 'promptpay',
@@ -29,7 +31,7 @@ CREATE TABLE "PayAccount" (
 );
 
 -- CreateTable
-CREATE TABLE "Bundle" (
+CREATE TABLE IF NOT EXISTS "Bundle" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "subtitle" TEXT NOT NULL DEFAULT '',
@@ -44,7 +46,7 @@ CREATE TABLE "Bundle" (
 );
 
 -- CreateTable
-CREATE TABLE "Coupon" (
+CREATE TABLE IF NOT EXISTS "Coupon" (
     "code" TEXT NOT NULL,
     "kind" TEXT NOT NULL DEFAULT 'percent',
     "value" DOUBLE PRECISION NOT NULL,
@@ -64,7 +66,7 @@ CREATE TABLE "Coupon" (
 );
 
 -- CreateTable
-CREATE TABLE "ShopOrder" (
+CREATE TABLE IF NOT EXISTS "ShopOrder" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "subtotal" INTEGER NOT NULL,
@@ -80,7 +82,7 @@ CREATE TABLE "ShopOrder" (
 );
 
 -- CreateTable
-CREATE TABLE "Bill" (
+CREATE TABLE IF NOT EXISTS "Bill" (
     "id" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -105,28 +107,40 @@ CREATE TABLE "Bill" (
 );
 
 -- CreateIndex
-CREATE INDEX "ShopOrder_userId_idx" ON "ShopOrder"("userId");
+CREATE INDEX IF NOT EXISTS "ShopOrder_userId_idx" ON "ShopOrder"("userId");
 
 -- CreateIndex
-CREATE INDEX "ShopOrder_couponCode_idx" ON "ShopOrder"("couponCode");
+CREATE INDEX IF NOT EXISTS "ShopOrder_couponCode_idx" ON "ShopOrder"("couponCode");
 
 -- CreateIndex
-CREATE INDEX "Bill_userId_idx" ON "Bill"("userId");
+CREATE INDEX IF NOT EXISTS "Bill_userId_idx" ON "Bill"("userId");
 
 -- CreateIndex
-CREATE INDEX "Bill_status_idx" ON "Bill"("status");
+CREATE INDEX IF NOT EXISTS "Bill_status_idx" ON "Bill"("status");
 
 -- CreateIndex
-CREATE INDEX "Bill_slipHash_idx" ON "Bill"("slipHash");
+CREATE INDEX IF NOT EXISTS "Bill_slipHash_idx" ON "Bill"("slipHash");
 
 -- AddForeignKey
-ALTER TABLE "ShopOrder" ADD CONSTRAINT "ShopOrder_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ShopOrder_userId_fkey') THEN
+    ALTER TABLE "ShopOrder" ADD CONSTRAINT "ShopOrder_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Bill" ADD CONSTRAINT "Bill_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "ShopOrder"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Bill_orderId_fkey') THEN
+    ALTER TABLE "Bill" ADD CONSTRAINT "Bill_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "ShopOrder"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Bill" ADD CONSTRAINT "Bill_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Bill_userId_fkey') THEN
+    ALTER TABLE "Bill" ADD CONSTRAINT "Bill_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 
 -- Math by term (ม.4–ม.6), created as drafts: add the videos, then set them to "เปิดขาย".
