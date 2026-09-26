@@ -35,6 +35,13 @@ export async function lessonFor(u: User, lid: unknown) {
   if (!canSubject(u, subjectKey(l.course.subject))) throw err("FORBIDDEN", "คอร์สนี้ไม่ได้อยู่ในวิชาที่คุณดูแล");
   return l;
 }
+/** A draft course with the same title and subject as a published one (a leftover copy): the published one. */
+const titleKey = (t: string) => t.replace(/\s/g, "").toLowerCase();
+export async function publishedTwin(c: Pick<Course, "id" | "title" | "isPublished" | "subjectId">) {
+  if (c.isPublished) return null;
+  const pubs = (await prisma.course.findMany({ where: { isPublished: true, subjectId: c.subjectId } })).filter((x) => titleKey(x.title) === titleKey(c.title));
+  return pubs.length === 1 ? pubs[0] : null;
+}
 /** Enrollment filter: may study now (ACTIVE and not past its end date). */
 export const activeWhere = () => ({ status: "ACTIVE" as const, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] });
 export async function hasAccess(userId: string, courseId: string) {
@@ -481,7 +488,8 @@ function editDist(a: string, b: string) {
 }
 async function legacyGrant(uid: string, rec: { courseIds: string; batch: string }, by: string) {
   for (const slug of csv(rec.courseIds)) {
-    const c = await prisma.course.findUnique({ where: { slug } });
+    const c0 = await prisma.course.findUnique({ where: { slug } });
+    const c = c0 && ((await publishedTwin(c0)) || c0);
     if (!c || (await hasAccess(uid, c.id))) continue;
     await prisma.payment.create({
       data: {
@@ -568,8 +576,14 @@ export async function adminLegacy(d: Data) {
 }
 export async function adminLegacyImport(d: Data, _c: Ctx, me: User) {
   const rows: any[] = (Array.isArray(d.rows) ? d.rows : []).slice(0, 3000);
-  const known = new Set((await prisma.course.findMany({ select: { slug: true } })).map((c) => c.slug));
-  const cids = csv(d.course_ids).filter((id) => known.has(id));
+  const all = await prisma.course.findMany();
+  const cids: string[] = [];
+  for (const id of csv(d.course_ids)) {
+    const c = all.find((x) => x.slug === id);
+    if (!c) continue;
+    const slug = ((await publishedTwin(c)) || c).slug; // a leftover draft copy → the published course
+    if (!cids.includes(slug)) cids.push(slug);
+  }
   if (!cids.length) throw err("BAD_INPUT", "เลือกคอร์สที่นักเรียนชุดนี้เคยซื้อ");
   if (!rows.length) throw err("BAD_INPUT", "ไม่มีรายชื่อ");
   const batch = clip(d.batch, 80), bad: number[] = [], keys: string[] = [];
