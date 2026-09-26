@@ -49,6 +49,15 @@ model User {
   termsAcceptedAt   DateTime?
   termsVersion      String?
 
+  // Sign-up contacts and photo (Code.gs v2): birthday "YYYY-MM-DD", at least one of FB / IG / LINE,
+  // a private photo (FileBlob) shown only to the student and admins, and when they consented to it.
+  birthday      String?
+  facebook      String?
+  instagram     String?
+  lineId        String?
+  photoBlobId   String?
+  dataConsentAt DateTime?
+
   createdAt DateTime @default(now())
 
   enrollments          Enrollment[]

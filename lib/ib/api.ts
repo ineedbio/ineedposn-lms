@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   proof_from_bank: "required",
   proof_payer_name: "required",
   proof_extra: "",
+  site_url: "https://ineedbio.shop",
 };
 
 async function allSettings() {
@@ -103,6 +104,8 @@ function publicUser(u: User) {
     current_faculty: u.currentFaculty || "", current_university: u.currentUniversity || "",
     dream_faculty: u.dreamFaculty || "", dream_university: u.dreamUniversity || "",
     is_repeat: isRepeat(u.gradeLevel), terms_version: u.termsVersion || "",
+    birthday: u.birthday || "", facebook: u.facebook || "", instagram: u.instagram || "", line_id: u.lineId || "",
+    has_photo: !!u.photoBlobId, data_consent: !!u.dataConsentAt,
     instructor_subject: instSubj,
     instructor_subject_name: instSubj && APP.SUBJECTS[instSubj] ? APP.SUBJECTS[instSubj] : "",
     is_super: isSuperAdmin(u),
@@ -128,14 +131,54 @@ function goals(d: Data, grade: string) {
   }
   return out;
 }
+/** Birthday (required) + contact channels Facebook / IG / LINE (at least one). */
+function contacts(d: Data) {
+  const bd = trim(d.birthday);
+  if (!bd) throw err("BAD_INPUT", "กรอกวันเดือนปีเกิด");
+  const m = bd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const t = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
+  if (!m || !t || isNaN(t.getTime()) || t.getUTCDate() !== +m[3]) throw err("BAD_INPUT", "วันเดือนปีเกิดไม่ถูกต้อง");
+  const age = (Date.now() - t.getTime()) / 31557600000;
+  if (age < 7 || age > 90) throw err("BAD_INPUT", "ตรวจปีเกิดอีกครั้ง (ใช้ปี พ.ศ.)");
+  const out = {
+    birthday: bd,
+    facebook: clip(d.facebook, 120),
+    instagram: clip(String(d.instagram || "").trim().replace(/^@/, ""), 60),
+    lineId: clip(String(d.line_id || "").trim().replace(/^@(?=\w)/, ""), 60),
+  };
+  if (!out.facebook && !out.instagram && !out.lineId) throw err("BAD_INPUT", "กรอกช่องทางติดต่ออย่างน้อย 1 ช่องทาง (Facebook, IG หรือ LINE)");
+  return out;
+}
 function profileFields(d: Data) {
   const grade = req(d.grade, "ระดับชั้น", 20);
   return {
     firstName: req(d.first_name, "ชื่อ", 60), lastName: req(d.last_name, "นามสกุล", 60),
     nickname: req(d.nickname, "ชื่อเล่น", 30), school: req(d.school, "โรงเรียน", 120),
-    gradeLevel: grade, phone: phone(d.phone), ...goals(d, grade),
+    gradeLevel: grade, phone: phone(d.phone), ...goals(d, grade), ...contacts(d),
   };
 }
+
+// Student photo: private FileBlob, visible only to its owner and admins.
+type Photo = { mime?: string; base64?: string } | null | undefined;
+function checkPhoto(ph: Photo, required: boolean) {
+  if (!ph || !ph.base64) {
+    if (required) throw err("BAD_INPUT", "ใส่รูปของน้องด้วย (รูปไหนก็ได้ ขอแค่เป็นรูปน้องเอง)");
+    return false;
+  }
+  if (!/^image\/(jpeg|png|webp)$/.test(ph.mime || "")) throw err("BAD_INPUT", "รูปถ่ายต้องเป็นไฟล์ JPG หรือ PNG");
+  if (String(ph.base64).length * 0.75 > APP.PHOTO_MAX_BYTES) throw err("BAD_INPUT", "รูปถ่ายใหญ่เกิน 1 MB ลองเลือกรูปใหม่");
+  return true;
+}
+async function savePhoto(ph: Photo) {
+  const b = await prisma.fileBlob.create({ data: { mime: ph!.mime!, data: Buffer.from(String(ph!.base64), "base64"), isPublic: false } });
+  return b.id;
+}
+async function photoOut(id: string | null | undefined) {
+  if (!id) return null;
+  const b = await prisma.fileBlob.findUnique({ where: { id } });
+  return b ? { mime: b.mime, base64: Buffer.from(b.data).toString("base64") } : null;
+}
+const accepted = (v: unknown) => v === true || v === "true";
 
 /** New session for this device; every other session of the user ends (1 account = 1 device). */
 async function newSession(u: User, p: Payload) {
@@ -219,13 +262,17 @@ async function registerStart(d: Data) {
   const email = normEmail(d.email);
   const f = profileFields(d);
   if (d.accept_terms !== true && d.accept_terms !== "true") throw err("BAD_INPUT", "กรุณายอมรับข้อตกลงการใช้งานและนโยบายความเป็นส่วนตัวก่อนสมัคร");
+  checkPhoto(d.photo, true);
+  if (!accepted(d.accept_data)) throw err("BAD_INPUT", "กรุณาติ๊กยินยอมให้เก็บรูปถ่ายและข้อมูลเพิ่มเติมก่อนสมัคร");
   checkPassword(d.password);
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing?.emailVerified) throw err("EMAIL_TAKEN", "อีเมลนี้สมัครไว้แล้ว ลองเข้าสู่ระบบหรือกดลืมรหัสผ่าน");
   await rate("otp1:" + email, 1, 60, "รอ 1 นาทีก่อนขอรหัสใหม่");
   await rate("otpH:" + email, 6, 3600, "ขอรหัสบ่อยเกินไป ลองใหม่ในอีก 1 ชั่วโมง");
   // The account is created unverified and only becomes usable once the emailed code is entered.
-  const data = { ...f, password: await hashPw(String(d.password)), termsVersion: APP.TERMS_VERSION, termsAcceptedAt: new Date() };
+  const photoBlobId = await savePhoto(d.photo);
+  if (existing?.photoBlobId) await prisma.fileBlob.delete({ where: { id: existing.photoBlobId } }).catch(() => {});
+  const data = { ...f, password: await hashPw(String(d.password)), termsVersion: APP.TERMS_VERSION, termsAcceptedAt: new Date(), photoBlobId, dataConsentAt: new Date() };
   const u = existing
     ? await prisma.user.update({ where: { id: existing.id }, data })
     : await prisma.user.create({ data: { ...data, email, emailVerified: false } });
@@ -295,7 +342,29 @@ async function passwordChange(d: Data, { p }: Ctx) {
 
 async function profileUpdate(d: Data, { p }: Ctx) {
   const u = await auth(p);
-  return publicUser(await prisma.user.update({ where: { id: u.id }, data: profileFields(d) }));
+  const data: Prisma.UserUpdateInput = profileFields(d);
+  if (!u.dataConsentAt) {
+    if (accepted(d.accept_data)) data.dataConsentAt = new Date();
+    else if (d.photo) throw err("BAD_INPUT", "กรุณาติ๊กยินยอมให้เก็บรูปถ่ายและข้อมูลเพิ่มเติมก่อน");
+  }
+  let oldPhoto = "";
+  if (d.photo) {
+    checkPhoto(d.photo, true);
+    await rate("photo:" + u.id, 10, 3600, "เปลี่ยนรูปบ่อยเกินไป ลองใหม่ภายหลัง");
+    oldPhoto = u.photoBlobId || "";
+    data.photoBlobId = await savePhoto(d.photo);
+  }
+  const v = await prisma.user.update({ where: { id: u.id }, data });
+  if (oldPhoto) await prisma.fileBlob.delete({ where: { id: oldPhoto } }).catch(() => {});
+  return publicUser(v);
+}
+async function myPhoto(_d: Data, { p }: Ctx) {
+  return photoOut((await auth(p)).photoBlobId);
+}
+async function adminUserPhoto(d: Data) {
+  const u = await prisma.user.findUnique({ where: { id: String(d.user_id || "") } });
+  if (!u) throw err("NOT_FOUND", "ไม่พบผู้ใช้");
+  return photoOut(u.photoBlobId);
 }
 
 // ───────────────────────── Courses ─────────────────────────
@@ -808,7 +877,7 @@ async function adminUsers(d: Data) {
   const users = await prisma.user.findMany({
     where: {
       emailVerified: true,
-      ...(q ? { OR: ["email", "firstName", "lastName", "nickname", "phone", "school"].map((f) => ({ [f]: { contains: q, mode: "insensitive" } })) } : {}),
+      ...(q ? { OR: ["email", "firstName", "lastName", "nickname", "phone", "school", "facebook", "instagram", "lineId"].map((f) => ({ [f]: { contains: q, mode: "insensitive" } })) } : {}),
     },
     include: {
       enrollments: { where: { status: "ACTIVE" }, include: { course: { select: { title: true } } } },
@@ -1175,6 +1244,7 @@ const ROUTES: Record<string, Handler> = {
   logout,
   "profile.update": profileUpdate,
   "password.change": passwordChange,
+  "my.photo": myPhoto,
   "my.courses": myCourses,
   "learn.get": learnGet,
   "progress.set": progressSet,
@@ -1202,6 +1272,7 @@ const ROUTES: Record<string, Handler> = {
   "admin.upload": adminOnly(adminUpload),
   // ผู้ใช้และตั้งค่า (เฉพาะแอดมินหลัก)
   "admin.users": superAdminOnly(adminUsers),
+  "admin.user.photo": superAdminOnly(adminUserPhoto),
   "admin.user.update": superAdminOnly(adminUserUpdate),
   "admin.user.resetDevice": superAdminOnly(adminResetDevice),
   "admin.settings": superAdminOnly(adminSettings),

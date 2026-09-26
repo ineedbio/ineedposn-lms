@@ -1,4 +1,8 @@
 node_modules
 .next
 .env*.local
+
+# Lesson lists with the real clip links: paste them in หลังบ้าน, never commit them (this repo is public)
+backend/lessons/
+next-env.d.ts
 *.tsbuildinfo

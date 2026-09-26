@@ -17,6 +17,7 @@ var APP = {
   OTP_MAX_TRIES: 5,
   HASH_ROUNDS: 300,
   SLIP_MAX_BYTES: 3 * 1024 * 1024,
+  PHOTO_MAX_BYTES: 1024 * 1024,
   SUBJECTS: { bio: 'ชีววิทยา', chem: 'เคมี', phys: 'ฟิสิกส์', math: 'คณิตศาสตร์' },
   TERMS_VERSION: '2026-09-25',
   REPEAT_GRADES: ['จบ ม.6 แล้ว', 'อื่นๆ'],
@@ -25,7 +26,8 @@ var APP = {
 
 var SCHEMA = {
   Users:       ['user_id','email','password_hash','salt','first_name','last_name','nickname','school','grade','phone','role','status','created_at','last_login_at',
-                'current_faculty','current_university','dream_faculty','dream_university','terms_version','terms_accepted_at'],
+                'current_faculty','current_university','dream_faculty','dream_university','terms_version','terms_accepted_at',
+                'birthday','facebook','instagram','line_id','photo_file_id','data_consent_at'],
   Sessions:    ['token_hash','user_id','device_id','device_info','created_at','expires_at'],
   Courses:     ['course_id','subject','title','subtitle','description','cover_url','price','status','sort_order','created_at',
                 'trailer_youtube','highlights','audience','instructor_name','instructor_title','instructor_bio','instructor_photo','faq','full_price','level','pay_account_id',
@@ -65,7 +67,8 @@ var DEFAULT_SETTINGS = {
     '- สิทธิ์เข้าเรียนจะเปิดหลังแอดมินตรวจยอดเงินแล้ว',
   order_expire_hours: '48',
   proof_paid_at: 'required', proof_amount: 'required', proof_from_bank: 'required', proof_payer_name: 'required',
-  proof_extra: ''
+  proof_extra: '',
+  site_url: 'https://ineedbio.shop'
 };
 
 // ───────────────────────── Entry points ─────────────────────────
@@ -112,6 +115,7 @@ var ROUTES = {
   'cart.quote':        cartQuote_,
   'order.create':      orderCreate_,
   'my.orders':         myOrders_,
+  'my.photo':          myPhoto_,
   'bill.proof':        billProof_,
   'bill.cancel':       billCancel_,
   // แอดมิน
@@ -128,6 +132,7 @@ var ROUTES = {
   'admin.lessons.bulk': adminOnly_(adminLessonsBulk_),
   'admin.lessons.reorder': adminOnly_(adminLessonsReorder_),
   'admin.users':       adminOnly_(adminUsers_),
+  'admin.user.photo':  adminOnly_(adminUserPhoto_),
   'admin.user.update': adminOnly_(adminUserUpdate_),
   'admin.user.resetDevice': adminOnly_(adminResetDevice_),
   'admin.settings':    adminOnly_(function () { return allSettings_(); }),
@@ -204,8 +209,11 @@ function registerStart_(d) {
     nickname: req_(d.nickname, 'ชื่อเล่น', 30), school: req_(d.school, 'โรงเรียน', 120),
     grade: req_(d.grade, 'ระดับชั้น', 20), phone: phone_(d.phone)
   };
-  goals_(d, f);
+  goals_(d, f); contacts_(d, f);
+  checkPhoto_(d.photo, true);
+  if (d.accept_data !== true && d.accept_data !== 'true') throw err_('BAD_INPUT', 'กรุณาติ๊กยินยอมให้เก็บรูปถ่ายและข้อมูลเพิ่มเติมก่อนสมัคร');
   if (d.accept_terms !== true && d.accept_terms !== 'true') throw err_('BAD_INPUT', 'กรุณายอมรับข้อตกลงการใช้งานและนโยบายความเป็นส่วนตัวก่อนสมัคร');
+  f.data_consent_at = now_();
   f.terms_version = APP.TERMS_VERSION; f.terms_accepted_at = now_();
   checkPassword_(d.password);
   if (userByEmail_(f.email)) throw err_('EMAIL_TAKEN', 'อีเมลนี้สมัครไว้แล้ว ลองเข้าสู่ระบบหรือกดลืมรหัสผ่าน');
@@ -213,6 +221,7 @@ function registerStart_(d) {
   rate_('otpH:' + f.email, 6, 3600, 'ขอรหัสบ่อยเกินไป ลองใหม่ในอีก 1 ชั่วโมง');
   var salt = rand_(16);
   f.salt = salt; f.password_hash = hashPw_(d.password, salt);
+  f.photo_file_id = savePhoto_(d.photo, f.email);
   var otp = otp_();
   cache_().put('reg:' + f.email, JSON.stringify({ otp: sha256_(otp), tries: 0, f: f }), APP.OTP_MINUTES * 60);
   sendOtpEmail_(f.email, otp, f.nickname, 'register');
@@ -232,7 +241,9 @@ function registerVerify_(d, p) {
       first_name: f.first_name, last_name: f.last_name, nickname: f.nickname, school: f.school,
       grade: f.grade, phone: f.phone, role: 'student', status: 'active', created_at: now_(), last_login_at: now_(),
       current_faculty: f.current_faculty, current_university: f.current_university, dream_faculty: f.dream_faculty, dream_university: f.dream_university,
-      terms_version: f.terms_version, terms_accepted_at: f.terms_accepted_at
+      terms_version: f.terms_version, terms_accepted_at: f.terms_accepted_at,
+      birthday: f.birthday, facebook: f.facebook, instagram: f.instagram, line_id: f.line_id,
+      photo_file_id: f.photo_file_id || '', data_consent_at: f.data_consent_at || ''
     };
     append_('Users', u);
     cache_().remove(key);
@@ -302,8 +313,15 @@ function profileUpdate_(d, p) {
     nickname: req_(d.nickname, 'ชื่อเล่น', 30), school: req_(d.school, 'โรงเรียน', 120),
     grade: req_(d.grade, 'ระดับชั้น', 20), phone: phone_(d.phone)
   };
-  goals_(d, patch);
+  goals_(d, patch); contacts_(d, patch);
+  if (!u.data_consent_at) {
+    if (d.accept_data === true || d.accept_data === 'true') patch.data_consent_at = now_();
+    else if (d.photo) throw err_('BAD_INPUT', 'กรุณาติ๊กยินยอมให้เก็บรูปถ่ายและข้อมูลเพิ่มเติมก่อน');
+  }
+  var oldPhoto = '';
+  if (d.photo) { checkPhoto_(d.photo, true); rate_('photo:' + u.user_id, 10, 3600, 'เปลี่ยนรูปบ่อยเกินไป ลองใหม่ภายหลัง'); oldPhoto = u.photo_file_id; patch.photo_file_id = savePhoto_(d.photo, u.email); }
   withLock_(function () { ensureCols_('Users'); update_('Users', u._row, patch); });
+  if (oldPhoto) try { DriveApp.getFileById(oldPhoto).setTrashed(true); } catch (e) {}
   for (var k in patch) u[k] = patch[k];
   return publicUser_(u);
 }
@@ -652,7 +670,7 @@ function orderCreate_(d, p) {
   var u = auth_(p);
   if (d.accept_pay_terms !== true && d.accept_pay_terms !== 'true') throw err_('BAD_INPUT', 'กรุณาติ๊กยอมรับข้อตกลงการชำระเงินก่อน');
   rate_('order:' + u.user_id, 10, 3600, 'สร้างคำสั่งซื้อบ่อยเกินไป ลองใหม่ภายหลัง');
-  return withLock_(function () {
+  var res = withLock_(function () {
     ['Orders', 'Bills'].forEach(ensureCols_);
     expireBills_();
     var q = priceCart_(d.course_ids, d.coupon, u);
@@ -678,8 +696,10 @@ function orderCreate_(d, p) {
           note: 'บิล ' + oid + '-' + (i + 1) + ' (0 บาท)', created_at: now, decided_by: 'SYSTEM', decided_at: now });
       });
     });
-    return { order_id: oid };
+    return { order_id: oid, total: q.total, discount: q.discount, coupon: q.coupon ? q.coupon.code : '', exp: exp };
   });
+  try { sendOrderEmail_(u, res); } catch (e) { console.error(e); }
+  return { order_id: res.order_id };
 }
 
 function billPublic_(b) {
@@ -877,6 +897,78 @@ function adminBundleDelete_(d, p, admin) {
 }
 
 /**
+ * ใส่คำอธิบายคอร์สชีวะ เคมี ฟิสิกส์ (และสร้างคอร์สคณิตแยกเทอม) จากข้อมูลในโบรชัวร์
+ * รันใน editor: setupCourses()
+ * - ถ้ายังไม่มีคอร์สรหัสนั้น จะสร้างเป็น "ฉบับร่าง"
+ * - ถ้ามีอยู่แล้ว จะเติมเฉพาะช่องที่ยังว่าง (ไม่เขียนทับที่แก้ไว้) — ถ้าต้องการเขียนทับ ใช้ setupCourses(undefined, true)
+ * - ถ้าคอร์สในเว็บใช้รหัสอื่น แก้รหัสใน COURSE_COPY ด้านล่างก่อนรัน
+ */
+var COURSE_COPY = {
+  'BIO-POSN': { subject: 'bio', level: 'สอวน.', price: '790', title: 'ชีววิทยา สอวน. ค่าย 1',
+    subtitle: 'ปูพื้นฐาน + เนื้อหาครบ 3 เล่ม + ตะลุยข้อสอบย้อนหลัง 8 ปี จบในคอร์สเดียว',
+    description: 'คอร์สเตรียมสอบคัดเลือกค่าย 1 สอวน. สาขาชีววิทยา ที่รวมทุกอย่างไว้ในคอร์สเดียว เรียนตามลำดับได้เลยไม่ต้องวางแผนเอง\n\n' +
+      '1) ปูพื้นฐาน 6 ชั่วโมง (แถมฟรี) — สำหรับน้องที่ยังไม่เคยเรียนชีวะเชิงลึก ปูพื้นก่อนเข้าเนื้อหาจริง\n' +
+      '2) เนื้อหา 3 เล่ม 70 ตอน — เล่ม 1 Fundamentum Vitae (ชีวเคมี เซลล์ พันธุศาสตร์ วิวัฒนาการ) · เล่ม 2 Organismus et Ambiens (อนุกรมวิธาน อาณาจักรสิ่งมีชีวิต นิเวศ พืช) · เล่ม 3 Systemata Corporis Humani (ระบบในร่างกายมนุษย์ครบทุกระบบ และพฤติกรรมสัตว์)\n' +
+      '3) ตะลุยโจทย์ Examinophobia 26 ตอน — ไล่ข้อสอบคัดเลือกย้อนหลัง 8 ปี แยกตามเรื่อง พร้อมเฉลยและเทคนิคคิด\n\n' +
+      'ทุกบทมีเฉลยการบ้านและเฉลยข้อสอบท้ายเรื่อง ดูซ้ำได้ไม่จำกัด ไม่มีวันหมดอายุ',
+    highlights: 'ปูพื้นฐาน 6 ชั่วโมง แถมฟรีในคอร์ส\nเนื้อหาครบ 3 เล่ม POSN BOOK I–III รวม 70 ตอน\nตะลุยข้อสอบคัดเลือกย้อนหลัง 8 ปี (Examinophobia) 26 ตอน\nเฉลยการบ้านและเฉลยข้อสอบท้ายทุกเรื่อง\nรวมกว่า 80 ชั่วโมง ดูซ้ำได้ไม่จำกัด ไม่มีวันหมดอายุ',
+    audience: 'น้อง ม.3–ม.5 ที่จะสอบคัดเลือกค่าย 1 สอวน. ชีววิทยา\nคนที่ยังไม่มีพื้นฐานชีวะเชิงลึก เริ่มจากปูพื้นฐานได้เลย\nคนที่อ่านเองมาแล้ว อยากเก็บเนื้อหาให้ครบและฝึกข้อสอบจริง\nน้องที่เตรียม A-Level ชีววิทยา ใช้ทบทวนเนื้อหาได้',
+    instructor_name: 'พี่พร้อม', instructor_title: 'ภวัต เศรษฐเสถียร', photo: 'pprom.webp',
+    instructor_bio: 'นักศึกษาคณะวิศวกรรมศาสตร์ สาขาหุ่นยนต์และปัญญาประดิษฐ์ มหาวิทยาลัยเชียงใหม่\nสอวน. ชีววิทยา ศูนย์มหาวิทยาลัยนเรศวร\nนักเรียนดีเด่น GPAX 4.00 (2566) และ GPAX 3.94 (2567)\nเหรียญเงินการแข่งขันหุ่นยนต์ระดับอาเซียน\nเหรียญทองการแข่งขันหุ่นยนต์บังคับมือระดับภูมิภาค\nตัวจริงคณะวิศวกรรมศาสตร์ สาขาชีวการแพทย์ สถาบันเทคโนโลยีพระจอมเกล้าเจ้าคุณทหารลาดกระบัง\nตัวจริงคณะวิทยาศาสตร์ สาขาชีววิทยา มหาวิทยาลัยนเรศวร\nติดคณะเทคนิคการแพทย์ มหาวิทยาลัยพะเยา',
+    faq: 'ต้องมีพื้นฐานชีวะมาก่อนไหม\nไม่ต้อง เริ่มจากส่วนปูพื้นฐาน 6 ชั่วโมงก่อน แล้วค่อยเข้าเนื้อหาเล่ม 1\n\nควรเรียนตามลำดับไหม\nแนะนำให้เรียนตามลำดับ ปูพื้นฐาน → เล่ม 1 → เล่ม 2 → เล่ม 3 → ตะลุยโจทย์ เพราะเรื่องหลังใช้ความรู้จากเรื่องก่อน\n\nข้อสอบที่ใช้ตะลุยเป็นข้อสอบอะไร\nข้อสอบคัดเลือกค่าย 1 สอวน. ย้อนหลัง 8 ปี แยกตามเรื่อง พร้อมเฉลย\n\nเรียนทันก่อนสอบไหม\nเนื้อหากว่า 80 ชั่วโมง ถ้าเรียนวันละ 1 ชั่วโมงใช้ประมาณ 3 เดือน เร่งความเร็วคลิปได้ถึง 2 เท่า' },
+  'CHEM-POSN': { subject: 'chem', level: 'สอวน.', price: '690', title: 'เคมี สอวน. ค่าย 1',
+    subtitle: 'Concepts of Chemistry 3 Part ครบ กระชับ ใช้ได้จริง',
+    description: 'คอร์สเตรียมสอบคัดเลือกค่าย 1 สอวน. สาขาเคมี เรียงเนื้อหาตามหนังสือ Concepts of Chemistry 3 Part\n\n' +
+      'Part 1 — ปรับพื้นฐานเคมี · Safety and Laboratory Skill · Atomic Structure · Periodic Table\n' +
+      'Part 2 — Basic Chemical Bond · Advanced Chemical Bond (พันธะโลหะ พันธะไอออนิก พันธะโคเวเลนต์)\n' +
+      'Part 3 — Basic Stoichiometry · Solution · Advanced Stoichiometry · Gases\n\n' +
+      'มีเนื้อหาที่เกินหลักสูตร สสวท. และเนื้อหาค่าย 1 หรือค่าย 2 บางเรื่อง โดยอ้างอิงจากข้อสอบโอลิมปิกปี 60–68 เพื่อให้น้องเจอโจทย์จริงแล้วไม่ตกใจ',
+    highlights: 'ครบ 3 Part: พื้นฐานและอะตอม · พันธะเคมี · ปริมาณสัมพันธ์ สารละลาย แก๊ส\nมีทักษะปฏิบัติการและความปลอดภัยในแล็บ\nอ้างอิงข้อสอบโอลิมปิกปี 60–68\nมีเนื้อหาเกินหลักสูตรที่ออกสอบค่าย\nดูซ้ำได้ไม่จำกัด ไม่มีวันหมดอายุ',
+    audience: 'น้อง ม.3–ม.5 ที่จะสอบคัดเลือกค่าย 1 สอวน. เคมี\nคนที่อยากปูพื้นเคมีให้แน่นก่อนเรียนในโรงเรียน\nคนที่เตรียม TBAT, CU-ATS หรือ A-Level เคมี',
+    instructor_name: 'พี่หมีลี่', instructor_title: 'วรานนท์ เพียรพัฒนรัฐ', photo: 'pmeelee.webp',
+    instructor_bio: 'สอวน. เคมี ค่าย 2 ศูนย์มหาวิทยาลัยนเรศวร (2567)\nสำรองผู้แทนศูนย์ สอวน. เคมี ศูนย์มหาวิทยาลัยนเรศวร ลำดับที่ 1\nTBAT Chemistry 730 · TBAT Physics 650\nCU-ATS Chemistry 690\nA-Level เคมี 87.50 · A-Level ชีววิทยา 88.0\nมีประสบการณ์ทำงานในห้องปฏิบัติการและการแข่งขันงานวิจัยระดับชาติ ใช้และวิเคราะห์ข้อมูลจากเครื่องมือขั้นสูง เช่น NMR, IR และ LC-MS',
+    faq: 'เนื้อหาเกินหลักสูตรโรงเรียนไหม\nมีบางเรื่องที่เกินหลักสูตร สสวท. และเนื้อหาค่าย 1 หรือค่าย 2 อ้างอิงจากข้อสอบโอลิมปิกปี 60–68\n\nต้องมีพื้นฐานเคมีไหม\nไม่ต้อง Part 1 เริ่มจากปรับพื้นฐานเคมีก่อน\n\nใช้เตรียม TBAT หรือ A-Level ได้ไหม\nได้ เนื้อหาพื้นฐาน พันธะ และปริมาณสัมพันธ์เป็นแกนของข้อสอบเหล่านี้' },
+  'PHYS-ALEVEL': { subject: 'phys', level: 'A-Level', price: '990', title: 'A-Level Physics',
+    subtitle: 'คอร์สเดียว 5 เล่ม ครบฟิสิกส์ ม.ปลาย สอนโดยพี่หมอซัน',
+    description: 'คอร์สฟิสิกส์ ม.ปลาย ครบทั้ง 5 เล่ม ปูตั้งแต่พื้นฐานจนพร้อมสอบ A-Level\n\n' +
+      'เล่ม 1 The Mechanics — กลศาสตร์ การเคลื่อนที่ แรง งานและพลังงาน\n' +
+      'เล่ม 2 The Oscillation — การสั่น คลื่น เสียง และแสง\n' +
+      'เล่ม 3 The Electromagnetism — ไฟฟ้าสถิต วงจรไฟฟ้า แม่เหล็ก และการเหนี่ยวนำ\n' +
+      'เล่ม 4 The Thermodynamics — ของแข็ง ของไหล ความร้อน และแก๊ส\n' +
+      'เล่ม 5 The Modern Physics — ฟิสิกส์ยุคใหม่ อะตอม และนิวเคลียร์\n\n' +
+      'อธิบายแนวคิดก่อนสูตร แล้วตามด้วยโจทย์ที่อ้างอิงแนวข้อสอบ A-Level, PAT และหนังสือ สสวท. ไม่มีพื้นฐานก็เริ่มเรียนได้',
+    highlights: 'ครบ 5 เล่ม: กลศาสตร์ · การสั่น คลื่น แสง · ไฟฟ้าและแม่เหล็ก · ความร้อน · ฟิสิกส์ยุคใหม่\nไม่ต้องมีพื้นฐานก็เรียนได้\nอ้างอิงแนวข้อสอบ A-Level, PAT และหนังสือ สสวท.\nดูได้ทั้งมือถือและคอม ดูซ้ำได้ไม่จำกัด',
+    audience: 'นักเรียน ม.4–ม.6 ที่อยากเข้าใจฟิสิกส์ตั้งแต่พื้นฐาน\nคนที่เตรียมสอบ A-Level ฟิสิกส์\nน้อง ม.ต้น ที่อยากเรียนล่วงหน้า',
+    instructor_name: 'พี่หมอซัน', instructor_title: 'น.พ. อนันดา พงษ์สุราช', photo: 'pmorsun.webp', instructor_bio: '',
+    faq: 'ไม่มีพื้นฐานฟิสิกส์เรียนได้ไหม\nได้ แต่ละเล่มเริ่มจากแนวคิดพื้นฐานก่อนเข้าสูตรและโจทย์\n\nควรเริ่มจากเล่มไหน\nแนะนำเริ่มจากเล่ม 1 กลศาสตร์ เพราะเป็นพื้นของทุกเล่ม' }
+};
+function setupCourses(baseUrl, overwrite) {
+  baseUrl = baseUrl || 'https://ineedbio.shop/images/courses/';
+  var done = [];
+  withLock_(function () {
+    ensureCols_('Courses');
+    Object.keys(COURSE_COPY).forEach(function (id, i) {
+      var c = COURSE_COPY[id], row = findOne_('Courses', function (r) { return r.course_id === id; });
+      var data = { subject: c.subject, level: c.level, title: c.title, subtitle: c.subtitle, description: c.description, highlights: c.highlights, audience: c.audience,
+        instructor_name: c.instructor_name, instructor_title: c.instructor_title, instructor_bio: c.instructor_bio, instructor_photo: c.photo ? baseUrl + c.photo : '', faq: c.faq,
+        cover_url: baseUrl + id.toLowerCase() + '.webp' };
+      if (id === 'PHYS-ALEVEL') data.cover_url = baseUrl + 'phys-alevel-cover.webp';
+      if (!row) {
+        data.course_id = id; data.price = c.price; data.status = 'draft'; data.sort_order = String((i + 1) * 10); data.created_at = now_();
+        append_('Courses', data); done.push(id + ' (สร้างใหม่)'); return;
+      }
+      var patch = {};
+      Object.keys(data).forEach(function (k) { if (!row[k] || (overwrite && k !== 'cover_url' && k !== 'instructor_photo')) patch[k] = data[k]; });
+      if (Object.keys(patch).length) { update_('Courses', row._row, patch); done.push(id + ' (' + Object.keys(patch).length + ' ช่อง)'); }
+    });
+  });
+  var math = setupMathCourses(baseUrl);
+  cache_().remove('pub_courses'); cache_().remove('pub_bundles');
+  console.log('อัปเดต: ' + (done.join(', ') || 'ไม่มี') + (math.length ? ' · คณิต: ' + math.join(', ') : ''));
+  return done;
+}
+
+/**
  * สร้างคอร์สคณิตแยกเทอม ม.4–ม.6 (6 คอร์ส เทอมละ 490) + แพ็กเกจ (ม.ละ 690, ครบ 3 ม. 1890)
  * รันครั้งเดียวใน editor: setupMathCourses()  — คอร์สที่มีรหัสอยู่แล้วจะข้าม ไม่เขียนทับ
  * คอร์สที่สร้างใหม่เป็น "ฉบับร่าง" ใส่คลิปแล้วค่อยเปลี่ยนเป็น "เปิดขาย" ในหลังบ้าน
@@ -885,8 +977,8 @@ function adminBundleDelete_(d, p, admin) {
 function setupMathCourses(baseUrl) {
   baseUrl = baseUrl || 'https://ineedbio.shop/images/courses/';
   var T = [
-    ['MATH-M4-T1', 'ม.4', 1, 'เซต · ตรรกศาสตร์ · จำนวนจริง', ['เซต', 'ตรรกศาสตร์', 'จำนวนจริง']],
-    ['MATH-M4-T2', 'ม.4', 2, 'ความสัมพันธ์และฟังก์ชัน · เอกซ์โพเนนเชียลและลอการิทึม', ['ความสัมพันธ์และฟังก์ชัน', 'ฟังก์ชันเอกซ์โพเนนเชียลและฟังก์ชันลอการิทึม']],
+    ['MATH-M4-T1', 'ม.4', 1, 'เซต · ตรรกศาสตร์ · จำนวนจริง', ['เซต', 'ตรรกศาสตร์', 'จำนวนจริงและพหุนาม']],
+    ['MATH-M4-T2', 'ม.4', 2, 'ฟังก์ชัน · เอกซ์โพเนนเชียลและลอการิทึม · ภาคตัดกรวย', ['ความสัมพันธ์และฟังก์ชัน', 'ฟังก์ชันเอกซ์โพเนนเชียลและฟังก์ชันลอการิทึม', 'เรขาคณิตวิเคราะห์และภาคตัดกรวย']],
     ['MATH-M5-T1', 'ม.5', 1, 'ฟังก์ชันตรีโกณมิติ · เมทริกซ์ · เวกเตอร์', ['ฟังก์ชันตรีโกณมิติ', 'เมทริกซ์', 'เวกเตอร์']],
     ['MATH-M5-T2', 'ม.5', 2, 'จำนวนเชิงซ้อน · หลักการนับเบื้องต้น · ความน่าจะเป็น', ['จำนวนเชิงซ้อน', 'หลักการนับเบื้องต้น', 'ความน่าจะเป็น']],
     ['MATH-M6-T1', 'ม.6', 1, 'ลำดับและอนุกรม · แคลคูลัสเบื้องต้น', ['ลำดับและอนุกรม', 'แคลคูลัสเบื้องต้น']],
@@ -895,10 +987,19 @@ function setupMathCourses(baseUrl) {
   var made = [];
   withLock_(function () {
     ['Courses', 'Bundles'].forEach(ensureCols_);
+    // หัวข้อเดิม (ม.4 เทอม 2 ยังไม่มีภาคตัดกรวย): ถ้ายังไม่เคยแก้เอง อัปเดตให้ตรงหลักสูตร สสวท.
+    var OLD = { 'MATH-M4-T2': 'ความสัมพันธ์และฟังก์ชัน · เอกซ์โพเนนเชียลและลอการิทึม' };
     T.forEach(function (t, i) {
-      if (findOne_('Courses', function (r) { return r.course_id === t[0]; })) return;
+      var ex = findOne_('Courses', function (r) { return r.course_id === t[0]; });
+      if (ex && OLD[t[0]] && ex.subtitle === OLD[t[0]]) {
+        update_('Courses', ex._row, { subtitle: t[3], description: String(ex.description || '').replace(/เรียนเรื่อง [^\n]*/, 'เรียนเรื่อง ' + t[4].join(' ')),
+          highlights: t[4].map(function (x) { return 'ครบบท ' + x; }).concat(['ซื้อคู่ 2 เทอมของชั้นเดียวกัน เหลือ 690']).join('\n') });
+        made.push(t[0] + ' (อัปเดตหัวข้อ)');
+      }
+      if (ex) return;
       append_('Courses', { course_id: t[0], subject: 'math', title: 'คณิต ' + t[1] + ' เทอม ' + t[2], subtitle: t[3],
-        description: 'คณิตศาสตร์ ' + t[1] + ' เทอม ' + t[2] + ' เรียนตามหลักสูตรโรงเรียน ปูพื้นให้แน่นแล้วฝึกโจทย์ทุกบท ใช้เก็บเกรดและต่อยอดสอบ A-Level ได้',
+        description: 'คณิตศาสตร์ ' + t[1] + ' เทอม ' + t[2] + ' ตามหลักสูตรโรงเรียน เรียนเรื่อง ' + t[4].join(' ') + '\n\nแต่ละบทเริ่มจากแนวคิดและนิยาม ตามด้วยตัวอย่างทีละระดับ แล้วปิดด้วยโจทย์ฝึกแนวข้อสอบในโรงเรียน ใช้เรียนล่วงหน้า ทบทวนก่อนสอบกลางภาคและปลายภาค และปูพื้นต่อไปสอบ A-Level\n\nซื้อคู่เทอม 1 และเทอม 2 ของชั้นเดียวกันเหลือ 690 หรือครบ ม.4–ม.6 ทั้ง 6 เทอม 1,890',
+        faq: 'ต้องเรียนเทอม 1 ก่อนเทอม 2 ไหม\nแนะนำให้เรียนตามลำดับ แต่ถ้าเคยเรียนเทอม 1 ในโรงเรียนแล้ว เริ่มเทอม 2 ได้เลย\n\nซื้อเทอม 1 ไปแล้ว อยากซื้อเทอม 2 ต่อ\nใส่เทอม 2 ลงตะกร้า ระบบคิดราคาแพ็กเกจทั้งปีแล้วหักยอดที่จ่ายไป จ่ายแค่ส่วนต่าง 200 บาท',
         cover_url: baseUrl + 'math-' + t[0].slice(5).toLowerCase() + '.webp', price: '490', status: 'draft', sort_order: String(100 + i), created_at: now_(),
         highlights: t[4].map(function (x) { return 'ครบบท ' + x; }).concat(['ซื้อคู่ 2 เทอมของชั้นเดียวกัน เหลือ 690']).join('\n'),
         audience: 'นักเรียน ' + t[1] + ' ที่อยากเข้าใจเนื้อหาเทอมนี้ให้ครบ\nคนที่อยากทบทวนก่อนสอบกลางภาคและปลายภาค\nคนที่ปูพื้นเพื่อสอบ A-Level คณิต',
@@ -953,7 +1054,7 @@ function adminBills_(d) {
     var u = users.filter(function (x) { return x.user_id === b.user_id; })[0] || {};
     var o = billPublic_(b), acc = jsonParse_(b.account, {});
     o.account_label = acc.label || ''; o.user_id = b.user_id;
-    o.name = (u.first_name || '') + ' ' + (u.last_name || ''); o.nickname = u.nickname || ''; o.email = u.email || ''; o.phone = u.phone || '';
+    o.name = (u.first_name || '') + ' ' + (u.last_name || ''); o.nickname = u.nickname || ''; o.email = u.email || ''; o.phone = u.phone || ''; o.has_photo = !!u.photo_file_id;
     o.checks = billChecks_(b, u);
     return o;
   });
@@ -993,17 +1094,79 @@ function adminBillDecide_(d, p, admin) {
   if (u) sendBillEmail_(u, b, decision, note);
   return { bill_id: b.bill_id, status: decision };
 }
+function siteUrl_() { return String(getSetting_('site_url') || 'https://ineedbio.shop').replace(/\/+$/, ''); }
+function bahtTxt_(n) { return '฿' + Number(n || 0).toLocaleString('en-US'); }
+function thDateTxt_(iso) {
+  var d = new Date(iso); if (isNaN(d)) return '';
+  var M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  var t = new Date(d.getTime() + 7 * 36e5); // เวลาไทย
+  return t.getUTCDate() + ' ' + M[t.getUTCMonth()] + ' ' + (t.getUTCFullYear() + 543) + ' ' + ('0' + t.getUTCHours()).slice(-2) + ':' + ('0' + t.getUTCMinutes()).slice(-2) + ' น.';
+}
+function mailBtn_(href, label) {
+  return '<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 0;"><tr><td style="border-radius:999px;background:#1f7a4d;"><a href="' + esc_(href) + '" style="display:inline-block;padding:12px 26px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:999px;">' + esc_(label) + '</a></td></tr></table>';
+}
+function mailRows_(items) {
+  return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">' + items.map(function (i) {
+    return '<tr><td style="padding:7px 0;color:#0c0c0c;border-bottom:1px dashed #e6e6e4;">' + esc_(i.title) + (i.bundle ? '<br><span style="font-size:12px;color:#1f7a4d;">แพ็กเกจ ' + esc_(i.bundle) + '</span>' : '') + '</td>' +
+      '<td align="right" style="padding:7px 0;color:#0c0c0c;border-bottom:1px dashed #e6e6e4;white-space:nowrap;vertical-align:top;">' + (i.discount ? '<span style="color:#8a8a8a;text-decoration:line-through;font-size:12px;">' + bahtTxt_(i.price) + '</span> ' : '') + bahtTxt_(i.net != null ? i.net : i.price) + '</td></tr>';
+  }).join('') + '</table>';
+}
+/** อีเมลยืนยันคำสั่งซื้อ: บิล ยอดโอน เลขบัญชี กำหนดชำระ และขั้นตอนต่อไป */
+function sendOrderEmail_(u, res) {
+  if (MailApp.getRemainingDailyQuota() < 1) return;
+  var bills = read_('Bills').filter(function (b) { return b.order_id === res.order_id; }).sort(function (a, b) { return a.bill_id < b.bill_id ? -1 : 1; });
+  if (!bills.length) return;
+  var ig = getSetting_('contact_ig') || 'ineedbiochem', link = siteUrl_() + '/#/orders/' + encodeURIComponent(res.order_id);
+  var open = bills.filter(function (b) { return b.status === 'awaiting_payment'; });
+  var billBox = function (b, i) {
+    var acc = (jsonParse_(b.account, {}) || {}).pub || {}, items = jsonParse_(b.items, []), paid = b.status === 'approved';
+    var accRows = acc.method === 'bank'
+      ? [['ธนาคาร', acc.bank], ['เลขบัญชี', acc.account_no], ['ชื่อบัญชี', acc.account_name]]
+      : [['พร้อมเพย์', acc.promptpay_id], ['ชื่อบัญชี', acc.account_name]];
+    return '<tr><td style="padding:0 32px 16px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e6e4;border-radius:14px;">' +
+      '<tr><td style="padding:14px 16px 4px;"><span style="font-size:12px;color:#8a8a8a;">' + (bills.length > 1 ? 'บิลที่ ' + (i + 1) + ' จาก ' + bills.length + ' · ' : '') + esc_(b.bill_id) + '</span></td></tr>' +
+      '<tr><td style="padding:0 16px 6px;">' + mailRows_(items) + '</td></tr>' +
+      '<tr><td style="padding:6px 16px 12px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="font-size:14px;color:#525252;">' + (paid ? 'ยอด 0 บาท เปิดสิทธิ์แล้ว' : 'ยอดที่ต้องโอน') + '</td><td align="right" style="font-size:22px;font-weight:700;color:#0c0c0c;">' + bahtTxt_(b.total) + '</td></tr></table></td></tr>' +
+      (paid ? '' : '<tr><td style="padding:0 16px 14px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f4;border-radius:10px;font-size:14px;">' +
+        accRows.map(function (r) { return '<tr><td style="padding:8px 12px;color:#8a8a8a;width:90px;">' + r[0] + '</td><td style="padding:8px 12px;color:#0c0c0c;font-weight:600;">' + esc_(r[1] || '-') + '</td></tr>'; }).join('') +
+        '</table><p style="margin:10px 0 0;font-size:13px;color:#8a5a00;">โอนเข้าบัญชีนี้เท่านั้น · ชำระภายใน ' + esc_(thDateTxt_(b.expires_at)) + '</p></td></tr>') +
+      '</table></td></tr>';
+  };
+  var inner = '<tr><td style="padding:0 32px 18px;"><p style="margin:0;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc_(u.nickname) + '<br>' +
+      (open.length ? 'ได้รับคำสั่งซื้อ <b style="color:#0c0c0c;">' + esc_(res.order_id) + '</b> แล้ว ' + (open.length > 1 ? 'คำสั่งซื้อนี้มี ' + open.length + ' บิลเพราะรับเงินคนละบัญชี กรุณาโอนแยกตามบิล' : 'โอนเงินตามยอดด้านล่างได้เลย') : 'คำสั่งซื้อ <b style="color:#0c0c0c;">' + esc_(res.order_id) + '</b> เรียบร้อย เข้าเรียนได้ทันที') + '</p></td></tr>' +
+    bills.map(billBox).join('') +
+    (res.discount ? '<tr><td style="padding:0 32px 12px;font-size:13px;color:#1f7a4d;">ประหยัดไป ' + bahtTxt_(res.discount) + (res.coupon ? ' (รวมโค้ด ' + esc_(res.coupon) + ')' : '') + '</td></tr>' : '') +
+    (open.length ? '<tr><td style="padding:4px 32px 8px;"><p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#0c0c0c;">ขั้นตอนต่อไป</p>' +
+      '<ol style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;color:#525252;"><li>โอนเงินตามยอดของแต่ละบิล</li><li>แนบสลิปและกรอกข้อมูลการโอนในหน้าคำสั่งซื้อ</li><li>แจ้งการชำระเงินทาง IG @' + esc_(ig) + ' อีกครั้ง</li><li>แอดมินตรวจยอดแล้วเปิดสิทธิ์ ระบบส่งอีเมลแจ้ง</li></ol></td></tr>' : '') +
+    '<tr><td style="padding:10px 32px 26px;">' + mailBtn_(open.length ? link : siteUrl_() + '/#/my', open.length ? 'ไปหน้าชำระเงิน' : 'เข้าห้องเรียน') +
+    (open.length ? '<p style="margin:14px 0 0;font-size:12.5px;line-height:1.7;color:#8a8a8a;">ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว · INeedBio ไม่รับผิดชอบการโอนเข้าบัญชีอื่นที่ไม่ได้แสดงในบิล</p>' : '') + '</td></tr>';
+  var total = bills.reduce(function (a, b) { return a + (b.status === 'awaiting_payment' ? Number(b.total) || 0 : 0); }, 0);
+  MailApp.sendEmail({ to: u.email, name: APP.NAME,
+    subject: open.length ? 'ได้รับคำสั่งซื้อ ' + res.order_id + ' · รอชำระ ' + bahtTxt_(total) : 'คำสั่งซื้อ ' + res.order_id + ' สำเร็จ · เข้าเรียนได้แล้ว',
+    body: 'คำสั่งซื้อ ' + res.order_id + (open.length ? ' รอชำระเงิน ' + bahtTxt_(total) + ' ดูเลขบัญชีและชำระเงินที่ ' + link : ' สำเร็จ'),
+    htmlBody: mailShell_(open.length ? 'ได้รับคำสั่งซื้อแล้ว' : 'สั่งซื้อสำเร็จ', inner) });
+}
+/** อีเมลผลตรวจบิล: อนุมัติ = ใบเสร็จ + ปุ่มเข้าห้องเรียน · ไม่อนุมัติ = เหตุผล + ปุ่มส่งหลักฐานใหม่ */
 function sendBillEmail_(u, b, decision, note) {
   if (MailApp.getRemainingDailyQuota() < 1) return;
-  var ok = decision === 'approved', items = jsonParse_(b.items, []);
-  var list = '<ul style="margin:0 0 14px;padding-left:18px;color:#0c0c0c;">' + items.map(function (i) { return '<li style="margin:4px 0;">' + esc_(i.title) + '</li>'; }).join('') + '</ul>';
-  var inner = '<tr><td style="padding:0 32px 26px;"><p style="margin:0 0 12px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc_(u.nickname) + '<br>' +
-    (ok ? 'แอดมินตรวจยอดเงินบิล <b style="color:#0c0c0c;">' + esc_(b.bill_id) + '</b> แล้ว เข้าเรียนคอร์สเหล่านี้ได้เลยที่เมนู “คอร์สของฉัน”' : 'หลักฐานการโอนของบิล <b style="color:#0c0c0c;">' + esc_(b.bill_id) + '</b> ยังไม่ผ่านการตรวจ') + '</p>' + list +
-    (!ok && note ? '<p style="margin:0 0 14px;padding:12px 14px;background:#fafafa;border-radius:10px;font-size:14px;color:#0c0c0c;">เหตุผล: ' + esc_(note) + '</p>' : '') +
-    (!ok ? '<p style="margin:0;font-size:14px;color:#525252;">แก้ไขแล้วส่งหลักฐานใหม่ได้ที่หน้า “คำสั่งซื้อ” หรือทัก IG แอดมินเพื่อสอบถาม</p>' : '') + '</td></tr>';
-  MailApp.sendEmail({ to: u.email, name: APP.NAME, subject: ok ? 'เข้าเรียนได้แล้ว · บิล ' + b.bill_id : 'หลักฐานการโอนยังไม่ผ่าน · บิล ' + b.bill_id,
-    body: (ok ? 'เข้าเรียนได้แล้ว: ' : 'หลักฐานการโอนยังไม่ผ่าน: ') + items.map(function (i) { return i.title; }).join(', ') + (note ? '\nเหตุผล: ' + note : ''),
-    htmlBody: mailShell_(ok ? 'เข้าเรียนได้แล้ว' : 'หลักฐานการโอนยังไม่ผ่าน', inner) });
+  var ok = decision === 'approved', items = jsonParse_(b.items, []), pr = jsonParse_(b.proof, {}) || {};
+  var acc = ((jsonParse_(b.account, {}) || {}).pub) || {};
+  var meta = [['เลขบิล', b.bill_id], ['วันที่ชำระ', pr.paid_at ? thDateTxt_(pr.paid_at) : thDateTxt_(now_())], ['ชำระเข้า', acc.method === 'bank' ? (acc.bank + ' · ' + acc.account_name) : ('พร้อมเพย์ · ' + (acc.account_name || ''))]];
+  var inner = ok
+    ? '<tr><td style="padding:0 32px 16px;"><p style="margin:0;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc_(u.nickname) + '<br>แอดมินตรวจยอดเงินเรียบร้อย ตอนนี้เข้าเรียนได้เลย</p></td></tr>' +
+      '<tr><td style="padding:0 32px 16px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e6e4;border-radius:14px;">' +
+      '<tr><td style="padding:14px 16px 2px;"><span style="display:inline-block;padding:3px 10px;border-radius:999px;background:#e7f3ec;color:#1f7a4d;font-size:12px;font-weight:600;">ชำระเงินแล้ว</span></td></tr>' +
+      '<tr><td style="padding:8px 16px 4px;">' + mailRows_(items) + '</td></tr>' +
+      '<tr><td style="padding:6px 16px 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="font-size:14px;color:#525252;">ยอดชำระ</td><td align="right" style="font-size:22px;font-weight:700;color:#0c0c0c;">' + bahtTxt_(b.total) + '</td></tr></table></td></tr>' +
+      '<tr><td style="padding:0 16px 14px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;background:#f5f5f4;border-radius:10px;">' + meta.map(function (r) { return '<tr><td style="padding:7px 12px;color:#8a8a8a;width:90px;">' + r[0] + '</td><td style="padding:7px 12px;color:#0c0c0c;">' + esc_(r[1]) + '</td></tr>'; }).join('') + '</table></td></tr></table></td></tr>' +
+      '<tr><td style="padding:0 32px 26px;">' + mailBtn_(siteUrl_() + (items.length === 1 ? '/#/learn/' + encodeURIComponent(items[0].course_id) : '/#/my'), 'เข้าห้องเรียน') +
+      '<p style="margin:14px 0 0;font-size:12.5px;line-height:1.7;color:#8a8a8a;">บัญชีหนึ่งใช้ได้ครั้งละ 1 เครื่อง ดูได้ตลอด ไม่มีวันหมดอายุ · เก็บอีเมลนี้ไว้เป็นหลักฐานการชำระเงิน</p></td></tr>'
+    : '<tr><td style="padding:0 32px 16px;"><p style="margin:0 0 12px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc_(u.nickname) + '<br>หลักฐานการโอนของบิล <b style="color:#0c0c0c;">' + esc_(b.bill_id) + '</b> ยังไม่ผ่านการตรวจ</p>' +
+      (note ? '<p style="margin:0 0 14px;padding:12px 14px;background:#fbe8e6;border-radius:10px;font-size:14px;color:#a3261e;">เหตุผล: ' + esc_(note) + '</p>' : '') + mailRows_(items) + '</td></tr>' +
+      '<tr><td style="padding:0 32px 26px;">' + mailBtn_(siteUrl_() + '/#/orders/' + encodeURIComponent(b.order_id), 'แก้ไขและส่งหลักฐานใหม่') + '<p style="margin:14px 0 0;font-size:13px;color:#525252;">สงสัยตรงไหน ทัก IG แอดมินได้เลย</p></td></tr>';
+  MailApp.sendEmail({ to: u.email, name: APP.NAME, subject: ok ? 'ชำระเงินสำเร็จ · เข้าเรียนได้แล้ว (' + b.bill_id + ')' : 'หลักฐานการโอนยังไม่ผ่าน · บิล ' + b.bill_id,
+    body: (ok ? 'ชำระเงินสำเร็จ เข้าเรียนได้แล้ว: ' : 'หลักฐานการโอนยังไม่ผ่าน: ') + items.map(function (i) { return i.title; }).join(', ') + (note ? '\nเหตุผล: ' + note : ''),
+    htmlBody: mailShell_(ok ? 'ชำระเงินสำเร็จ' : 'หลักฐานการโอนยังไม่ผ่าน', inner) });
 }
 
 // ── แอดมิน: บัญชีรับเงิน ──
@@ -1331,7 +1494,7 @@ function adminUsers_(d) {
   var q = String(d.q || '').trim().toLowerCase();
   var en = read_('Enrollments'), ses = read_('Sessions'), courses = read_('Courses');
   return read_('Users').filter(function (u) {
-    return !q || [u.email, u.first_name, u.last_name, u.nickname, u.phone, u.school].join(' ').toLowerCase().indexOf(q) >= 0;
+    return !q || [u.email, u.first_name, u.last_name, u.nickname, u.phone, u.school, u.facebook, u.instagram, u.line_id].join(' ').toLowerCase().indexOf(q) >= 0;
   }).sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 100).map(function (u) {
     var s = ses.filter(function (x) { return x.user_id === u.user_id; })[0];
     var cs = en.filter(function (e) { return e.user_id === u.user_id && e.status === 'approved'; }).map(function (e) {
@@ -1613,11 +1776,49 @@ function goals_(d, out) {
   } else { out.current_faculty = ''; out.current_university = ''; }
   return out;
 }
+/** วันเกิด (บังคับ) + ช่องทางติดต่อ Facebook / IG / LINE (อย่างน้อย 1 ช่องทาง) */
+function contacts_(d, out) {
+  var bd = String(d.birthday || '').trim();
+  if (!bd) throw err_('BAD_INPUT', 'กรอกวันเดือนปีเกิด');
+  var m = bd.match(/^(\d{4})-(\d{2})-(\d{2})$/), t = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
+  if (!t || t.getUTCDate() !== +m[3]) throw err_('BAD_INPUT', 'วันเดือนปีเกิดไม่ถูกต้อง');
+  var age = (Date.now() - t.getTime()) / 31557600000;
+  if (age < 7 || age > 90) throw err_('BAD_INPUT', 'ตรวจปีเกิดอีกครั้ง (ใช้ปี พ.ศ.)');
+  out.birthday = bd;
+  out.facebook = clip_(d.facebook, 120); out.instagram = clip_(String(d.instagram || '').replace(/^@/, ''), 60); out.line_id = clip_(String(d.line_id || '').replace(/^@(?=\w)/, ''), 60);
+  if (!out.facebook && !out.instagram && !out.line_id) throw err_('BAD_INPUT', 'กรอกช่องทางติดต่ออย่างน้อย 1 ช่องทาง (Facebook, IG หรือ LINE)');
+  return out;
+}
 function publicUser_(u) {
   return { user_id: u.user_id, email: u.email, first_name: u.first_name, last_name: u.last_name, nickname: u.nickname,
     school: u.school, grade: u.grade, phone: u.phone, role: u.role, status: u.status, created_at: u.created_at,
     current_faculty: u.current_faculty || '', current_university: u.current_university || '', dream_faculty: u.dream_faculty || '', dream_university: u.dream_university || '',
-    is_repeat: isRepeat_(u.grade), terms_version: u.terms_version || '' };
+    is_repeat: isRepeat_(u.grade), terms_version: u.terms_version || '',
+    birthday: u.birthday || '', facebook: u.facebook || '', instagram: u.instagram || '', line_id: u.line_id || '',
+    has_photo: !!u.photo_file_id, data_consent: !!u.data_consent_at };
+}
+// ── รูปถ่ายผู้เรียน: เก็บในโฟลเดอร์ส่วนตัว (โฟลเดอร์เดียวกับสลิป) เห็นเฉพาะเจ้าของและแอดมิน ──
+function checkPhoto_(ph, required) {
+  if (!ph || !ph.base64) { if (required) throw err_('BAD_INPUT', 'ใส่รูปของน้องด้วย (รูปไหนก็ได้ ขอแค่เป็นรูปน้องเอง)'); return false; }
+  if (!/^image\/(jpeg|png|webp)$/.test(ph.mime || '')) throw err_('BAD_INPUT', 'รูปถ่ายต้องเป็นไฟล์ JPG หรือ PNG');
+  if (String(ph.base64).length * 0.75 > APP.PHOTO_MAX_BYTES) throw err_('BAD_INPUT', 'รูปถ่ายใหญ่เกิน 1 MB ลองเลือกรูปใหม่');
+  return true;
+}
+function savePhoto_(ph, who) {
+  var folder = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('SLIP_FOLDER_ID'));
+  var ext = ph.mime === 'image/png' ? 'png' : ph.mime === 'image/webp' ? 'webp' : 'jpg';
+  return folder.createFile(Utilities.newBlob(Utilities.base64Decode(ph.base64), ph.mime, 'photo_' + String(who).replace(/[^\w.@-]/g, '_') + '_' + id_() + '.' + ext)).getId();
+}
+function photoOut_(fid) {
+  if (!fid) return null;
+  var blob = DriveApp.getFileById(fid).getBlob();
+  return { mime: blob.getContentType(), base64: Utilities.base64Encode(blob.getBytes()) };
+}
+function myPhoto_(d, p) { return photoOut_(auth_(p).photo_file_id); }
+function adminUserPhoto_(d) {
+  var u = findOne_('Users', function (r) { return r.user_id === d.user_id; });
+  if (!u) throw err_('NOT_FOUND', 'ไม่พบผู้ใช้');
+  return photoOut_(u.photo_file_id);
 }
 function latestEnroll_(uid, cid) {
   return read_('Enrollments').filter(function (e) { return e.user_id === uid && e.course_id === cid; })

@@ -5,7 +5,7 @@
 import crypto from "crypto";
 import type { Bill, Bundle, PayAccount, Prisma, User } from "@prisma/client";
 import { prisma } from "../prisma";
-import { sendBillEmail, notifyAdmins } from "./mail";
+import { sendBillEmail, sendOrderEmail, notifyAdmins, type MailBill } from "./mail";
 import { subjectKey } from "./subjects";
 import {
   auth, activate, adminEmails, chapters, courseBySlug, courseCard, courseInclude, getSetting, ig, log, rate,
@@ -306,7 +306,19 @@ export async function orderCreate(d: Data, { p }: Ctx) {
     });
     await activate(u.id, f.courseId);
   }
+  try {
+    const bills = await prisma.bill.findMany({ where: { orderId: oid }, orderBy: { id: "asc" } });
+    await sendOrderEmail(u, { order_id: oid, discount: q.discount, coupon: q.coupon ? String(q.coupon.code) : "" }, bills.map(mailBill), await siteUrl(), await ig());
+  } catch (e) {
+    console.error(e);
+  }
   return { order_id: oid };
+}
+
+export const siteUrl = async () => String((await getSetting("site_url")) || "https://ineedbio.shop").replace(/\/+$/, "");
+function mailBill(b: Bill): MailBill {
+  const pr = (b.proof || {}) as { paid_at?: string };
+  return { id: b.id, orderId: b.orderId, status: b.status, total: b.total, items: billItems(b), account: ((b.account || {}) as { pub?: MailBill["account"] }).pub || {}, expiresAt: b.expiresAt, paidAt: pr.paid_at };
 }
 
 function billPublic(b: Bill) {
@@ -463,7 +475,7 @@ export async function adminBills(d: Data) {
     .slice(0, 200)
     .map((b) => ({
       ...billPublic(b), account_label: ((b.account || {}) as { label?: string }).label || "", user_id: b.userId,
-      name: `${b.user.firstName} ${b.user.lastName}`, nickname: b.user.nickname || "", email: b.user.email, phone: b.user.phone || "", checks: billChecks(b, b.user),
+      name: `${b.user.firstName} ${b.user.lastName}`, nickname: b.user.nickname || "", email: b.user.email, phone: b.user.phone || "", has_photo: !!b.user.photoBlobId, checks: billChecks(b, b.user),
     }));
 }
 export async function adminBillSlip(d: Data) {
@@ -503,7 +515,7 @@ export async function adminBillDecide(d: Data, _c: Ctx, admin: User) {
     }
   }
   await log(admin, "bill." + (ok ? "approved" : "rejected"), x.id);
-  await sendBillEmail(x.user, x.id, billItems(x).map((i) => i.title), ok, note, await ig());
+  await sendBillEmail(x.user, mailBill(x), ok, note, await siteUrl(), await ig());
   return { bill_id: x.id, status: ok ? "approved" : "rejected" };
 }
 
