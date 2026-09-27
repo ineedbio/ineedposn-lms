@@ -41,6 +41,8 @@ export default function Home() {
       <Script src="/ineedbio/promo.js" strategy="afterInteractive" />
       {/* หลังบ้าน: สีแยกกลุ่มเมนู · แก้ไข/ลบรายรับ */}
       <Script src="/ineedbio/admin-ui.js" strategy="afterInteractive" />
+      {/* หลังบ้าน → ชีทสรุป (เตรียมข้อมูล/อัปโหลด PDF · ยังไม่เปิดขาย ไม่มีหน้าฝั่งนักเรียน) */}
+      <Script src="/ineedbio/admin-sheets.js" strategy="afterInteractive" />
       {/* แถบยอมรับคุกกี้ — สคริปต์วิเคราะห์/การตลาดโหลดเฉพาะเมื่อผู้ใช้อนุญาต */}
       <Script src="/ineedbio/consent.js" strategy="afterInteractive" />
     </>

@@ -157,6 +157,7 @@ model Course {
   instructorPhoto  String?
   faq              String? // blocks separated by a blank line: first line question, rest answer
   trailerYoutube   String? // 11-char YouTube id
+  updatedMonth     String? // "อัปเดต ก.ย. 69" badge, YYYY-MM set by an admin; null = no badge
   payAccountId     String? // PayAccount.id that receives payment for this course (else by subject, else the main PromptPay)
   instructor2Name  String?
   instructor2Title String?
@@ -596,4 +597,38 @@ model LegacyClaim {
 model OrderCounter {
   prefix String @id
   last   Int    @default(0)
+}
+
+// ชีทสรุป (summary sheets). Back office only until the storefront opens (lib/ib/sheets.ts SHEETS_ON_SALE).
+model Sheet {
+  id           String   @id @default(cuid())
+  title        String
+  coverTitle   String?  // short title printed on the cover
+  subject      String   // bio | chem | phys | math
+  price        Int      @default(0)
+  fullPrice    Int?
+  pages        Int?
+  samplePages  Int?
+  description  String?
+  updatedMonth String?  // YYYY-MM
+  sortOrder    Int      @default(0)
+  fileParts    String   @default("") // FileBlob ids of the full PDF, in order
+  fileSize     Int      @default(0)
+  fileName     String   @default("")
+  sampleParts  String   @default("") // FileBlob ids of the free sample PDF
+  sampleSize   Int      @default(0)
+  sampleName   String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+}
+
+model SheetBundle {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  price       Int      @default(0)
+  sheetIds    String   @default("") // CSV of Sheet ids
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 }
