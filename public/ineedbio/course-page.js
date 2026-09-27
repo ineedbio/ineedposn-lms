@@ -34,13 +34,21 @@
   };
   function updBadges(root) {
     if (!root || root.nodeType !== 1) return;
-    all(root, 'a.tile[href^="#/course/"], .feat .slide[data-cid]').forEach(function (el) {
-      var id = el.dataset.cid || decodeURIComponent((el.getAttribute('href') || '').replace(/^#\/course\//, '')), lab = updLabel(UPD[id]);
-      var cv = el.querySelector('.cover'); if (!cv) return;
+    all(root, 'a.tile[href^="#/course/"], .feat .slide[data-cid], a.nc[href^="#/"]').forEach(function (el) {
+      var id = el.dataset.cid || decodeURIComponent(((el.getAttribute('href') || '').match(/^#\/(?:course|learn)\/([^/?]+)/) || [])[1] || ''), lab = updLabel(UPD[id]);
+      var cv = el.querySelector('.cover, .nc-cv'); if (!cv) return;
       var b = cv.querySelector('.upd');
       if (!lab) { if (b) b.remove(); return; }
       if (!b) { b = document.createElement('span'); b.className = 'upd'; cv.appendChild(b); }
       if (b.textContent !== 'อัปเดต ' + lab) b.textContent = 'อัปเดต ' + lab;
+    });
+    all(root, '.bbd-s').forEach(function (sl) { // UI v2 home billboard: a pill next to "ดูได้ตลอดชีพ"
+      var f = sl.querySelector('.bbd-f'), a = sl.querySelector('a[href^="#/course/"], a[href^="#/learn/"], [data-cart-add]'); if (!f || !a) return;
+      var id = a.dataset.cartAdd || decodeURIComponent(((a.getAttribute('href') || '').match(/^#\/(?:course|learn)\/([^/?]+)/) || [])[1] || ''), lab = updLabel(UPD[id]);
+      var pill = f.querySelector('.upd-f');
+      if (!lab) { if (pill) pill.remove(); return; }
+      if (!pill) { pill = document.createElement('span'); pill.className = 'upd-f'; f.insertBefore(pill, f.firstChild); }
+      if (pill.textContent !== 'อัปเดต ' + lab) pill.textContent = 'อัปเดต ' + lab;
     });
     var m = /^#\/course\/([^/?]+)/.exec(location.hash), facts = m && document.querySelector('.chero .facts');
     if (facts && !facts.querySelector('.upd-f')) {
@@ -67,6 +75,10 @@
     all(root, '.path em').forEach(function (el) { if (/^\d+ คอร์ส/.test(el.textContent)) el.textContent = 'ดูคอร์ส →'; });
     all(root, '.results-h h2').forEach(function (el) { if (/^\d+ คอร์ส$/.test(norm(el.textContent))) el.textContent = 'ผลการค้นหา'; });
     all(root, '.facts > span').forEach(function (el) { if (RE_FACT.test(norm(el.textContent))) el.remove(); });
+    all(root, '.bbd-f > span').forEach(function (el) { if (isSeg(norm(el.textContent))) el.remove(); }); // UI v2 home billboard: "100 ตอน" / "82 ชม. 47 นาที"
+    // UI v2 home: the "เซลล์แบ่งตัว" perk is advertised even while that feature is switched off — hide it until it opens
+    var F = window.INEEDBIO_FEATURES;
+    if (F && F.cells === false) all(root, '.prm > div').forEach(function (el) { if (/เซลล์แบ่งตัว/.test(el.textContent)) { var box = el.parentNode; el.remove(); box.classList.add('prm-n' + box.children.length); } });
     all(root, 'span, small').forEach(function (el) { if (!el.children.length && RE_PAIR.test(norm(el.textContent))) el.remove(); });
     var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null), t, list = [];
     while ((t = w.nextNode())) list.push(t);
@@ -256,8 +268,10 @@
   var css = document.createElement('style');
   css.textContent = '.player .ap-snd{position:absolute;left:12px;top:12px;z-index:5;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:7px 14px 7px 11px;font:500 13.5px/1.2 inherit;font-family:inherit;color:#fff;background:rgba(0,0,0,.72);cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
     '.player .ap-snd svg{width:16px;height:16px} .player .ap-snd:hover{background:rgba(0,0,0,.86)} .ap-cap{margin:6px 0 0}' +
-    '.cover .upd{position:absolute;right:12px;top:12px;z-index:1;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
+    '.cover .upd,.nc-cv .upd{position:absolute;right:12px;top:12px;z-index:1;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
     '.feat .cover .upd{right:14px;top:14px} .ci .cover .upd{display:none}' +
+    '.nc-cv .upd{right:10px;top:10px;font-size:12px} .nc-cv .nc-off ~ .upd{top:40px}' + // UI v2 cards: under "ลด ฿…" when both show
+    '@media (min-width:761px){.prm.prm-n2{grid-template-columns:repeat(2,minmax(0,1fr))}}' +
     // Phones: the section bar (ภาพรวม · เนื้อหา · ผู้สอน · รีวิว · คำถาม) is wider than the screen on courses that
     // have every section, and as a grid item it pushed the whole page wider than the phone (sideways scroll,
     // and "fullscreen" video wider than the screen). Let the columns shrink and the bar scroll instead.

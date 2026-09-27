@@ -97,7 +97,7 @@
 
   var css = document.createElement('style');
   css.textContent =
-    '.ck-layer{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));pointer-events:none;z-index:80}' +
+    '.ck-layer{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));pointer-events:none;z-index:45}' + // above the header / bottom bar / buttons, below dialogs (.scrim 50) so it never covers a form
     '.ck-card{pointer-events:auto;width:100%;max-width:560px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:16px;box-shadow:0 -8px 30px rgba(20,24,26,.12),0 2px 10px rgba(20,24,26,.06);padding:14px 16px;transform:translateY(140%);opacity:0;transition:transform .38s cubic-bezier(.22,.9,.34,1),opacity .3s ease}' +
     '.ck-layer.in .ck-card{transform:none;opacity:1}' +
     '.ck-top{display:flex;gap:11px;align-items:flex-start} .ck-ic{flex:none;width:28px;height:28px;border-radius:8px;background:var(--c-bio-soft);color:var(--c-bio);display:grid;place-items:center}' +

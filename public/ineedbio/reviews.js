@@ -216,8 +216,9 @@
   function mount() {
     var app = document.getElementById('app');
     if (!app || !isHome() || app.querySelector('#ib-reviews')) return;
-    var why = app.querySelector('.why');
-    var anchor = why && why.closest('section');
+    // UI v1: after "เรียนกับเราได้อะไร" · UI v2: after the Hall of Fame (or before the perks strip)
+    var why = app.querySelector('.why'), hof = app.querySelector('.hof'), prm = app.querySelector('.prm');
+    var anchor = (why && why.closest('section')) || hof || (prm && prm.previousElementSibling);
     if (!anchor) return;
     var sec = document.createElement('section');
     sec.className = 'blk ibr';
