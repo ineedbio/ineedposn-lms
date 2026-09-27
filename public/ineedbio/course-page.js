@@ -257,7 +257,11 @@
   css.textContent = '.player .ap-snd{position:absolute;left:12px;top:12px;z-index:5;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:7px 14px 7px 11px;font:500 13.5px/1.2 inherit;font-family:inherit;color:#fff;background:rgba(0,0,0,.72);cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
     '.player .ap-snd svg{width:16px;height:16px} .player .ap-snd:hover{background:rgba(0,0,0,.86)} .ap-cap{margin:6px 0 0}' +
     '.cover .upd{position:absolute;right:12px;top:12px;z-index:1;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
-    '.feat .cover .upd{right:14px;top:14px} .ci .cover .upd{display:none}';
+    '.feat .cover .upd{right:14px;top:14px} .ci .cover .upd{display:none}' +
+    // Phones: the section bar (ภาพรวม · เนื้อหา · ผู้สอน · รีวิว · คำถาม) is wider than the screen on courses that
+    // have every section, and as a grid item it pushed the whole page wider than the phone (sideways scroll,
+    // and "fullscreen" video wider than the screen). Let the columns shrink and the bar scroll instead.
+    '.cd > *{min-width:0} .jump{max-width:100%;overflow-x:auto;scrollbar-width:none} .jump::-webkit-scrollbar{display:none} .jump button{flex:none}';
   document.head.appendChild(css);
 
   function run(nodes) {

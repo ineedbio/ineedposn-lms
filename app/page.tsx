@@ -33,6 +33,8 @@ export default function Home() {
       <Script src="/ineedbio/reviews.js" strategy="afterInteractive" />
       {/* หน้าคอร์ส: เล่นตอนดูฟรีอัตโนมัติ (ปิดเสียงไว้ก่อน) · ซ่อนจำนวนตอน/ชั่วโมงบนหน้าสาธารณะ */}
       <Script src="/ineedbio/course-page.js" strategy="afterInteractive" />
+      {/* ขนาดวิดีโอตามกล่องจริง: หมุนจอ / เต็มจอ บน iPhone-iPad ไม่ครอปผิดตำแหน่ง */}
+      <Script src="/ineedbio/player-fit.js" strategy="afterInteractive" />
       {/* เลขคำสั่งซื้อ (BIO-0001 …) บนหลังบ้าน เห็นเฉพาะแอดมิน */}
       <Script src="/ineedbio/admin-orders.js" strategy="afterInteractive" />
       {/* "+ เพิ่มสิทธิ์ให้ผู้ใช้เอง": เลือกได้หลายคอร์สพร้อมกัน */}
