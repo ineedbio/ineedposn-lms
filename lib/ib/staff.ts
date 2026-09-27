@@ -69,7 +69,9 @@ export async function courseStudents(d: Data, _c: Ctx, me: User) {
   ]);
   const ids = lessons.map((l) => l.id);
   const last: Record<string, (typeof pays)[number]> = {};
-  for (const p of pays) last[p.userId] = p;
+  // One row per student: their current access record (latest approved), else their latest request.
+  const rank = (p: (typeof pays)[number]) => (p.status === "APPROVED" && !p.revokedAt ? 2 : p.status === "APPROVED" ? 1 : 0);
+  for (const p of pays) if (!last[p.userId] || rank(p) >= rank(last[p.userId])) last[p.userId] = p;
   const deciders = await prisma.user.findMany({ where: { id: { in: Object.values(last).map((p) => p.reviewedBy || "").filter(Boolean) } } });
   const prog = await prisma.lessonProgress.groupBy({ by: ["userId"], where: { lessonId: { in: ids }, isCompleted: true, userId: { in: Object.keys(last) } }, _count: true });
   const now = Date.now();
@@ -171,6 +173,11 @@ async function platformPct() {
   for (const k of SUBJECTS()) out[k] = Math.min(100, Math.max(0, Number(o[k]) || 0));
   return out;
 }
+/** Income of a month, the one filter every revenue figure uses (ภาพรวม, รายรับรายจ่าย, teacher dashboard). */
+export const incomeWhere = (pr: string): Prisma.PaymentWhereInput => ({
+  status: "APPROVED", amount: { gt: 0 }, OR: [{ reviewedAt: periodRange(pr) }, { reviewedAt: null, createdAt: periodRange(pr) }],
+});
+export const periodNow = () => periodOf(new Date());
 const isClosed = async (pr: string) => !!(await prisma.finPeriod.findUnique({ where: { period: pr } }));
 const teachersAll = () => prisma.user.findMany({ where: { role: "INSTRUCTOR" } });
 type Split = { user_id: string; pct: number };
@@ -192,7 +199,7 @@ function expenseOut(x: Expense, users: User[]) {
   };
 }
 type Income = {
-  enroll_id: string; order_number?: string; date: string; course_id: string; course_title: string; subject: string; amount: number; source: string; source_label: string;
+  enroll_id: string; order_number?: string; note?: string; dup_of?: string; date: string; course_id: string; course_title: string; subject: string; amount: number; source: string; source_label: string;
   student: string; nickname: string; bill_id: string; has_slip: boolean; account_label: string; held_by: string; revoked: boolean;
 };
 type SubjRow = { subject: string; name: string; income: number; expense: number; net: number; pct: number; platform: number; pool: number; unassigned: number; custom_missing: string[] };
@@ -213,6 +220,13 @@ async function finCompute(pr: string) {
   const billIds = pays.map((p) => p.billId || ((p.note || "").match(/^บิล (\S+)/) || [])[1] || "").filter(Boolean);
   const bills = await prisma.bill.findMany({ where: { id: { in: billIds } } });
   const income: Income[] = [], free = { grant: 0, legacy: 0, test: 0, bill0: 0 };
+  // The same student + course paid more than once (e.g. an old slip request and a cart bill): flag the later ones.
+  const paidTwice = await prisma.payment.findMany({
+    where: { status: "APPROVED", amount: { gt: 0 }, revokedAt: null, OR: pays.filter((p) => p.amount > 0).map((p) => ({ userId: p.userId, courseId: p.courseId })) },
+    select: { id: true, userId: true, courseId: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  const firstOf: Record<string, string> = {};
+  for (const p of paidTwice) firstOf[p.userId + "|" + p.courseId] = firstOf[p.userId + "|" + p.courseId] || p.id;
   for (const e of pays) {
     const c = courses.find((x) => x.id === e.courseId); if (!c) continue;
     const src = sourceOf(e);
@@ -224,7 +238,8 @@ async function finCompute(pr: string) {
     const b = bid ? bills.find((x) => x.id === bid) : null;
     const acc = b ? accs.find((a) => a.id === b.accountId) : null;
     income.push({
-      enroll_id: e.id, order_number: e.orderNumber || "", date: iso(e.reviewedAt || e.createdAt), course_id: c.slug, course_title: c.title, subject: subjectKey(c.subject), amount: e.amount,
+      enroll_id: e.id, order_number: e.orderNumber || "", note: e.note || "",
+      dup_of: !e.revokedAt && firstOf[e.userId + "|" + e.courseId] && firstOf[e.userId + "|" + e.courseId] !== e.id ? firstOf[e.userId + "|" + e.courseId] : "", date: iso(e.reviewedAt || e.createdAt), course_id: c.slug, course_title: c.title, subject: subjectKey(c.subject), amount: e.amount,
       source: src, source_label: SOURCE_LABEL[src] || src, student: fullName(e.user), nickname: e.user.nickname || "", bill_id: bid, has_slip: !!e.slipImageUrl,
       account_label: acc ? acc.label : b ? "บัญชีหลัก" : "—", held_by: acc?.ownerId || "", revoked: !!e.revokedAt,
     });
@@ -296,7 +311,7 @@ function finScope(r: FinData, me: User, subject: string) {
     t.net = r2(t.income - t.expense); out.totals = t;
   }
   if (!admin) {
-    for (const x of out.income as Income[]) { x.bill_id = ""; delete x.order_number; }
+    for (const x of out.income as Income[]) { x.bill_id = ""; delete x.order_number; delete x.note; delete x.dup_of; }
     for (const x of out.expenses as ReturnType<typeof expenseOut>[]) if (x.created_by !== me.id) x.created_by_name = x.created_by_name.replace(/\s*\(.*\)$/, "");
   }
   return out;
@@ -427,6 +442,36 @@ export async function finRulesSave(d: Data, _c: Ctx, me: User) {
   }
   return finRules();
 }
+/** รายรับ: an admin corrects the amount / note of an income row. Everything else is computed from it. */
+export async function finIncomeSave(d: Data, _c: Ctx, me: User) {
+  const e = await incomeRow(d);
+  const amount = Math.round(Number(String(d.amount ?? "").replace(/[,฿\s]/g, "")));
+  if (!isFinite(amount) || amount < 0 || String(d.amount ?? "").trim() === "") throw err("BAD_INPUT", "ใส่จำนวนเงินเป็นตัวเลข (0 ขึ้นไป)");
+  const note = clip(d.note, 300);
+  await prisma.payment.update({ where: { id: e.id }, data: { amount, note: note || null } });
+  await log(me, "finance.income.edit", (e.orderNumber || e.id) + " ฿" + e.amount + " → ฿" + amount + (note !== (e.note || "") ? " · หมายเหตุ: " + note : ""));
+  return true;
+}
+/** รายรับ: delete a row. A duplicate is removed outright; the student's only record stays (they keep access)
+ *  but no longer counts as income (฿0), so the course page, students list and access all stay consistent. */
+export async function finIncomeDelete(d: Data, _c: Ctx, me: User) {
+  const e = await incomeRow(d);
+  const other = await prisma.payment.findFirst({ where: { id: { not: e.id }, userId: e.userId, courseId: e.courseId, status: "APPROVED", revokedAt: null } });
+  if (other) {
+    await prisma.payment.delete({ where: { id: e.id } });
+    await log(me, "finance.income.delete", (e.orderNumber || e.id) + " ฿" + e.amount + " (ซ้ำกับ " + (other.orderNumber || other.id) + ")");
+    return { kept_access: false };
+  }
+  await prisma.payment.update({ where: { id: e.id }, data: { amount: 0, reason: clip("ลบออกจากรายรับโดยแอดมิน (เดิม ฿" + e.amount + ")" + (e.reason ? " · " + e.reason : ""), 300) } });
+  await log(me, "finance.income.delete", (e.orderNumber || e.id) + " ฿" + e.amount + " → ฿0 (นักเรียนยังมีสิทธิ์เรียน)");
+  return { kept_access: true };
+}
+async function incomeRow(d: Data) {
+  const e = await prisma.payment.findUnique({ where: { id: String(d.enroll_id || "") } });
+  if (!e || e.status !== "APPROVED") throw err("NOT_FOUND", "ไม่พบรายการรายรับนี้");
+  if (await isClosed(periodOf(e.reviewedAt || e.createdAt))) throw err("LOCKED", "เดือนของรายการนี้ปิดงวดแล้ว กด \"เปิดงวด\" ของเดือนนั้นก่อนแก้ไข");
+  return e;
+}
 export async function finClose(d: Data, c: Ctx, me: User) {
   const pr = checkPeriod(d.period);
   if (pr > periodOf(new Date())) throw err("BAD_INPUT", "ปิดงวดล่วงหน้าไม่ได้");
@@ -474,7 +519,7 @@ export async function teacherStats(me: User) {
   const cids = courses.map((c) => c.id), slugs = courses.map((c) => c.slug), month = periodOf(new Date());
   const [enrs, pays, bills, expPending] = await Promise.all([
     prisma.enrollment.findMany({ where: { courseId: { in: cids }, ...activeWhere() } }),
-    prisma.payment.findMany({ where: { courseId: { in: cids }, status: "APPROVED", amount: { gt: 0 }, OR: [{ reviewedAt: periodRange(month) }, { reviewedAt: null, createdAt: periodRange(month) }] } }),
+    prisma.payment.findMany({ where: { courseId: { in: cids }, ...incomeWhere(month) } }),
     prisma.bill.findMany({ where: { status: "reviewing" } }),
     prisma.expense.count({ where: { status: "pending", recordedById: me.id } }),
   ]);

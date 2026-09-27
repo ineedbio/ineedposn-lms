@@ -3,6 +3,9 @@ import Script from 'next/script';
 // URL ของ Apps Script Web App — ตั้งใน .env.local หรือใน Vercel → Settings → Environment Variables
 // Backend: /api/ib on this site (Neon). NEXT_PUBLIC_INEEDBIO_API_URL overrides it, e.g. an Apps Script /exec URL.
 const API_URL = process.env.NEXT_PUBLIC_INEEDBIO_API_URL || '/api/ib';
+// Analytics / ads — optional. Loaded by consent.js only after the visitor allows that kind of cookie.
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID || '';
+const PIXEL_ID = process.env.NEXT_PUBLIC_FB_PIXEL_ID || '';
 
 export default function Home() {
   return (
@@ -18,8 +21,10 @@ export default function Home() {
       <div className="toasts" id="toasts" aria-live="polite" />
 
       <Script id="ineedbio-config" strategy="beforeInteractive">
-        {`window.INEEDBIO_API_URL = ${JSON.stringify(API_URL)};`}
+        {`window.INEEDBIO_API_URL = ${JSON.stringify(API_URL)}; window.INEEDBIO_GA_ID = ${JSON.stringify(GA_ID)}; window.INEEDBIO_PIXEL_ID = ${JSON.stringify(PIXEL_ID)};`}
       </Script>
+      {/* สีประจำวิชา (ชีวะเขียว · เคมีม่วง · ฟิสิกส์แดง · คณิตส้ม) ทั้งเว็บ — ก่อนวาดหน้า จะได้ไม่กระพริบ */}
+      <Script src="/ineedbio/subject-colors.js" strategy="beforeInteractive" />
       {/* ตัวเว็บทั้งหมด (หน้าแรก คอร์ส ห้องเรียน หลังบ้าน) — ใช้ hash route เช่น /#/course/ID */}
       {/* fixes for app.js that can't go in app.js itself (it must match the zip byte for byte) */}
       <Script src="/ineedbio/fixes.js" strategy="afterInteractive" />
@@ -32,6 +37,12 @@ export default function Home() {
       <Script src="/ineedbio/admin-orders.js" strategy="afterInteractive" />
       {/* "+ เพิ่มสิทธิ์ให้ผู้ใช้เอง": เลือกได้หลายคอร์สพร้อมกัน */}
       <Script src="/ineedbio/grant-multi.js" strategy="afterInteractive" />
+      {/* โค้ด INEEDWEB ข้างราคาในหน้าคอร์ส + ใส่ให้เองในตะกร้า */}
+      <Script src="/ineedbio/promo.js" strategy="afterInteractive" />
+      {/* หลังบ้าน: สีแยกกลุ่มเมนู · แก้ไข/ลบรายรับ */}
+      <Script src="/ineedbio/admin-ui.js" strategy="afterInteractive" />
+      {/* แถบยอมรับคุกกี้ — สคริปต์วิเคราะห์/การตลาดโหลดเฉพาะเมื่อผู้ใช้อนุญาต */}
+      <Script src="/ineedbio/consent.js" strategy="afterInteractive" />
     </>
   );
 }
