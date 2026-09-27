@@ -13,6 +13,7 @@ import { rateLimit } from "../rate-limit";
 import { subjectKey } from "./subjects";
 import * as shop from "./shop";
 import * as staff from "./staff";
+import * as sheets from "./sheets";
 import { notifyAdmins, remainingQuota, sendDecisionEmail, sendOtpEmail } from "./mail";
 import {
   APP, ApiError, bkkDate, checkImageUrl, checkPassword, clip, err, iso, isRepeat, lines, normEmail, otpCode, parseFaq,
@@ -384,7 +385,7 @@ export function courseCard(c: CourseRow) {
   return {
     course_id: c.slug, subject: key, subject_name: APP.SUBJECTS[key], title: c.title, subtitle: c.subtitle || "",
     description: c.description || "", cover_url: c.coverImage || "", price: c.price, full_price: c.fullPrice || 0,
-    level: c.level || "", status: c.isPublished ? "published" : "draft",
+    level: c.level || "", status: c.isPublished ? "published" : "draft", updated_month: c.updatedMonth || "",
     lesson_count: c.lessons.length, total_min: c.lessons.reduce((a, l) => a + lessonMin(l), 0),
   };
 }
@@ -776,6 +777,12 @@ async function adminCourseSave(d: Data, _c: Ctx, admin: User) {
     instructor2Name: clip(d.instructor2_name, 80), instructor2Title: clip(d.instructor2_title, 160), instructor2Bio: clip(d.instructor2_bio, 1500),
     instructor2Photo: clip(d.instructor2_photo, 500) || null, payAccountId: clip(d.pay_account_id, 20) || null,
   };
+  // "อัปเดตล่าสุด" badge: admins only, and only when the form sent it (older forms leave it alone).
+  if (!locked && d.updated_month !== undefined) {
+    const um = String(d.updated_month || "").trim();
+    if (um && !/^20\d\d-(0[1-9]|1[0-2])$/.test(um)) throw err("BAD_INPUT", "เลือกเดือนและปีที่อัปเดตล่าสุด");
+    patch.updatedMonth = um || null;
+  }
   if (locked) Object.assign(patch, { price: locked.price, fullPrice: locked.fullPrice, isPublished: locked.isPublished, sortOrder: locked.sortOrder, payAccountId: locked.payAccountId });
   checkImageUrl(String(patch.coverImage || ""));
   checkImageUrl(String(patch.instructorPhoto || ""));
@@ -1055,6 +1062,16 @@ const ROUTES: Record<string, Handler> = {
   "fin.reopen": adminOnly(staff.finReopen),
   "fin.payout.paid": adminOnly(staff.finPayoutPaid),
   "admin.log": adminOnly((d) => staff.adminLog(d)),
+  // ชีทสรุป — back office only; nothing public until sheets.SHEETS_ON_SALE
+  "admin.sheets": adminOnly(() => sheets.adminSheets()),
+  "admin.sheet.save": adminOnly(sheets.sheetSave),
+  "admin.sheet.delete": adminOnly(sheets.sheetDelete),
+  "admin.sheet.part": adminOnly(sheets.sheetPart),
+  "admin.sheet.file.commit": adminOnly(sheets.sheetFileCommit),
+  "admin.sheet.file.get": adminOnly(sheets.sheetFileGet),
+  "admin.sheet.file.delete": adminOnly(sheets.sheetFileDelete),
+  "admin.sheet.bundle.save": adminOnly(sheets.bundleSave),
+  "admin.sheet.bundle.delete": adminOnly(sheets.bundleDelete),
   "fin.income.save": adminOnly(staff.finIncomeSave),
   "fin.income.delete": adminOnly(staff.finIncomeDelete),
   "admin.orders.search": adminOnly((d) => staff.adminOrdersSearch(d)),

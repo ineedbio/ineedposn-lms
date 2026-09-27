@@ -9,8 +9,45 @@
 //     cards, the featured carousel, the course page (facts, syllabus, chapters, price box) and bundle page;
 //     and the catalogue size (home stats "N คอร์สที่เปิดอยู่", "N คอร์ส →" on the path buttons, "N คอร์ส"
 //     above search results). #/my, #/learn and the admin pages keep their numbers.
+//  3) "อัปเดต ก.ย. 69": the month an admin set on a course (updated_month) as a badge on the top-right of its
+//     cover on every course card (home, all courses, the featured card) and as a pill on the course page.
 (function () {
   'use strict';
+
+  /* ── 3) "อัปเดตล่าสุด" badge ── */
+  var UPD = {}, TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  function updLabel(m) { var x = /^(\d{4})-(\d{2})$/.exec(m || ''); return x ? TH_M[Number(x[2]) - 1] + ' ' + String((Number(x[1]) + 543) % 100).padStart(2, '0') : ''; }
+  var fetchU = window.fetch;
+  window.fetch = function (url, opt) {
+    var p = fetchU.apply(this, arguments), action = '';
+    try { if (opt && typeof opt.body === 'string' && opt.body.charAt(0) === '{') action = JSON.parse(opt.body).action || ''; } catch (e) { action = ''; }
+    if (!/^(courses\.list|course\.detail|my\.courses|bundle\.detail)$/.test(action)) return p;
+    return p.then(function (res) {
+      res.clone().json().then(function (j) {
+        if (!j || !j.ok || !j.data) return;
+        var list = Array.isArray(j.data) ? j.data : [j.data].concat(j.data.courses || []);
+        list.forEach(function (c) { if (c && c.course_id) UPD[c.course_id] = c.updated_month || ''; });
+        updBadges(document.getElementById('app'));
+      }).catch(function () {});
+      return res;
+    });
+  };
+  function updBadges(root) {
+    if (!root || root.nodeType !== 1) return;
+    all(root, 'a.tile[href^="#/course/"], .feat .slide[data-cid]').forEach(function (el) {
+      var id = el.dataset.cid || decodeURIComponent((el.getAttribute('href') || '').replace(/^#\/course\//, '')), lab = updLabel(UPD[id]);
+      var cv = el.querySelector('.cover'); if (!cv) return;
+      var b = cv.querySelector('.upd');
+      if (!lab) { if (b) b.remove(); return; }
+      if (!b) { b = document.createElement('span'); b.className = 'upd'; cv.appendChild(b); }
+      if (b.textContent !== 'อัปเดต ' + lab) b.textContent = 'อัปเดต ' + lab;
+    });
+    var m = /^#\/course\/([^/?]+)/.exec(location.hash), facts = m && document.querySelector('.chero .facts');
+    if (facts && !facts.querySelector('.upd-f')) {
+      var lab2 = updLabel(UPD[decodeURIComponent(m[1])]);
+      if (lab2) { var f = document.createElement('span'); f.className = 'upd-f'; f.innerHTML = '<b>อัปเดต</b> ' + lab2; facts.insertBefore(f, facts.firstChild); }
+    }
+  }
 
   /* ── 2) hide counts ── */
   var DUR = '\\d+ ชม\\.(?: \\d+ นาที)?|\\d+ นาที';
@@ -218,11 +255,13 @@
 
   var css = document.createElement('style');
   css.textContent = '.player .ap-snd{position:absolute;left:12px;top:12px;z-index:5;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:7px 14px 7px 11px;font:500 13.5px/1.2 inherit;font-family:inherit;color:#fff;background:rgba(0,0,0,.72);cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
-    '.player .ap-snd svg{width:16px;height:16px} .player .ap-snd:hover{background:rgba(0,0,0,.86)} .ap-cap{margin:6px 0 0}';
+    '.player .ap-snd svg{width:16px;height:16px} .player .ap-snd:hover{background:rgba(0,0,0,.86)} .ap-cap{margin:6px 0 0}' +
+    '.cover .upd{position:absolute;right:12px;top:12px;z-index:1;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
+    '.feat .cover .upd{right:14px;top:14px} .ci .cover .upd{display:none}';
   document.head.appendChild(css);
 
   function run(nodes) {
-    nodes.forEach(function (n) { var el = n.nodeType === 3 ? n.parentNode : n; if (el && el.nodeType === 1) { takeIds(el); stripCounts(el); } });
+    nodes.forEach(function (n) { var el = n.nodeType === 3 ? n.parentNode : n; if (el && el.nodeType === 1) { takeIds(el); stripCounts(el); updBadges(el); } });
     heroPlayer();
   }
   function start() {

@@ -3,6 +3,7 @@
 //  - นักเรียนรุ่นเก่า: tabs per subject (ทั้งหมด / ชีววิทยา / เคมี / ฟิสิกส์ / คณิตศาสตร์) in the subject colours. The
 //    tab is sent with app.js's own admin.legacy request, so search, the status switch, the KPIs and the
 //    review queue all follow it; a name with courses in two subjects shows in both tabs.
+//  - แก้ไขคอร์ส (admins): "อัปเดตล่าสุด" month + year (พ.ศ.) for the badge on course cards; empty = no badge.
 //  - รายรับรายจ่าย → รายรับ (admins): edit amount / note, or delete an income row; rows that look like the
 //    same purchase recorded twice are flagged. Everything reads the same Payment rows, so an edit shows up
 //    on ภาพรวม, the per-subject totals and teacher shares at once.
@@ -31,7 +32,7 @@
 
   /* ── finance: income rows ── */
   var fin = null; // last fin.summary reply (admin)
-  var LG = { bio: 'ชีววิทยา', chem: 'เคมี', phys: 'ฟิสิกส์', math: 'คณิตศาสตร์' }, lg = null, csub = {};
+  var LG = { bio: 'ชีววิทยา', chem: 'เคมี', phys: 'ฟิสิกส์', math: 'คณิตศาสตร์' }, lg = null, csub = {}, cupd = {};
   function ss(k, v) { try { if (v === undefined) return sessionStorage.getItem(k) || ''; sessionStorage.setItem(k, v); } catch (e) { return ''; } }
   var fetch0 = window.fetch;
   window.fetch = function (url, opt) {
@@ -53,12 +54,44 @@
         if (!j || !j.ok) return;
         if (action === 'fin.summary') fin = j.data;
         else if (action === 'admin.legacy') lg = j.data;
-        else (j.data || []).forEach(function (c) { csub[c.course_id] = c.subject; });
+        else (j.data || []).forEach(function (c) { csub[c.course_id] = c.subject; cupd[c.course_id] = c.updated_month || ''; });
         schedule();
       }).catch(function () {});
       return res;
     });
   };
+
+  /* ── แก้ไขคอร์ส: "อัปเดตล่าสุด" ── */
+  var TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  /** Month + year (พ.ศ.) picker writing YYYY-MM (ค.ศ.) into a hidden input called `name`. Shared with admin-sheets.js. */
+  function monthPicker(name, value, label, hint) {
+    var m = /^(\d{4})-(\d{2})$/.exec(value || ''), y0 = new Date().getFullYear(), years = [];
+    for (var y = y0 - 3; y <= y0 + 1; y++) years.push(y);
+    if (m && years.indexOf(Number(m[1])) < 0) years.unshift(Number(m[1]));
+    var wrap = document.createElement('div'); wrap.className = 'f upd-pick';
+    wrap.innerHTML = '<span>' + esc(label) + '</span><div class="row2" style="gap:8px">' +
+      '<select class="i" data-um="m" aria-label="เดือน"><option value="">— ไม่แสดงป้าย —</option>' + TH_M.map(function (t, i) { var v = (i < 9 ? '0' : '') + (i + 1); return '<option value="' + v + '"' + (m && m[2] === v ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select>' +
+      '<select class="i" data-um="y" aria-label="ปี (พ.ศ.)">' + years.map(function (y) { return '<option value="' + y + '"' + ((m ? Number(m[1]) : y0) === y ? ' selected' : '') + '>พ.ศ. ' + (y + 543) + '</option>'; }).join('') + '</select></div>' +
+      (hint ? '<span class="hint">' + esc(hint) + '</span>' : '') + '<input type="hidden" name="' + name + '" value="' + esc(value || '') + '">';
+    var ms = wrap.querySelector('[data-um=m]'), ys = wrap.querySelector('[data-um=y]'), hid = wrap.querySelector('input[type=hidden]');
+    var sync = function () { hid.value = ms.value ? ys.value + '-' + ms.value : ''; ys.disabled = !ms.value; };
+    ms.onchange = ys.onchange = sync; sync();
+    return wrap;
+  }
+  window.ibMonthPicker = monthPicker;
+  function courseUpdatedField() {
+    var f = document.getElementById('cf');
+    if (!f || f.querySelector('.upd-pick') || !document.querySelector('nav.aside a[href="#/admin/users"]')) return; // admins only
+    var fp = f.querySelector('#f-full_price'), row = fp && fp.closest('.row2'); if (!row) return;
+    var h2 = document.querySelector('#modal .mx h2'), m = /^#\/admin\/course\/([^/?]+)/.exec(location.hash);
+    var cid = h2 && /แก้ไข/.test(h2.textContent) && m ? decodeURIComponent(m[1]) : '';
+    row.parentNode.insertBefore(monthPicker('updated_month', cid ? cupd[cid] : '', 'อัปเดตล่าสุด (ป้ายบนรูปปก)', 'ตั้งเองได้ ไม่เปลี่ยนตามการแก้เนื้อหา · เลือก "ไม่แสดงป้าย" ถ้าไม่ต้องการ'), row.nextSibling);
+  }
+  document.addEventListener('submit', function (e) { // keep the badge month in sync after a save
+    var f = e.target; if (!f || f.id !== 'cf') return;
+    var h = f.querySelector('input[name=updated_month]'), m = /^#\/admin\/course\/([^/?]+)/.exec(location.hash);
+    if (h && m) cupd[decodeURIComponent(m[1])] = h.value;
+  }, true);
 
   /* ── นักเรียนรุ่นเก่า: subject tabs ── */
   function legacyTabs() {
@@ -186,7 +219,7 @@
   document.head.appendChild(css);
 
   var t = 0;
-  function schedule() { clearTimeout(t); t = setTimeout(function () { groupMenu(); decorateIncome(); legacyTabs(); }, 20); }
-  function start() { new MutationObserver(schedule).observe(document.getElementById('app') || document.body, { childList: true, subtree: true }); schedule(); }
+  function schedule() { clearTimeout(t); t = setTimeout(function () { groupMenu(); decorateIncome(); legacyTabs(); courseUpdatedField(); }, 20); }
+  function start() { new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }); schedule(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
