@@ -535,6 +535,7 @@ async function enrollRequest(d: Data, { p }: Ctx) {
   const prev = await enrollState(u.id, c.id);
   if (prev?.status === "approved") throw err("ALREADY", "คุณมีสิทธิ์เข้าเรียนคอร์สนี้แล้ว");
   if (prev?.status === "pending") throw err("ALREADY", "ส่งสลิปไปแล้ว กำลังรอแอดมินตรวจ");
+  if ((await shop.courseBlock(u.id, c.slug)) === "in_bill") throw err("ALREADY", "คอร์สนี้อยู่ในคำสั่งซื้อที่ยังไม่เสร็จ ชำระผ่านบิลนั้นที่หน้าคำสั่งซื้อแทน");
   const s = d.slip || {};
   if (!/^image\/(jpeg|png|webp)$/.test(s.mime || "")) throw err("BAD_INPUT", "แนบสลิปเป็นรูปภาพ (JPG หรือ PNG)");
   if (!s.base64 || s.base64.length * 0.75 > APP.SLIP_MAX_BYTES) throw err("BAD_INPUT", "รูปสลิปใหญ่เกิน 3 MB");
@@ -558,7 +559,7 @@ async function enrollRequest(d: Data, { p }: Ctx) {
 async function adminStats(_d: Data, _c: Ctx, me: User) {
   if (!isAdminUser(me)) return staff.teacherStats(me);
   const today = bkkDate(), month = today.slice(0, 7);
-  const dayStart = new Date(Date.parse(today + "T00:00:00+07:00")), monthStart = new Date(Date.parse(month + "-01T00:00:00+07:00"));
+  const dayStart = new Date(Date.parse(today + "T00:00:00+07:00"));
   const verified = { emailVerified: true } as const;
   const [usersTotal, usersToday, repeatCount, dreams, pending, oldest, approved, reviewing, awaiting, legacyPending, expensePending] = await Promise.all([
     prisma.user.count({ where: verified }),
@@ -568,7 +569,7 @@ async function adminStats(_d: Data, _c: Ctx, me: User) {
     prisma.payment.count({ where: { status: "PENDING" } }),
     prisma.payment.findFirst({ where: { status: "PENDING" }, orderBy: { createdAt: "asc" } }),
     // Income this month, including accesses revoked later (the money was received).
-    prisma.payment.findMany({ where: { status: "APPROVED", amount: { gt: 0 }, reviewedAt: { gte: monthStart } }, include: { course: { include: { subject: true } } } }),
+    prisma.payment.findMany({ where: staff.incomeWhere(staff.periodNow()), include: { course: { include: { subject: true } } } }),
     prisma.bill.findMany({ where: { status: "reviewing" }, select: { submittedAt: true } }),
     prisma.bill.count({ where: { status: "awaiting_payment", OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }] } }),
     prisma.legacyClaim.count({ where: { status: "pending" } }),
@@ -643,6 +644,13 @@ async function adminDecide(d: Data, _c: Ctx, admin: User) {
   const ok = d.decision === "approve", no = d.decision === "reject";
   if (!ok && !no) throw err("BAD_INPUT", "เลือกอนุมัติหรือปฏิเสธ");
   const id = String(d.enroll_id || ""), note = clip(d.note, 300);
+  if (ok) {
+    // Same course already paid another way (a cart bill, or added by an admin): approving would count it twice.
+    const req = await prisma.payment.findUnique({ where: { id } });
+    const dup = req && (await prisma.payment.findFirst({ where: { id: { not: id }, userId: req.userId, courseId: req.courseId, status: "APPROVED", revokedAt: null } }));
+    if (dup && (await staff.hasAccess(req.userId, req.courseId)))
+      throw err("DUPLICATE", "นักเรียนมีสิทธิ์คอร์สนี้อยู่แล้ว" + (dup.billId ? " จากบิล " + dup.billId : "") + (dup.orderNumber ? " (" + dup.orderNumber + ")" : "") + " คำขอนี้ซ้ำ ให้กด \"ไม่อนุมัติ\" แทน");
+  }
   const changed = await prisma.payment.updateMany({
     where: { id, status: "PENDING" },
     data: ok
@@ -1047,6 +1055,8 @@ const ROUTES: Record<string, Handler> = {
   "fin.reopen": adminOnly(staff.finReopen),
   "fin.payout.paid": adminOnly(staff.finPayoutPaid),
   "admin.log": adminOnly((d) => staff.adminLog(d)),
+  "fin.income.save": adminOnly(staff.finIncomeSave),
+  "fin.income.delete": adminOnly(staff.finIncomeDelete),
   "admin.orders.search": adminOnly((d) => staff.adminOrdersSearch(d)),
   "admin.legacy": adminOnly((d) => staff.adminLegacy(d)),
   "admin.legacy.import": adminOnly(staff.adminLegacyImport),

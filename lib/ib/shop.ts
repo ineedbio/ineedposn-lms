@@ -70,6 +70,8 @@ async function ownedMap(uid: string) {
   for (const b of bills) if (BILL_OPEN.includes(billStatus(b))) for (const it of billItems(b)) if (!o[it.course_id]) o[it.course_id] = "in_bill";
   return o;
 }
+/** Why a course can't be bought by this user right now: "owned" | "pending" (slip request) | "in_bill" | "". */
+export async function courseBlock(uid: string, slug: string) { return (await ownedMap(uid))[slug] || ""; }
 /** What the user already paid per course they own — bundles only charge the difference. */
 async function paidMap(uid: string | undefined) {
   const o: Record<string, number> = {};
@@ -271,7 +273,7 @@ export async function orderCreate(d: Data, { p }: Ctx) {
   const q = await priceCart(d.course_ids, d.coupon, u);
   if (q.missing.length) throw err("BAD_INPUT", "มีคอร์สที่ปิดขายแล้วในตะกร้า ลบออกแล้วลองใหม่");
   const bad = q.items.find((it) => it.blocked);
-  if (bad) throw err("ALREADY", bad.blocked === "owned" ? "คุณมีคอร์ส " + bad.title + " แล้ว ลบออกจากตะกร้าก่อน" : "คอร์ส " + bad.title + " อยู่ในคำสั่งซื้อที่ยังไม่เสร็จ ดูได้ที่หน้าคำสั่งซื้อ");
+  if (bad) throw err("ALREADY", bad.blocked === "owned" ? "คุณมีคอร์ส " + bad.title + " แล้ว ลบออกจากตะกร้าก่อน" : bad.blocked === "pending" ? "คอร์ส " + bad.title + " ส่งสลิปไว้แล้ว รอแอดมินตรวจ ลบออกจากตะกร้าก่อน" : "คอร์ส " + bad.title + " อยู่ในคำสั่งซื้อที่ยังไม่เสร็จ ดูได้ที่หน้าคำสั่งซื้อ");
   if (!q.items.length) throw err("BAD_INPUT", "ตะกร้าว่าง");
   if (q.coupon && !q.coupon.ok) throw err("COUPON", String(q.coupon.message));
   const now = new Date(), exp = new Date(Date.now() + (await expireHours()) * 36e5);
@@ -538,6 +540,11 @@ export async function adminBillDecide(d: Data, _c: Ctx, admin: User) {
         },
       });
       await activate(x.userId, c.id);
+      // An old-style slip request for the same course is now paid by this bill: close it so it can't be approved twice.
+      await prisma.payment.updateMany({
+        where: { userId: x.userId, courseId: c.id, status: "PENDING" },
+        data: { status: "REJECTED", rejectReason: "ซ้ำกับบิล " + x.id + " ที่อนุมัติแล้ว", reviewedBy: admin.id, reviewedAt: new Date() },
+      });
     }
   }
   await log(admin, "bill." + (ok ? "approved" : "rejected"), x.id);
