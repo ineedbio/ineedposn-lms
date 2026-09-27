@@ -243,6 +243,7 @@
   css.textContent =
     'body.shx-on #amain > :not(#shx){display:none!important}' + // app.js draws its dashboard behind this page; hide it
     '.aside a .shx-soon{font-size:10.5px;font-weight:600;color:var(--muted);background:var(--bg2);border-radius:99px;padding:1px 7px;white-space:nowrap}' +
+    '.v2ui .aside a .shx-soon{color:rgba(255,255,255,.6);background:rgba(255,255,255,.1)}' +
     '#shx{display:grid;gap:16px} .shx-flag{font-size:14px}' +
     '#shx td .lg-sj{margin-right:2px} .shx-f{white-space:nowrap} .shx-f + .shx-f{margin-top:3px}' +
     '.shx-b .shx-bp{display:grid;justify-items:end;gap:2px} .shx-b .shx-bp b{font-size:20px;color:var(--c-bio)}' +

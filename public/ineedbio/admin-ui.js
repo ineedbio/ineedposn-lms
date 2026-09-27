@@ -209,6 +209,10 @@
     '.aside .agrp.g1{background:var(--ag1)} .aside .agrp.g2{background:var(--ag2)} .aside .agrp.g3{background:var(--ag3)} .aside .agrp.g4{background:var(--ag4)}' +
     '.aside .agrp .agh{padding:8px 10px 6px} .aside .agrp a.on{background:var(--bg)}' +
     '@media (max-width:780px){.aside .agrp{flex-direction:row;margin:0 8px 0 0;padding:4px;flex:none}}' +
+    // UI v2: the sidebar is a dark panel with a gliding highlight — translucent tints, and no fill on the active
+    // link (the glide shows through underneath)
+    '.v2ui .aside .agrp.g1{background:rgba(110,150,255,.13)} .v2ui .aside .agrp.g2{background:rgba(63,207,133,.11)} .v2ui .aside .agrp.g3{background:rgba(237,161,92,.13)} .v2ui .aside .agrp.g4{background:rgba(255,255,255,.05)}' +
+    '.v2ui .aside .agrp a.on{background:transparent!important} .v2ui .aside .agrp .agh{color:rgba(255,255,255,.5)}' +
     '.lg-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin:4px 0 2px;scrollbar-width:none} .lg-tabs::-webkit-scrollbar{display:none}' +
     '.lg-tab{flex:none;display:inline-flex;align-items:center;gap:8px;border:0;background:none;padding:10px 14px 11px;margin-bottom:-1px;border-bottom:3px solid transparent;font:inherit;font-size:15px;color:var(--ink2);cursor:pointer;white-space:nowrap}' +
     '.lg-tab i{width:9px;height:9px;border-radius:50%;background:var(--acc)} .lg-tab:hover{color:var(--ink)}' +
