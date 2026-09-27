@@ -1,5 +1,6 @@
-<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>INeedBio Classroom</title>
+<script>window.INEEDBIO_FEATURES={cells:false,reviews:false,fest:false};</script>
+
+<title>INeedBio Classroom Demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
@@ -762,8 +763,359 @@ details[open]::details-content{block-size:auto}
 .topbar{height:3px;background:linear-gradient(90deg,var(--acc),var(--c-phys));box-shadow:0 0 10px var(--acc)}
 .note,.bill,.card{animation:pgFade .35s ease both}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* ═══ เซลล์แบ่งตัว ═══ */
+:root{--cell1:#9fe3bd;--cell2:#2f9e68;--cnuc:#1c5f8f;--dish1:#eef8f1;--dish2:#cfe9d8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--dish1:#10231a;--dish2:#1d3a2b}}
+:root[data-theme="dark"]{--dish1:#10231a;--dish2:#1d3a2b}
+.cl-defs{position:absolute;width:0;height:0;overflow:hidden}
+.cchip{display:inline-flex;align-items:center;gap:4px;height:36px;padding:0 10px 0 6px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:700;font-size:14px;font-variant-numeric:tabular-nums}
+.cchip svg{width:26px;height:24px}
+.cchip.todo svg{filter:grayscale(.85);opacity:.7}
+.cchip:hover{border-color:var(--acc)}
+@media (max-width:560px){.cchip{border:0;padding:0 2px;gap:2px;height:32px}.cchip svg{width:22px;height:21px}}
+.cl-lab{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:860px){.cl-lab{grid-template-columns:1fr}}
+.dish{position:relative;border-radius:50%;aspect-ratio:1;width:min(400px,100%);max-width:100%;justify-self:center;
+  background:radial-gradient(circle at 50% 45%,var(--dish1) 0 62%,var(--dish2) 63% 66%,var(--dish1) 67% 100%);box-shadow:inset 0 0 0 10px var(--dish2),0 22px 50px -26px rgba(0,0,0,.45)}
+.dish svg.colony{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.dish .cap{position:absolute;left:50%;bottom:-14px;transform:translateX(-50%);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px;font-weight:600;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis}
+.cl-cell{transform-box:fill-box;transform-origin:center;animation:clbob 3.2s ease-in-out infinite}
+.cl-cell.new{animation:clpop .55s var(--ease-spring,ease) both,clbob 3.2s ease-in-out .55s infinite}
+@keyframes clpop{from{transform:scale(.2);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes clbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.cl-cell.rest{filter:grayscale(1);opacity:.55;animation:none}
+.cl-panel{display:grid;gap:16px}
+.cl-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:520px){.cl-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cl-stats div{border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:grid;gap:0}
+.cl-stats b{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
+.cl-stats span{font-size:12.5px;color:var(--ink2)}
+.cl-bar{height:10px;border-radius:99px;background:var(--bg3);overflow:hidden}
+.cl-bar i{display:block;height:100%;background:var(--acc);border-radius:99px;transition:width .4s}
+.cl-box{border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:grid;gap:10px}
+.cl-box.dash{border-style:dashed;border-color:var(--acc)}
+.cl-demo{border:1px dashed var(--wait);background:var(--wait-soft);border-radius:16px;padding:14px 16px;display:grid;gap:10px}
+.cl-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;max-width:420px}
+.cl-cal span{aspect-ratio:1;border-radius:8px;background:var(--bg3);display:grid;place-items:center;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cl-cal span.half{background:var(--acc-soft);color:var(--ink2)}
+.cl-cal span.on{background:var(--acc);color:var(--on-acc);font-weight:700}
+.cl-cal span.today{outline:2px solid var(--ink);outline-offset:1px}
+.cl-road{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+@media (max-width:760px){.cl-road{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cl-road div{border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:grid;gap:2px}
+.cl-road div.done{border-color:var(--acc);background:var(--acc-soft)}
+.cl-road .d{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.cl-road .done .d{color:var(--acc)}
+.cl-road span.sm{font-size:12.5px;color:var(--ink2)}
+.cl-themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.cl-th{border:1px solid var(--line);border-radius:18px;overflow:hidden;display:grid}
+.cl-th.on{outline:2px solid var(--acc);outline-offset:2px}
+.cl-mock{background:var(--m-bg);color:var(--m-ink);padding:12px;display:grid;gap:8px;position:relative;min-height:150px}
+.cl-mock .hd{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:800}
+.cl-mock .hd em{font-style:normal;color:var(--m-acc)}
+.cl-mock .tl{background:var(--m-card);border-radius:10px;padding:8px;display:grid;gap:4px}
+.cl-mock .tl i{display:block;height:40px;border-radius:7px;background:var(--m-pat)}
+.cl-mock .tl b{font-size:11.5px}.cl-mock .tl s{text-decoration:none;font-size:11px;font-weight:800;color:var(--m-acc)}
+.cl-mock .lk{position:absolute;inset:0;display:grid;place-items:center;background:rgba(8,10,9,.58);color:#fff;font-weight:600;font-size:14px}
+.cl-th .cp{padding:12px 14px;display:grid;gap:4px}
+.cl-th .cp .d{font-family:var(--mono);font-size:12px;color:var(--acc)}
+.cl-th .cp p{font-size:13px;color:var(--ink2)}
+.cl-led{display:grid;gap:0}
+.cl-led div{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.cl-led b{font-variant-numeric:tabular-nums}
+.cl-led b.plus{color:var(--ok)}.cl-led b.minus{color:var(--no)}
+.cl-rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:640px){.cl-rules{grid-template-columns:1fr}}
+.cl-rules div{background:var(--bg2);border-radius:16px;padding:16px;display:grid;gap:4px}
+.cl-rules p{font-size:14.5px;color:var(--ink2)}
+@media (prefers-reduced-motion:reduce){.cl-cell,.cl-cell.new{animation:none}}
+/* ธีมปลดล็อก: แต่ละธีมมีสี ลายพื้น และรายละเอียดของตัวเอง */
+:root.ct-petri,:root.ct-reef,:root.ct-gold{color-scheme:light;--ok:#1f7a4d;--ok-soft:#e7f3ec;--wait:#8a5a00;--wait-soft:#fbf2df;--no:#a3261e;--no-soft:#fbe8e6;--shadow:0 30px 80px rgba(0,0,0,.18);
+  --c-bio:#16875a;--c-bio-soft:#e3f4ea;--c-chem:#d4541c;--c-chem-soft:#fdeadf;--c-phys:#2563d6;--c-phys-soft:#e5eefc;--c-math:#8246d4;--c-math-soft:#f0e8fb;--foot-ink:#fff;--foot-ink2:rgba(255,255,255,.72);--foot-line:rgba(255,255,255,.15)}
+:root.ct-scope,:root.ct-forest,:root.ct-nebula{color-scheme:dark;--ok:#6fcf9b;--ok-soft:#14261c;--wait:#e8b85c;--wait-soft:#2a2213;--no:#f08a82;--no-soft:#2d1817;--shadow:0 30px 80px rgba(0,0,0,.6);
+  --c-bio:#5ad49a;--c-bio-soft:#12281d;--c-chem:#ff9a66;--c-chem-soft:#2e1a10;--c-phys:#7fa9ff;--c-phys-soft:#131f36;--c-math:#bf98ff;--c-math-soft:#231935;--foot-ink:#fff;--foot-ink2:rgba(255,255,255,.72);--foot-line:rgba(255,255,255,.15)}
+/* 15 วัน · จานเพาะเชื้อ: วุ้นอำพัน จุดโคโลนี */
+:root.ct-petri{--bg:#fbf7ec;--bg2:#f4ecd6;--bg3:#ebdfc0;--ink:#2a2413;--ink2:#5f5536;--muted:#948a68;--line:#e5d9b8;--inv:#2a2413;--inv-ink:#fbf7ec;--acc:#b7791f;--acc-soft:#f6e7c8;--on-acc:#fff;--hero-a:#f5e9c9;--hero-b:#dcefe7;--foot-bg:#2e2717;
+  --cell1:#f3d58a;--cell2:#c98f1c;--cnuc:#7a5208;--dish1:#fbf1d4;--dish2:#e8d49a}
+.ct-petri body{background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cg fill='%23b7791f' fill-opacity='.08'%3E%3Ccircle cx='20' cy='30' r='9'/%3E%3Ccircle cx='120' cy='40' r='5'/%3E%3Ccircle cx='80' cy='120' r='12'/%3E%3Ccircle cx='160' cy='150' r='6'/%3E%3Ccircle cx='40' cy='160' r='4'/%3E%3C/g%3E%3Cg fill='%232f8f7a' fill-opacity='.07'%3E%3Ccircle cx='150' cy='90' r='8'/%3E%3Ccircle cx='60' cy='70' r='3'/%3E%3C/g%3E%3C/svg%3E")}
+.ct-petri .h2x h1 em{background:linear-gradient(transparent 68%,#cfe8dc 68% 92%,transparent 92%)}
+.ct-petri .tile,.ct-petri .card{box-shadow:inset 0 0 0 1px #eadcb6}
+/* 30 วัน · ย้อมสี H&E: พื้นมืดใต้กล้อง ม่วงฮีมาทอกซิลิน ชมพูอีโอซิน เส้นสเกล */
+:root.ct-scope{--bg:#0e0b14;--bg2:#17121f;--bg3:#211a2c;--ink:#f3ecf7;--ink2:#bfb2cc;--muted:#8c7f9a;--line:#2a2236;--inv:#f3ecf7;--inv-ink:#0e0b14;--acc:#e86fa8;--acc-soft:#3a1830;--on-acc:#1a0612;--hero-a:#2a1c3e;--hero-b:#3a1830;--foot-bg:#07050a;
+  --cell1:#f2a9cc;--cell2:#c4478a;--cnuc:#5a3aa8;--dish1:#16101f;--dish2:#2e2140}
+.ct-scope body{background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath d='M0 .5H64M.5 0V64' stroke='%23e86fa8' stroke-opacity='.06'/%3E%3Cpath d='M32 28v8M28 32h8' stroke='%238e6cff' stroke-opacity='.2'/%3E%3C/svg%3E")}
+.ct-scope .hdr{border-bottom:1px solid transparent;border-image:linear-gradient(90deg,#6a4fd8,#e86fa8) 1}
+.ct-scope .h2x h1 em{color:#e86fa8;text-shadow:0 0 28px rgba(232,111,168,.35)}
+.ct-scope .dish{box-shadow:inset 0 0 0 10px var(--dish2),0 0 0 1px #6a4fd8,0 0 60px -10px rgba(106,79,216,.5)}
+/* 60 วัน · แนวปะการัง: ฟ้าน้ำตื้น ปะการังส้มชมพู ลายคลื่น */
+:root.ct-reef{--bg:#f2fafa;--bg2:#e2f3f3;--bg3:#cfeaea;--ink:#0a2e36;--ink2:#3d626a;--muted:#73959a;--line:#cfe6e7;--inv:#0a2e36;--inv-ink:#f2fafa;--acc:#e8553b;--acc-soft:#ffe1d8;--on-acc:#fff;--hero-a:#cdeeee;--hero-b:#ffe0d6;--foot-bg:#083a45;
+  --cell1:#ffb8a6;--cell2:#e8553b;--cnuc:#0f6b73;--dish1:#e3f5f4;--dish2:#a8dcdc}
+.ct-reef body{background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40'%3E%3Cpath d='M0 20c20-12 40-12 60 0s40 12 60 0' fill='none' stroke='%231a9aa0' stroke-opacity='.09' stroke-width='2'/%3E%3C/svg%3E")}
+.ct-reef .hdr{background:linear-gradient(180deg,#dff3f3,#f2fafa)}
+.ct-reef .sec-h h2{text-decoration:underline wavy rgba(232,85,59,.45);text-underline-offset:9px;text-decoration-thickness:2px}
+/* 100 วัน · ป่าดิบชื้น: เขียวมอส เส้นใบ ทองแสงแดด */
+:root.ct-forest{--bg:#0f1a14;--bg2:#15241b;--bg3:#1d3024;--ink:#eef3e6;--ink2:#b8c7ae;--muted:#869579;--line:#26382b;--inv:#eef3e6;--inv-ink:#0f1a14;--acc:#d9a441;--acc-soft:#3a3219;--on-acc:#1a1405;--hero-a:#1c3a27;--hero-b:#3a3219;--foot-bg:#08110b;
+  --cell1:#b5e08c;--cell2:#4f9a3e;--cnuc:#d9a441;--dish1:#132419;--dish2:#2a4a31}
+.ct-forest body{background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cpath d='M10 80C30 50 50 30 80 10M30 60l-12-4M45 45l-14-2M58 32l-12-6M40 52l6 12M55 38l8 12' fill='none' stroke='%23d9a441' stroke-opacity='.07' stroke-width='1.5'/%3E%3C/svg%3E")}
+.ct-forest .h2x h1 em{color:#d9a441}
+.ct-forest .tile{border-color:#2d4a33}
+/* 200 วัน · เนบิวลา: อวกาศลึก ดาว แสงม่วงชมพู */
+:root.ct-nebula{--bg:#0b0a1a;--bg2:#141230;--bg3:#1d1a40;--ink:#f1eeff;--ink2:#b9b3de;--muted:#8480ae;--line:#262257;--inv:#f1eeff;--inv-ink:#0b0a1a;--acc:#9d8cff;--acc-soft:#221e4e;--on-acc:#0b0a1a;--hero-a:#2b1e5c;--hero-b:#3f1747;--foot-bg:#06050f;
+  --cell1:#d2c4ff;--cell2:#8b6cf0;--cnuc:#ff6ad5;--dish1:#15123a;--dish2:#2e2468}
+.ct-nebula body{background:radial-gradient(900px 480px at 85% -8%,rgba(123,76,255,.22),transparent 70%),radial-gradient(700px 380px at 0% 18%,rgba(255,79,180,.14),transparent 70%),
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cg fill='%23fff'%3E%3Ccircle cx='12' cy='20' r='1' fill-opacity='.5'/%3E%3Ccircle cx='90' cy='40' r='.8' fill-opacity='.35'/%3E%3Ccircle cx='50' cy='100' r='1.2' fill-opacity='.45'/%3E%3Ccircle cx='120' cy='120' r='.7' fill-opacity='.3'/%3E%3Ccircle cx='130' cy='70' r='1' fill-opacity='.4'/%3E%3C/g%3E%3C/svg%3E"),var(--bg)}
+.ct-nebula .h2x h1 em{background:linear-gradient(90deg,#9d8cff,#ff6ad5);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ct-nebula .pill:not(.ghost):not(.quiet):not(.danger){background:linear-gradient(90deg,#8b7cff,#ff6ad5);color:#fff;border-color:transparent}
+/* 365 วัน · เกลียวทองคำ: งาช้าง หมึกดำ ทองคำ ลายเกลียว DNA */
+:root.ct-gold{--bg:#fcfaf4;--bg2:#f4eedf;--bg3:#eae0c6;--ink:#16130b;--ink2:#4f4735;--muted:#8a806a;--line:#e6dcc4;--inv:#16130b;--inv-ink:#fcfaf4;--acc:#a87b14;--acc-soft:#f1e3bd;--on-acc:#fff;--hero-a:#f3e7c4;--hero-b:#ede6d6;--foot-bg:#16130b;
+  --cell1:#f4dc93;--cell2:#c29a2c;--cnuc:#5a430c;--dish1:#fbf3dc;--dish2:#e7d49a}
+.ct-gold body{background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='120'%3E%3Cpath d='M10 0C50 30 50 90 10 120M50 0C10 30 10 90 50 120' fill='none' stroke='%23a87b14' stroke-opacity='.08' stroke-width='1.5'/%3E%3Cpath d='M18 20h24M14 40h32M14 80h32M18 100h24' stroke='%23a87b14' stroke-opacity='.07'/%3E%3C/svg%3E")}
+.ct-gold .h2x h1 em{background:linear-gradient(90deg,#7d5a0c,#d4a52a,#7d5a0c);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ct-gold .pill:not(.ghost):not(.quiet):not(.danger){background:#16130b;color:#e9c86a;border-color:#16130b}
+.ct-gold .hdr{border-bottom:1px solid #d9c48a}
+
+.lrv,.tfb{border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:grid;gap:10px;margin-block:14px;background:var(--bg2)}
+.lrv-st{display:flex;gap:4px}.lrv-st button{font-size:28px;line-height:1;background:none;border:0;color:var(--line);cursor:pointer;padding:2px}.lrv-st button.on{color:var(--acc)}
+.lrv-st button:focus-visible{outline:2px solid var(--acc);border-radius:6px}
+.tfb{margin-top:14px}
+/* ลูกเล่นของแต่ละธีม (เลเยอร์บาง ๆ ไม่รับคลิก) */
+#ct-fx{position:fixed;inset:0;pointer-events:none;z-index:15;overflow:hidden}
+#ct-fx i{position:absolute;display:block;will-change:transform,opacity}
+@keyframes fxFall{from{transform:translate3d(0,-8vh,0)}to{transform:translate3d(var(--dx,20px),108vh,0)}}
+@keyframes fxRise{from{transform:translate3d(0,0,0);opacity:0}10%{opacity:1}to{transform:translate3d(var(--dx,10px),-110vh,0);opacity:0}}
+@keyframes fxDrift{0%,100%{transform:translate(0,0)}25%{transform:translate(var(--a,30px),var(--b,-20px))}50%{transform:translate(var(--c,-20px),var(--d,25px))}75%{transform:translate(var(--b,-20px),var(--a,30px))}}
+@keyframes fxBlink{0%,100%{opacity:.15}50%{opacity:1}}
+@keyframes fxFly{from{transform:translate3d(-12vw,0,0) scaleY(1)}25%{transform:translate3d(25vw,-4vh,0) scaleY(.7)}50%{transform:translate3d(55vw,2vh,0) scaleY(1)}75%{transform:translate3d(85vw,-3vh,0) scaleY(.7)}to{transform:translate3d(115vw,0,0) scaleY(1)}}
+@keyframes fxShoot{0%,88%{transform:translate3d(0,0,0) rotate(-24deg);opacity:0}90%{opacity:1}to{transform:translate3d(-60vw,28vh,0) rotate(-24deg);opacity:0}}
+@keyframes fxBloom{from{transform:scale(0);opacity:.9}70%{opacity:.7}to{transform:scale(1);opacity:0}}
+@keyframes fxShine{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes fxFocus{from{filter:blur(7px);opacity:.4}to{filter:blur(0);opacity:1}}
+.fx-snow{width:var(--s,5px);height:var(--s,5px);border-radius:50%;background:#fff;box-shadow:0 0 4px rgba(160,190,220,.9);animation:fxFall var(--t,12s) linear var(--dl,0s) infinite}
+.fx-bub{width:var(--s,10px);height:var(--s,10px);border-radius:50%;border:1.5px solid rgba(26,154,160,.45);background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.8) 0 18%,transparent 22%);bottom:-20px;animation:fxRise var(--t,14s) ease-in var(--dl,0s) infinite}
+.fx-fly{width:5px;height:5px;border-radius:50%;background:#ffe27a;box-shadow:0 0 10px 3px rgba(255,214,90,.55);animation:fxDrift var(--t,16s) ease-in-out var(--dl,0s) infinite,fxBlink var(--t2,3s) ease-in-out var(--dl,0s) infinite}
+.fx-star{width:2px;height:2px;border-radius:50%;background:#fff;animation:fxBlink var(--t,4s) ease-in-out var(--dl,0s) infinite}
+.fx-shoot{width:120px;height:2px;border-radius:2px;background:linear-gradient(90deg,#fff,rgba(255,106,213,0));animation:fxShoot 11s ease-out var(--dl,2s) infinite}
+.fx-bat{width:48px;height:23px;filter:drop-shadow(0 0 6px rgba(255,122,26,.55));animation:fxFly var(--t,24s) linear var(--dl,0s) infinite;opacity:.8}
+.fx-spark{width:6px;height:6px;background:radial-gradient(circle,#ffe7a0 0 30%,rgba(212,165,42,0) 70%);animation:fxBlink var(--t,3s) ease-in-out var(--dl,0s) infinite}
+.fx-col{position:fixed;width:var(--s,26px);height:var(--s,26px);border-radius:50%;pointer-events:none;z-index:15;background:radial-gradient(circle,rgba(201,143,28,.55) 0 35%,rgba(47,143,122,.35) 36% 60%,transparent 62%);animation:fxBloom 1.6s ease-out forwards}
+.fx-fog{left:0;right:0;bottom:0;height:22vh;background:linear-gradient(0deg,rgba(120,80,160,.22),transparent);animation:fxBlink 9s ease-in-out infinite}
+.ct-scope .dish{cursor:crosshair}
+.ct-scope .dish::after{content:"";position:absolute;inset:14%;border-radius:50%;pointer-events:none;background:linear-gradient(rgba(232,111,168,.35),rgba(232,111,168,.35)) center/1px 100% no-repeat,linear-gradient(90deg,rgba(232,111,168,.35),rgba(232,111,168,.35)) center/100% 1px no-repeat;opacity:.5}
+.ct-scope main h1{animation:fxFocus 1.1s ease-out both}
+.ct-gold .h2x h1 em,.fe-christmas .h2x h1 em{background-size:200% 100%;animation:fxShine 6s linear infinite}
+/* เซลล์เดินไปมาในจาน */
+.cl-cell{cursor:pointer}
+.cl-cell use{transform-box:fill-box;transform-origin:center}.cl-cell.fs{animation:none}.cl-cell.poke use{animation:clPoke .5s ease}
+@keyframes clPoke{30%{transform:scale(1.12,.9)}60%{transform:scale(.95,1.06)}}
+@media (prefers-reduced-motion:reduce){#ct-fx{display:none}.ct-scope main h1,.ct-gold .h2x h1 em{animation:none}}
+
+/* ธีมเทศกาล: ทับธีมที่เลือกไว้ชั่วคราวตามช่วงวัน น้องปิดเองได้ในหน้าเซลล์ */
+:root.fe-halloween{color-scheme:dark;--bg:#120d18;--bg2:#1b1424;--bg3:#251c31;--ink:#f6efff;--ink2:#c6b8d8;--muted:#8f82a3;--line:#2e2440;--inv:#f6efff;--inv-ink:#120d18;--acc:#ff7a1a;--acc-soft:#3a2212;--on-acc:#1a0d02;
+  --hero-a:#2a1840;--hero-b:#3a2212;--foot-bg:#0a070e;--ok:#6fcf9b;--ok-soft:#14261c;--wait:#e8b85c;--wait-soft:#2a2213;--no:#f08a82;--no-soft:#2d1817;--shadow:0 30px 80px rgba(0,0,0,.6);
+  --c-bio:#5ad49a;--c-bio-soft:#12281d;--c-chem:#ff9a66;--c-chem-soft:#2e1a10;--c-phys:#7fa9ff;--c-phys-soft:#131f36;--c-math:#bf98ff;--c-math-soft:#231935;--foot-ink:#fff;--foot-ink2:rgba(255,255,255,.72);--foot-line:rgba(255,255,255,.15);
+  --cell1:#ffc58a;--cell2:#ff7a1a;--cnuc:#7b3fc4;--dish1:#1b1226;--dish2:#3a2352}
+.fe-halloween body{background:radial-gradient(700px 360px at 90% -6%,rgba(255,122,26,.16),transparent 70%),radial-gradient(800px 420px at 0% 30%,rgba(123,63,196,.16),transparent 70%),var(--bg)}
+.fe-halloween .h2x h1 em{color:#ff7a1a;text-shadow:0 0 30px rgba(255,122,26,.45)}
+.fe-halloween .hdr{border-bottom:1px solid #3a2352}
+:root.fe-christmas{color-scheme:light;--bg:#fbfaf6;--bg2:#f1efe6;--bg3:#e6e2d4;--ink:#14231b;--ink2:#46574d;--muted:#7f8c84;--line:#e3dfd0;--inv:#14231b;--inv-ink:#fbfaf6;--acc:#c8102e;--acc-soft:#fbe1e5;--on-acc:#fff;
+  --hero-a:#e1f0e6;--hero-b:#fbe1e5;--foot-bg:#0f3b26;--ok:#1f7a4d;--ok-soft:#e7f3ec;--wait:#8a5a00;--wait-soft:#fbf2df;--no:#a3261e;--no-soft:#fbe8e6;--shadow:0 30px 80px rgba(0,0,0,.18);
+  --c-bio:#16875a;--c-bio-soft:#e3f4ea;--c-chem:#d4541c;--c-chem-soft:#fdeadf;--c-phys:#2563d6;--c-phys-soft:#e5eefc;--c-math:#8246d4;--c-math-soft:#f0e8fb;--foot-ink:#fff;--foot-ink2:rgba(255,255,255,.72);--foot-line:rgba(255,255,255,.15);
+  --cell1:#bfe6cc;--cell2:#1f8a4c;--cnuc:#c8102e;--dish1:#f1f7f2;--dish2:#cfe3d5}
+.fe-christmas .hdr{border-bottom:4px solid transparent;border-image:repeating-linear-gradient(135deg,#c8102e 0 10px,#fff 10px 20px) 4}
+.fe-christmas .h2x h1 em{background-image:linear-gradient(90deg,#1f8a4c,#c8102e,#d4a52a,#1f8a4c);-webkit-background-clip:text;background-clip:text;color:transparent}
+.fest-bar{background:linear-gradient(90deg,var(--hero-a),var(--hero-b));color:var(--ink);text-align:center;font-size:13.5px;font-weight:600;padding:7px 16px}
+/* ═══ หน้าแรกแบบใหม่ (v2): บิลบอร์ดคอร์ส + แถวคอร์สเลื่อนได้ ═══ */
+.v2-hi{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;padding-block:26px 16px}
+.v2-hi h1{font-size:clamp(24px,3.2vw,32px);font-weight:800;letter-spacing:-.02em;line-height:1.15}
+.v2-hi p{color:var(--ink2);font-size:15px;margin-top:4px}
+.bbd{position:relative;border-radius:28px;overflow:hidden;background:#0b0e12;color:#fff;isolation:isolate;min-height:420px;display:grid}
+.bbd-s{grid-area:1/1;display:grid;opacity:0;visibility:hidden;transition:opacity .7s var(--ease-out,ease),visibility .7s}
+.bbd-s.on{opacity:1;visibility:visible}
+.bbd-bg{position:absolute;inset:-40px;background:var(--img) center/cover no-repeat;filter:blur(38px) saturate(1.4) brightness(.55);transform:scale(1.1);z-index:-2}
+.bbd-s::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(120% 90% at 85% 50%,transparent 20%,rgba(8,10,14,.55) 60%),linear-gradient(90deg,rgba(8,10,14,.92) 0%,rgba(8,10,14,.6) 45%,rgba(8,10,14,.1) 100%)}
+.bbd-in{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:30px;align-items:center;padding:44px 48px 58px}
+.bbd-k{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+.bbd-k i{width:8px;height:8px;border-radius:50%;background:var(--acc)}
+.bbd h2{font-size:clamp(30px,4.6vw,54px);font-weight:800;line-height:1.08;letter-spacing:-.025em;margin-block:12px 12px;text-wrap:balance}
+.bbd p.sub{color:rgba(255,255,255,.78);font-size:16.5px;max-width:44ch}
+.bbd-f{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.bbd-f span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);border-radius:999px;padding:5px 12px;font-size:13.5px;font-weight:500}
+.bbd-cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+.bbtn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:11px 20px;font-weight:700;font-size:15px;text-decoration:none;border:0;cursor:pointer;font-family:inherit;transition:transform .2s var(--ease-out,ease),background .2s}
+.bbtn.pri{background:#fff;color:#0b0e12}.bbtn.pri:hover{transform:translateY(-2px)}
+.bbtn.gh{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.22)}.bbtn.gh:hover{background:rgba(255,255,255,.2)}
+.bbd-art{display:block;justify-self:end;width:100%;max-width:560px;border-radius:18px;overflow:hidden;box-shadow:0 40px 80px -30px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.08);transform:perspective(1200px) rotateY(-9deg) rotateX(3deg);transition:transform .6s var(--ease-out,ease)}
+.bbd-art:hover{transform:perspective(1200px) rotateY(-3deg) rotateX(1deg) translateY(-4px)}
+.bbd-art img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
+.bbd-dots{position:absolute;left:48px;bottom:22px;display:flex;gap:8px;z-index:2}
+.bbd-dots button{width:26px;height:4px;border-radius:4px;border:0;background:rgba(255,255,255,.3);cursor:pointer;padding:0}
+.bbd-dots button.on{background:#fff;width:44px}
+.bbd-dots button:focus-visible{outline:2px solid #fff;outline-offset:3px}
+@media (max-width:820px){.bbd{border-radius:22px;min-height:0}.bbd-in{grid-template-columns:1fr;padding:22px 20px 46px;gap:18px}.bbd-art{order:-1;justify-self:stretch;transform:none;max-width:none}.bbd-dots{left:20px;bottom:16px}.bbd p.sub{font-size:15px}}
+.rw{margin-top:38px;display:grid;gap:14px}
+.rw-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.rw-h h2{font-size:clamp(20px,2.4vw,26px);font-weight:800;letter-spacing:-.015em}
+.rw-h small{display:block;font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+.rw-nav{display:flex;gap:6px}
+.rw-nav button{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;font-size:16px}
+.rw-nav button:hover{border-color:var(--ink)}
+@media (max-width:700px){.rw-nav{display:none}}
+.rw-t{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(250px,300px);gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 18px;scrollbar-width:none;overscroll-behavior-x:contain}
+.rw-t::-webkit-scrollbar{display:none}
+.rw-t>*{scroll-snap-align:start}
+.nc{display:grid;gap:10px;text-decoration:none;color:inherit;border-radius:18px}
+.nc-cv{position:relative;display:block;aspect-ratio:16/10;border-radius:18px;overflow:hidden;background:var(--acc-soft);box-shadow:0 1px 0 var(--line);transition:transform .35s var(--ease-out,ease),box-shadow .35s}
+.nc-cv img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .6s var(--ease-out,ease)}
+.nc:hover .nc-cv{transform:translateY(-4px);box-shadow:0 24px 40px -22px color-mix(in srgb,var(--acc) 70%,#000)}
+.nc:hover .nc-cv img{transform:scale(1.05)}
+.nc-cv .ty{position:absolute;inset:0;display:grid;place-items:center;font-size:40px;font-weight:800;color:var(--acc)}
+.nc-lv{position:absolute;left:10px;top:10px;background:rgba(10,12,16,.72);color:#fff;backdrop-filter:blur(6px);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600}
+.nc-off{position:absolute;right:10px;top:10px;background:var(--acc);color:var(--on-acc);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700}
+.nc-pg{position:absolute;left:0;right:0;bottom:0;height:5px;background:rgba(0,0,0,.35)}.nc-pg i{display:block;height:100%;background:var(--acc)}
+.nc-go{position:absolute;right:12px;bottom:14px;width:42px;height:42px;border-radius:50%;background:#fff;color:#0b0e12;display:grid;place-items:center;opacity:0;transform:translateY(8px) scale(.9);transition:.3s var(--ease-out,ease);box-shadow:0 8px 20px rgba(0,0,0,.3)}
+.nc:hover .nc-go,.nc:focus-visible .nc-go{opacity:1;transform:none}
+.nc-b{display:grid;gap:2px;padding-inline:2px}
+.nc-t{font-weight:700;font-size:16px;line-height:1.3}
+.nc-m{font-size:13.5px;color:var(--ink2)}
+.nc-p{font-weight:700;font-size:15px;display:flex;gap:8px;align-items:baseline}.nc-p s{color:var(--muted);font-weight:500;font-size:13px}
+.nc:focus-visible{outline:2px solid var(--acc);outline-offset:4px}
+.v2-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:24px 18px}
+.prm{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:44px}
+@media (max-width:760px){.prm{grid-template-columns:1fr}}
+.prm div{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;padding:18px;border-radius:20px;background:var(--bg2)}
+.prm svg{grid-row:span 2;width:40px;height:40px;padding:9px;border-radius:12px;background:var(--acc-soft);color:var(--acc)}
+.prm b{font-size:16px}.prm span{font-size:14px;color:var(--ink2)}
+.ask{margin-top:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:18px 22px;border-radius:20px;border:1px solid var(--line)}
+.ask b{font-size:17px}.ask p{color:var(--ink2);font-size:14.5px}
+.v2 .hof{margin-top:40px}
+.v2 .bdls{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(270px,330px);grid-template-columns:none;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:12px;scrollbar-width:none}.v2 .bdls::-webkit-scrollbar{display:none}.v2 .bdls>*{scroll-snap-align:start}
+.uisw{margin-left:10px;background:rgba(255,255,255,.15);color:inherit;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:1px 10px;font:inherit;font-size:12.5px;cursor:pointer}
+/* ═══ หน้าตาใหม่ทั้งเว็บ (v2ui): แถบหัวหน้าสีเข้มแบบบิลบอร์ด การ์ดโค้งมน ปุ่มหนา ห้องเรียนโหมดโรงหนัง ═══ */
+:root.v2ui{--v2-band:#0b0e12}
+.v2ui .hdr .nav{gap:4px}
+.v2ui .hdr .nav a{padding:6px 13px;border-radius:999px;font-weight:500}
+.v2ui .hdr .nav a.on{background:var(--ink);color:var(--bg);font-weight:600}
+.v2ui .hdr .nav a:not(.on):hover{background:var(--bg2)}
+.v2ui .pill{font-weight:700;transition:transform .2s var(--ease-out,ease),opacity .2s,background .2s,box-shadow .2s}
+.v2ui .pill:not(:disabled):hover{opacity:1;transform:translateY(-1px);box-shadow:0 10px 20px -12px color-mix(in srgb,var(--acc) 80%,#000)}
+.v2ui .pill.quiet:not(:disabled):hover,.v2ui .pill.ghost:not(:disabled):hover{box-shadow:none;background:var(--bg2)}
+.v2ui .card{border-radius:24px}
+.v2ui .tbl{border-radius:20px}
+.v2ui input.i,.v2ui select.i,.v2ui textarea.i{border-radius:14px;padding:11px 14px;background:var(--bg)}
+.v2ui .modal{border-radius:28px;padding:30px;box-shadow:0 40px 120px -30px rgba(0,0,0,.55)}
+.v2ui .modal h2{font-weight:800;letter-spacing:-.015em}
+.v2ui .empty{border-style:solid;background:var(--bg2);border-color:transparent;border-radius:26px}
+.v2ui .note{border-radius:16px}
+/* แถบหัวหน้าเข้ม ใช้กับทุกหน้าที่มีหัวข้อหน้า */
+.v2ui .page-h,.v2ui .res-h{position:relative;isolation:isolate;overflow:hidden;margin-top:22px;margin-bottom:26px;padding:34px 38px;border-radius:28px;background:var(--v2-band);color:#fff;gap:8px}
+.v2ui .page-h::before,.v2ui .res-h::before,.v2ui .chero::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(520px 280px at 92% 0%,color-mix(in srgb,var(--acc) 55%,transparent),transparent 70%),radial-gradient(460px 260px at 0% 130%,color-mix(in srgb,var(--c-phys) 45%,transparent),transparent 70%)}
+.v2ui .page-h::after,.v2ui .res-h::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.5;
+  background:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px) 0 0/28px 28px,linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px) 0 0/28px 28px;-webkit-mask:linear-gradient(90deg,transparent,#000 60%);mask:linear-gradient(90deg,transparent,#000 60%)}
+.v2ui .page-h h1,.v2ui .res-h h1{color:#fff;font-weight:800;letter-spacing:-.02em;font-size:clamp(28px,4.4vw,44px)}
+.v2ui .page-h .mono,.v2ui .page-h .ink2,.v2ui .page-h p,.v2ui .res-h .k,.v2ui .res-h .ink2,.v2ui .res-h p{color:rgba(255,255,255,.74)}
+.v2ui .page-h a:not(.pill),.v2ui .res-h a:not(.pill){color:#fff}
+.v2ui .page-h .pill.quiet,.v2ui .page-h .pill.ghost{color:#fff;border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.08)}
+.v2ui .page-h .pill.quiet:hover,.v2ui .page-h .pill.ghost:hover{background:rgba(255,255,255,.16)}
+.v2ui .page-h .pill:not(.quiet):not(.ghost):not(.danger){background:#fff;color:#0b0e12;border-color:#fff}
+@media (max-width:700px){.v2ui .page-h,.v2ui .res-h{padding:24px 20px;border-radius:22px;margin-top:14px}}
+.v2ui .res-stats>div{border-radius:20px;border-color:transparent;background:var(--bg2)}
+.v2ui .res-stats .big{background:var(--ink);border-color:var(--ink)}.v2ui .res-stats .big b,.v2ui .res-stats .big span{color:var(--bg)}
+/* หน้าคอร์ส / แพ็กเกจ: หัวคอร์สเป็นบิลบอร์ดเต็มความกว้าง */
+.v2ui .chero.v2b{position:relative;isolation:isolate;overflow:hidden;margin-top:14px;border-radius:30px;background:var(--v2-band);color:#fff;padding:40px 44px;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);column-gap:40px;row-gap:10px;align-items:center;align-content:center}
+.v2ui .chero.v2b>*{grid-column:1}
+.v2ui .chero.v2b>.trailer{grid-column:2;grid-row:1/span 8;align-self:center;border-radius:20px;overflow:hidden;box-shadow:0 40px 80px -30px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.08);background:#000}
+.v2ui .chero.v2b .v2bg{position:absolute;inset:-40px;z-index:-2;background:var(--img) center/cover no-repeat;filter:blur(40px) saturate(1.4) brightness(.5);transform:scale(1.1);grid-column:auto}
+.v2ui .chero.v2b::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(8,10,14,.93),rgba(8,10,14,.62) 50%,rgba(8,10,14,.25))}
+.v2ui .chero.v2b::after{opacity:.55}
+.v2ui .chero.v2b h1{color:#fff;font-weight:800;letter-spacing:-.025em;font-size:clamp(30px,4.4vw,52px);line-height:1.08;margin:4px 0 2px}
+.v2ui .chero.v2b .lead,.v2ui .chero.v2b .ink2{color:rgba(255,255,255,.78)}
+.v2ui .chero.v2b .sj,.v2ui .chero.v2b .mono{color:rgba(255,255,255,.72);letter-spacing:.08em}
+.v2ui .chero.v2b .facts span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.85);backdrop-filter:blur(8px)}
+.v2ui .chero.v2b .facts b{color:#fff}
+.v2ui .chero.v2b .pill.ghost{background:#fff;color:#0b0e12;border-color:#fff;padding:9px 18px;font-size:15px}
+@media (max-width:860px){.v2ui .chero.v2b{grid-template-columns:1fr;padding:22px 20px 26px;border-radius:24px}.v2ui .chero.v2b>.trailer{grid-column:1;grid-row:1}}
+.v2ui .cd{padding-top:18px}
+.v2ui .buy{border-radius:26px;border-color:transparent;background:var(--bg);box-shadow:0 0 0 1px var(--line),0 30px 60px -40px rgba(0,0,0,.45)}
+.v2ui .buy .price{font-weight:800;letter-spacing:-.02em}
+.v2ui .sec h2{font-weight:800;letter-spacing:-.015em}
+.v2ui .jump{border-radius:999px}
+.v2ui .jump button{font-weight:600}
+/* คอร์สของฉัน */
+.v2ui .mc{background:var(--bg);border-radius:24px;box-shadow:0 1px 0 var(--line);transition:transform .35s var(--ease-out,ease),box-shadow .35s}
+.v2ui .mc:hover{transform:translateY(-4px);box-shadow:0 26px 44px -28px color-mix(in srgb,var(--acc) 70%,#000)}
+.v2ui .mcc{border-radius:24px 24px 0 0}
+.v2ui .mc h3{font-weight:800;letter-spacing:-.01em}
+/* ตะกร้า คำสั่งซื้อ */
+.v2ui .ci{border-radius:20px;border-color:transparent;background:var(--bg2)}
+.v2ui .qrbox{border-radius:20px}
+/* ห้องเรียนโหมดโรงหนัง */
+:root.v2ui.theater{color-scheme:dark;--bg:#0b0d10;--bg2:#15181d;--bg3:#1e2228;--ink:#f1f3f5;--ink2:#aab1ba;--muted:#7a828c;--line:#23272e;--inv:#f1f3f5;--inv-ink:#0b0d10;
+  --ok:#6fcf9b;--ok-soft:#14261c;--wait:#e8b85c;--wait-soft:#2a2213;--no:#f08a82;--no-soft:#2d1817;--shadow:0 30px 80px rgba(0,0,0,.6);
+  --c-bio:#5ad49a;--c-bio-soft:#12281d;--c-chem:#ff9a66;--c-chem-soft:#2e1a10;--c-phys:#7fa9ff;--c-phys-soft:#131f36;--c-math:#bf98ff;--c-math-soft:#231935;--on-acc:#0b0d10}
+.v2ui.theater body{background:radial-gradient(900px 420px at 30% -10%,color-mix(in srgb,var(--acc) 18%,transparent),transparent 70%),var(--bg)}
+.v2ui .learn .player{border-radius:20px;overflow:hidden;box-shadow:0 40px 90px -30px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.06)}
+.v2ui .lrow h2{font-weight:800;letter-spacing:-.015em}
+.v2ui .lside{border-left:0;background:var(--bg2);border-radius:24px;padding:16px 12px;margin:20px 0 40px 22px;align-self:start;position:sticky;top:76px;max-height:calc(100vh - 96px);overflow:auto}
+.v2ui .ep{border-radius:12px}
+.v2ui .ep.on{background:var(--ink);color:var(--bg)}
+@media (max-width:900px){.v2ui .lside{margin:0 0 30px;position:static;max-height:none}}
+/* หลังบ้าน */
+.v2ui .adm{gap:26px}
+.v2ui .aside{background:var(--v2-band);border:0;border-radius:24px;padding:16px 10px;margin-block:18px;align-self:start;position:sticky;top:76px;max-height:calc(100vh - 96px);overflow:auto}
+.v2ui .aside a{color:rgba(255,255,255,.72)}
+.v2ui .aside a:hover{background:rgba(255,255,255,.08);color:#fff}
+.v2ui .aside a.on{background:rgba(255,255,255,.14);color:#fff}
+.v2ui .aside .agh{color:rgba(255,255,255,.45)}
+.v2ui .amain{padding-left:0}
+.v2ui .amain h1{font-weight:800;letter-spacing:-.015em;font-size:28px}
+.v2ui .kpi{border-radius:22px}
+.v2ui .kpi b{font-weight:800}
+@media (max-width:900px){.v2ui .aside{position:static;max-height:none;margin-block:12px 0}}
+/* ส่วนท้าย */
+.v2ui .legal>h1:first-of-type,.v2ui .legal .md>h1:first-child{display:none}
+.v2ui .bigfoot{margin:48px 16px 16px;border-radius:32px;padding-inline:clamp(16px,4vw,48px)}
+/* บิลบอร์ด: จางเข้า-ออก ภาพพื้นหลังซูมช้า ๆ ตัวหนังสือและปกเลื่อนเข้า แถบเวลาบนจุด */
+.bbd-s .bbd-bg{transition:transform 7s ease-out}
+.bbd-s.on .bbd-bg{animation:bbKen 7s ease-out both}
+@keyframes bbKen{from{transform:scale(1.22)}to{transform:scale(1.08)}}
+.bbd-s .bbd-in>div{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .8s var(--ease-out,ease)}
+.bbd-s.on .bbd-in>div{opacity:1;transform:none;transition-delay:.18s}
+.bbd-s .bbd-art{opacity:0;translate:40px 0;transition:opacity .8s ease,translate 1s var(--ease-out,ease),transform .6s var(--ease-out,ease)}
+.bbd-s.on .bbd-art{opacity:1;translate:0 0;transition-delay:.25s,.25s,0s}
+.bbd-dots button{position:relative;overflow:hidden;transition:width .4s var(--ease-out,ease),background .3s}
+.bbd-dots button.on{background:rgba(255,255,255,.3)}
+.bbd-dots button.on::after{content:"";position:absolute;inset:0;background:#fff;transform-origin:left;transform:scaleX(1)}
+.bbd-dots button.run::after{animation:bbRun 5s linear forwards}
+@keyframes bbRun{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.bbd:hover .bbd-dots button.run::after{animation-play-state:paused}
+.bbd{touch-action:pan-y}
+/* ป้ายเลื่อน */
+.v2ui .has-glide{position:relative}
+.v2ui .glide{position:absolute;left:0;top:0;border-radius:999px;background:var(--ink);pointer-events:none;z-index:0;will-change:transform,width;transition:transform .75s cubic-bezier(.25,.9,.3,1),width .75s cubic-bezier(.25,.9,.3,1),height .75s cubic-bezier(.25,.9,.3,1),opacity .2s}
+.v2ui .has-glide>a,.v2ui .has-glide>button,.v2ui .has-glide>span:not(.glide){position:relative;z-index:1}
+.v2ui .hdr .nav a.on,.v2ui .mnav a.on,.v2ui .seg button[aria-pressed="true"],.v2ui .aside a.on{background:transparent!important}
+.v2ui .hdr .nav a,.v2ui .mnav a,.v2ui .seg button{transition:color .45s ease .1s}
+.v2ui .hdr .nav a.on,.v2ui .seg button[aria-pressed="true"]{color:var(--bg)}
+.v2ui .mnav .glide{border-radius:14px}
+.v2ui .mnav a.on{color:var(--bg)}
+.v2ui .aside .glide{border-radius:12px;background:rgba(255,255,255,.14)}
+.v2ui .aside a.on{color:#fff}
+@media (prefers-reduced-motion:reduce){.v2ui .glide{transition:none}.bbd-s.on .bbd-bg{animation:none}.bbd-dots button.run::after{animation:none}}
+
+/* ห้องเรียน: รายการตอนลอยขึ้นเมื่อชี้ ป้ายตอนที่ดูอยู่เลื่อนตามตอนที่กด เนื้อหาค่อย ๆ จางเข้า */
+.v2ui .lside.has-glide{position:sticky}
+@media (max-width:900px){.v2ui .lside.has-glide{position:relative}}
+.v2ui .lside .glide{border-radius:12px}
+.v2ui .ep{transition:transform .3s cubic-bezier(.25,.9,.3,1),box-shadow .3s,background .3s,color .45s ease .1s}
+.v2ui .ep:not(.on):hover{transform:translateY(-2px);background:var(--bg3);box-shadow:0 12px 22px -16px rgba(0,0,0,.7)}
+.v2ui .ep.on{background:transparent!important;color:var(--bg)}
+.v2ui .ep.on .ck{border-color:currentColor}
+.v2ui .learn .stage{animation:lsIn .5s cubic-bezier(.25,.9,.3,1) both}
+@keyframes lsIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.v2ui .learn .stage{animation:none}.v2ui .ep:hover{transform:none}}
 </style>
-</head><body>
+
 <div id="splash" aria-hidden="true"><img src="data:image/webp;base64,UklGRoIJAABXRUJQVlA4WAoAAAAQAAAAbwAAbwAAQUxQSEEDAAABDjq2tSmSnKyszhoGocUmM7O0j/G0BMln9pgZfJZWMJLFYKPFTElxTkNBZnxi+CK/iD8jwoEkSW2z4wx1khOgu9UH2CH5NGmF/fGPScEte3DCA/dyC2LcsjMFg1+v5InkqeecccenH9p3bi7JRgsDT83Iae7NCymQ1LU3uS2Uc3FbGC0nGZIXKjIedckb7zk1tbFdR3MJ69CM0ntvXHJUxqL/HiSvvNNJ+rV0K1EGJykaydSn8hl57EuVa0RqZUhRcTw245D39usM5GWP/+xUqTOiZI8HchL6+b2E7MQHJdWtOiSYpOFETooetMbZc9+oNnWOmQbOsrXOf5/Gq16RStcLpdMw0lK3WyOvcWrUG5RixrzTv/o5N7gqqkdi1A3scBDYzgu/dbV6xhQDU0d/P/LsnxbF7CtkHMnQSYy9D33jTB5gGh4aOwgx5Z6DTq28IEgHE6crt46vuZ89uUrBlMZVG/NDX1/v5hGm8dB8xQ3d636WV5juZVrp/37hx2Xrl0I5XMhihehnm/PsKgXZuHTwaXHON03tvMM4nFOk5TTj7Sqdh5Ru5LDkP/5qmbzENDAtFeGA+yX4qTDqwBIBJrPiVaucp0R7lUNYPKA9r0beQg1ZWHg95aeq9Vch/nTKosssPTsvop8BLc0PuMYzvl2/en2JA23+iPaEq/2WKTGf23Ksa+U5QcfOa5jxBat8V7QXOMxpv+Szyv+bSNvabDvuU5T3RKVxsyY8cnO7/82Rm/qEcGktCGwMmzTlB2oQRFmWSIa09+0WQ8HGtH5XZNfpV0EQxKxYV34TjsacWeJpJUhPycrTmBLPcTgSN3Q8kkamnHe4BkVUyHLyB9eiKOgHkvlHSPooJ/kxkgaSJ3/R4ih8cTL5jCsdDKWL5L1Yupd8AEv8+0F44wzeOIo3T8DNg4jzPN46Bm+dhrYORVxn4x1HwB0n4R0H4h3nwh3H4+Up8PIwcHkmvDwaXJ4QLg+Kl+fFy2PD5enx6hBwdRa8OhJcnQyuDghX58Sr48LVqeHq8HA+AzgfBZ5PBM4HA+fzgfMxofm04HxocD47OB8hmk8SzgcK53NF8/Gi+ZTBfNhwPnM0H/1v03kCcOdBEABWUDggGgYAADAdAJ0BKnAAcAA+YS6TRyQioaElWAnwgAwJYwDTx9XxgtjvJhltuHzp/pF3kbed8hQ8m/JXwO+Jz3pLMJH8QO+uXH2F8Zj6zxQdyNxhNADyXv8TywfT/sHqS9ziHPKoKAUXd1IAr5CNy+Y80lzS/IXq3qaDSmi2zpSLDgr8Rv1gcvMEIkfoPRmmfLky9zA2oyEEkKPL5T69s8Ju239Nkarcp26rkbC39ognuU9xbeZ3TPR1RrZljiUKjihNKYpUxyMTA7/R4f/gnI04d0JPmxkdkN1TvEKF+lMnVCMaWwc/KDdAWfzINoubWWeZJOAInM9AAP7+ByL/lVH//R///9Hj///ol4zsZT0Q4TFb/tQn4mKzUHJofibft4/pl5gTD/7vXsGeOs2Hw9PuheoCDj5IkiQammDlPidBrP6aDZJkTEtyDr3dTtcIOLItbU+3/lrldoleN0QGczDJ86mttEEr3Rq46xZbfnzjbusUA7Xp4TTficGPnHU55kjH2++UyGoUPx2/8E7o9BbeMOHqUyTsRuv4bTcv+8CP9f9l40Pwp364IFupK4jY8Mctri+eKEnfJqeP2fbN5Y1Me1PMeVF4j94los7+Ies3cfL7fhLWe9anJQPXAhYoPms80kfklG0au40GETOzJ1vZ7R6d5D4Bs1Ok/XwuC0wo4DYJ9YYzFxg85qke7E4QjdLId8VuuiEXMFSN1rJejizPGARladUSD/6of0UsTmyMqgHWE9jrv0RafPZDosq8oJ06oQV7npI6OFDpCPKSSX0ltUN3Nw0Weg3K5cQMhkcoYvKyEZAhyRlW3JNBvRqyDXv345K79Thzee+yBu3YBe/TGRlpmLtmU5lftb+ULQIO1btGntE6JM9FYGmt/J+wp2O6auhk++KtfXzlgYRTXu76fgcOpWA1ESge44KMVKMNwf2nlWBbjaGZOdFh+OJ5dZKWhTyWykDV5b+7zYq6IspKDKJ0aR8uyXPkC++infZc/PV3SFG1VpjuZfG54fWvTzCjqOBGwBnTWDIUnOwUuaAgukV8Twv56BJiO/IYEBs5Y8npZ5nVQwVGdVvzhYt6fWBDaYUOqZ4DifkRwVgtBKk5ukNMq6UIHuyc+uHqh79YvRTwy1ggN5xtOK4UNWNNyBARh8XvSgzG5v0b3xD1UJzelsTVtCXb3AZyIhsUmP3h0fWOGnt6BKTUCn8ixhRIxrk74TtTYE2AQMZQIg7uIRXs7GSy11pDQn0KNBntcmAC3soixQuiB4yh+NrS4LTJ4VahsgLb+tocFHyPfnrTbybGA3XkUTFwhwbZenuQ93gwMo0yonkzQ8dmUOrxGdH0kmkb4bwHxFVXSvhFbH4PgJRsOIrqAguLHsqzp8x3rfz3hZfWNrXvMr8zv/5nX5bEWTql1N+PPWiuIODBknTV93/r84bWsZdXi6d/Qd0PBrshwQ82YolJQCndJpvz2leVrIqS6wSAGOXZwIx9mGi3+3XnkWE6dWNFn55Amd8tj/abnQxFb7TjFZ5VQdbcpoBuPgn6aUh4yrB0uI1a2BhLHKM4CQFunfnOO3+DJIPVo0YCTdFA0iaME9eGXpYFeMBL4amzeVRcqLYXmTyHRT9mdTeFuqnVbksawcrec7GLWur9dU/2X1+x7dAelpi8+2pmOuiQMwNN4Olf32eo4yw69mtSC+Z3+P+cevNDyVQiK5olLoFq5C2OBn9GJB1CBi41u/WyA3C2FhYit8AeD5XbbT7zky4nl1oDQEduZCm0hRt+RtasMz4EeVkAL+X/aPW/UnuP3/mbTAdl2GADGOxX4/Sv5HagAuVT/HX4/MI2wgUzsU9R2SfxRaPe0Ish9Y+SbSEaJOYtJnTi20dS9XJ7/W8GKbzNONQc2H832uUTrRyJKr1uMe0yU5HuVVSHcbvapgRmtuNsy3MBNibudQm7II2F8FtoCXi/gh/Eo7i15LtJOJWSpMI8dMkGUcCfrvQ2G+0NIKqQXms0pOiF2Dlt4d64RKeH6rQaAkpPVrsA3hP/3q7iWB0GoZ1rZr//BSrlvSZ1cAt7Gc1L4V7AMCCgStIRo/2ABBV1/71Vm/wdAAAA" alt=""><b>กำลังเปิด INeedBio…</b></div>
 <div class="topbar" id="topbar"></div>
 <div id="app"></div>
@@ -938,7 +1290,7 @@ var SCHEMA = {
   Results:     ['result_id','year','subject','nickname','school','center','review','photo_url','status','sort_order','created_at'],
   PayAccounts: ['account_id','label','method','promptpay_id','bank','account_no','account_name','qr_url','note','ig','subjects','status','sort_order','created_at','owner_id'],
   Bundles:     ['bundle_id','title','subtitle','course_ids','price','cover_url','status','sort_order','created_at'],
-  Coupons:     ['code','kind','value','max_discount','scope','targets','min_total','max_uses','per_user','starts_at','ends_at','status','note','created_at'],
+  Coupons:     ['code','kind','value','max_discount','scope','targets','min_total','max_uses','per_user','starts_at','ends_at','status','note','created_at','owner_id'],
   Orders:      ['order_id','user_id','subtotal','discount','total','coupon_code','pay_terms_hash','terms_accepted_at','created_at','expires_at'],
   Bills:       ['bill_id','order_id','user_id','account_id','account','items','subtotal','discount','total','status','proof','slip_file_id','slip_hash',
                 'submitted_at','note','decided_by','decided_at','created_at','expires_at'],
@@ -946,11 +1298,17 @@ var SCHEMA = {
   Periods:     ['period','closed_at','closed_by','snapshot'],
   Payouts:     ['payout_id','period','user_id','subjects','share','held','amount','status','paid_at','paid_by','note','created_at'],
   LegacyStudents: ['legacy_id','first_name','last_name','nickname','norm','course_ids','batch','status','user_id','claimed_at','match','note','created_at'],
-  LegacyClaims: ['claim_id','user_id','legacy_ids','reason','status','created_at','decided_by','decided_at']
+  LegacyClaims: ['claim_id','user_id','legacy_ids','reason','status','created_at','decided_by','decided_at'],
+  StudyDays:   ['user_id','day','minutes','credited','updated_at'],
+  Streaks:     ['user_id','streak','best','last_day','freezes','points','theme','last_redeem_at','updated_at'],
+  CellLedger:  ['entry_id','user_id','delta','reason','day','ref','created_at'],
+  Reviews:     ['review_id','user_id','course_id','rating','text','status','created_at','decided_by','decided_at'],
+  TrialFeedback: ['fb_id','course_id','lesson','level','text','user_id','device_id','created_at'],
+  GradeReports: ['report_id','user_id','year','term','grade_level','grades','gpa','exam','message','proof_file_id','consent_publish','status','created_at','decided_by','decided_at']
 };
 
 var PUBLIC_SETTINGS = ['terms_text','privacy_text','hero_eyebrow','hero_title','hero_subtitle','announcement','promptpay_id','promptpay_name','contact_ig',
-  'pay_terms_text','order_expire_hours','proof_paid_at','proof_amount','proof_from_bank','proof_payer_name','proof_extra'];
+  'pay_terms_text','order_expire_hours','proof_paid_at','proof_amount','proof_from_bank','proof_payer_name','proof_extra','cells_enabled','event_mode'];
 var DEFAULT_SETTINGS = {
   hero_eyebrow: 'INeedBio Online',
   hero_title: 'ติวเข้ม ม.ปลาย|กับ INeedBio',
@@ -972,7 +1330,9 @@ var DEFAULT_SETTINGS = {
   proof_paid_at: 'required', proof_amount: 'required', proof_from_bank: 'required', proof_payer_name: 'required',
   proof_extra: '',
   site_url: 'https://ineedbio.shop',
-  platform_pct: '{}'
+  platform_pct: '{}',
+  cells_enabled: '1',
+  event_mode: 'auto'
 };
 
 // ───────────────────────── Entry points ─────────────────────────
@@ -1023,6 +1383,18 @@ var ROUTES = {
   'bill.proof':        billProof_,
   'bill.cancel':       billCancel_,
   'legacy.claim':      legacyClaim_,
+  'study.ping':        studyPing_,
+  'cells.status':      cellsStatus_,
+  'cells.redeem':      cellsRedeem_,
+  'cells.theme':       cellsTheme_,
+  'review.submit':     reviewSubmit_,
+  'trial.feedback':    trialFeedback_,
+  'grades.submit':     gradesSubmit_,
+  'my.submissions':    mySubmissions_,
+  'admin.feedback':    adminOnly_(adminFeedback_),
+  'admin.feedback.decide': adminOnly_(adminFeedbackDecide_),
+  'admin.grades.proof': adminOnly_(adminGradesProof_),
+  'admin.cells':       adminOnly_(adminCells_),
   // แอดมิน
   'admin.stats':       staffOnly_(adminStats_),
   'admin.enrollments': adminOnly_(adminEnrollments_),
@@ -1412,6 +1784,8 @@ function courseDetail_(d, p) {
   out.instructor = out.instructors[0] || null;
   out.faq = parseFaq_(x.faq);
   out.bundles = publicBundles_().filter(function (b) { return b.course_ids.indexOf(x.course_id) >= 0; });
+  out.reviews = courseReviews_(x.course_id);
+  out.trial = trialStats_(x.course_id);
   out.enrollment = null;
   if (p.token) {
     try {
@@ -1464,6 +1838,8 @@ function learnGet_(d, p) {
   });
   out.watermark = u.email + ' · ' + u.user_id;
   out.preview = preview;
+  out.reviewed = read_('Reviews').some(function (r) { return r.user_id === u.user_id && r.course_id === x.course_id; });
+  out.review_cells = CELLS.REVIEW;
   return out;
 }
 
@@ -1573,6 +1949,7 @@ function couponUses_(code, uid) {
 function applyCoupon_(code, items, u) {
   var cp = findOne_('Coupons', function (r) { return r.code === code; });
   if (!cp || cp.status !== 'active') throw err_('COUPON', 'ไม่พบโค้ด ' + code + ' หรือโค้ดนี้ปิดใช้งานแล้ว');
+  if (cp.owner_id && (!u || u.user_id !== cp.owner_id)) throw err_('COUPON', u ? 'โค้ดนี้เป็นโค้ดส่วนตัวของบัญชีอื่น' : 'โค้ดนี้เป็นโค้ดส่วนตัว เข้าสู่ระบบก่อนใช้');
   var t = Date.now();
   if (cp.starts_at && new Date(cp.starts_at).getTime() > t) throw err_('COUPON', 'โค้ดนี้ยังไม่เริ่มใช้');
   if (cp.ends_at && new Date(cp.ends_at).getTime() < t) throw err_('COUPON', 'โค้ดนี้หมดอายุแล้ว');
@@ -1584,11 +1961,17 @@ function applyCoupon_(code, items, u) {
   if (Number(cp.max_uses) > 0 && couponUses_(code) >= Number(cp.max_uses)) throw err_('COUPON', 'โค้ดนี้ถูกใช้ครบจำนวนแล้ว');
   if (u && Number(cp.per_user) > 0 && couponUses_(code, u.user_id) >= Number(cp.per_user)) throw err_('COUPON', 'คุณใช้โค้ดนี้ครบจำนวนครั้งแล้ว');
   var v = Number(cp.value) || 0;
-  var raw = cp.kind === 'percent' ? base * Math.min(v, 100) / 100 : v;
+  var raw = cp.kind === 'percent' ? base * Math.min(v, 100) / 100 : cp.kind === 'each' ? 0 : v;
   if (cp.kind === 'percent' && Number(cp.max_discount) > 0) raw = Math.min(raw, Number(cp.max_discount));
+  var per = {}, given = 0;
+  if (cp.kind === 'each') {
+    // ลดคอร์สละ v บาท (ไม่เกินราคาคอร์สนั้น)
+    var tot = 0;
+    elig.forEach(function (it) { per[it.course_id] = Math.min(Math.floor(v), it.base); tot += per[it.course_id]; });
+    return { per: per, total: tot, label: 'ลดคอร์สละ ฿' + v.toLocaleString() };
+  }
   var total = Math.min(Math.floor(raw), base);
   // แบ่งส่วนลดตามสัดส่วนราคา (เป็นบาทเต็ม) เศษไปลงคอร์สที่แพงสุด
-  var per = {}, given = 0;
   elig.forEach(function (it) { per[it.course_id] = base ? Math.floor(total * it.base / base) : 0; given += per[it.course_id]; });
   var top = elig.slice().sort(function (a, b) { return b.base - a.base; })[0];
   per[top.course_id] += total - given;
@@ -2078,6 +2461,246 @@ function adminBillDecide_(d, p, admin) {
   if (u) sendBillEmail_(u, b, decision, note);
   return { bill_id: b.bill_id, status: decision };
 }
+// ═════════════════════════ เซลล์แบ่งตัว (เรียนต่อเนื่อง) ═════════════════════════
+// นับเฉพาะเวลาที่คลิปเล่นจริง: ตัวเล่นคลิปส่ง study.ping ทุก 1 นาทีที่กำลังเล่น หลังบ้านรับได้ไม่เกิน 1 ครั้งต่อ 50 วินาที
+// วันไหนครบ 15 นาที = เรียน 1 วัน (+1 เซลล์) · ยอดเซลล์จริงคือผลรวมใน CellLedger · ตัดวันตามเวลาไทย
+var CELLS = { MIN_PER_DAY: 15, PING_GAP_MS: 50000, MIN_ADVANCE: 30, REVIEW: 5, GRADES: 5, GRADES_PROOF: 5, COST: 100, VALUE: 100, CODE_DAYS: 60, REDEEM_GAP_DAYS: 30, FREEZE_EVERY: 7, FREEZE_MAX: 2,
+  BONUS: { 7: 5, 15: 10, 30: 30, 60: 50, 100: 100, 200: 150, 365: 365 },
+  THEMES: [['base', 0], ['petri', 15], ['scope', 30], ['reef', 60], ['forest', 100], ['nebula', 200], ['gold', 365]] };
+var DAY_SHIFT_MS = 0; // ใช้เฉพาะเดโมเพื่อจำลองวันถัดไป ของจริงเป็น 0 เสมอ
+function thDay_(ms) { return new Date((ms == null ? Date.now() + DAY_SHIFT_MS : ms) + 7 * 36e5).toISOString().slice(0, 10); }
+function dayDiff_(a, b) { return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 864e5); }
+function cellsOn_() { return String(getSetting_('cells_enabled')) === '1'; }
+function streakRow_(uid, create) {
+  var r = findOne_('Streaks', function (x) { return x.user_id === uid; });
+  if (!r && create) { append_('Streaks', { user_id: uid, streak: 0, best: 0, last_day: '', freezes: 0, points: 0, theme: 'base', last_redeem_at: '', updated_at: now_() }); r = findOne_('Streaks', function (x) { return x.user_id === uid; }); }
+  return r;
+}
+function ledgerSum_(uid) { return read_('CellLedger').filter(function (x) { return x.user_id === uid; }).reduce(function (a, x) { return a + (Number(x.delta) || 0); }, 0); }
+function ledgerAdd_(uid, delta, reason, day, ref) { append_('CellLedger', { entry_id: 'CL' + id_(), user_id: uid, delta: delta, reason: reason, day: day || '', ref: ref || '', created_at: now_() }); }
+function themesFor_(best) { return CELLS.THEMES.filter(function (t) { return best >= t[1]; }).map(function (t) { return t[0]; }); }
+/** เรียนครบวันนี้ → นับต่อสตรีค (ใช้บัตรพักตัวถ้าขาดไม่เกินจำนวนบัตร) + ลงสมุดเซลล์ · เรียกภายใน withLock_ เท่านั้น */
+function creditDay_(uid, day) {
+  var st = streakRow_(uid, true), last = st.last_day, streak = Number(st.streak) || 0, best = Number(st.best) || 0, fr = Number(st.freezes) || 0;
+  if (last === day) return null;
+  var gap = last ? dayDiff_(last, day) : 0, used = 0, gained = [];
+  if (last && gap <= 0) return null;
+  if (gap === 1) streak++;
+  else if (gap > 1 && gap - 1 <= fr) { used = gap - 1; fr -= used; streak++; }
+  else streak = 1;
+  var oldBest = best; best = Math.max(best, streak);
+  ledgerAdd_(uid, 1, 'study', day); gained.push({ reason: 'study', delta: 1 });
+  var b = CELLS.BONUS[streak]; if (b) { ledgerAdd_(uid, b, 'bonus-' + streak, day); gained.push({ reason: 'bonus-' + streak, delta: b }); }
+  if (streak % CELLS.FREEZE_EVERY === 0 && fr < CELLS.FREEZE_MAX) fr++;
+  var unlocked = CELLS.THEMES.filter(function (t) { return t[1] > 0 && oldBest < t[1] && best >= t[1]; }).map(function (t) { return t[0]; });
+  update_('Streaks', st._row, { streak: streak, best: best, last_day: day, freezes: fr, points: ledgerSum_(uid), updated_at: now_() });
+  return { streak: streak, used_freezes: used, gained: gained, unlocked: unlocked };
+}
+function studyPing_(d, p) {
+  var u = auth_(p);
+  if (!cellsOn_()) return { off: true };
+  var l = findOne_('Lessons', function (r) { return r.lesson_id === d.lesson_id; });
+  if (!l) throw err_('NOT_FOUND', 'ไม่พบบทเรียน');
+  if (!enrollActive_(latestEnroll_(u.user_id, l.course_id))) throw err_('NO_ACCESS', 'ยังไม่ได้รับสิทธิ์');
+  var ck = 'cp:' + u.user_id, t = Date.now(), last = Number(cache_().get(ck)) || 0;
+  if (t - last < CELLS.PING_GAP_MS) return { ignored: true };
+  // คลิปต้องเดินหน้าจริง: ตำแหน่งในคลิปต้องขยับไปข้างหน้าอย่างน้อย 30 วินาทีจากครั้งก่อน (หยุด วนซ้ำ หรือเปิดทิ้งที่เดิมไม่นับ)
+  var pk = 'cpp:' + u.user_id, pos = Math.max(0, Number(d.pos) || 0), lp = jsonParse_(cache_().get(pk), null);
+  cache_().put(pk, JSON.stringify({ lid: l.lesson_id, pos: pos }), 1800);
+  if (lp && lp.lid === l.lesson_id && pos - lp.pos < CELLS.MIN_ADVANCE) return { ignored: true, reason: 'not_advancing' };
+  cache_().put(ck, String(t), 600);
+  var day = thDay_(), res = null, mins = 0;
+  withLock_(function () {
+    var r = findOne_('StudyDays', function (x) { return x.user_id === u.user_id && x.day === day; });
+    if (!r) { append_('StudyDays', { user_id: u.user_id, day: day, minutes: 1, credited: '', updated_at: now_() }); mins = 1; }
+    else { mins = (Number(r.minutes) || 0) + 1; update_('StudyDays', r._row, { minutes: mins, updated_at: now_() }); }
+    if (mins >= CELLS.MIN_PER_DAY) {
+      var r2 = findOne_('StudyDays', function (x) { return x.user_id === u.user_id && x.day === day; });
+      if (!r2.credited) { update_('StudyDays', r2._row, { credited: '1' }); res = creditDay_(u.user_id, day); }
+    }
+  });
+  return { today_min: mins, need: CELLS.MIN_PER_DAY, credited: res };
+}
+function cellsStatus_(d, p) {
+  var u = auth_(p), day = thDay_(), st = streakRow_(u.user_id, false) || { streak: 0, best: 0, last_day: '', freezes: 0, theme: 'base', last_redeem_at: '' };
+  var streak = Number(st.streak) || 0, fr = Number(st.freezes) || 0, best = Number(st.best) || 0;
+  var gap = st.last_day ? dayDiff_(st.last_day, day) : 0;
+  var alive = !!st.last_day && (gap <= 1 || gap - 1 <= fr);
+  if (!alive) streak = 0;
+  var days = read_('StudyDays').filter(function (x) { return x.user_id === u.user_id && dayDiff_(x.day, day) < 35 && dayDiff_(x.day, day) >= 0; })
+    .map(function (x) { return { day: x.day, minutes: Number(x.minutes) || 0, credited: !!x.credited }; });
+  var today = days.filter(function (x) { return x.day === day; })[0];
+  var led = read_('CellLedger').filter(function (x) { return x.user_id === u.user_id; });
+  var points = led.reduce(function (a, x) { return a + (Number(x.delta) || 0); }, 0);
+  var nextAt = st.last_redeem_at ? new Date(new Date(st.last_redeem_at).getTime() + CELLS.REDEEM_GAP_DAYS * 864e5).toISOString() : '';
+  var codes = read_('Coupons').filter(function (c) { return c.owner_id === u.user_id && /^CELL/.test(c.code); }).map(function (c) {
+    return { code: c.code, value: Number(c.value) || 0, ends_at: c.ends_at, used: couponUses_(c.code) > 0 }; });
+  return { enabled: cellsOn_(), today: day, today_min: today ? today.minutes : 0, today_done: !!(today && today.credited), need: CELLS.MIN_PER_DAY,
+    streak: streak, best: best, freezes: fr, points: points, theme: themesFor_(best).indexOf(st.theme) >= 0 ? st.theme : 'base', themes: themesFor_(best),
+    all_themes: CELLS.THEMES, bonus: CELLS.BONUS, cost: CELLS.COST, value: CELLS.VALUE, can_redeem: points >= CELLS.COST && (!nextAt || new Date(nextAt).getTime() <= Date.now()),
+    next_redeem_at: nextAt && new Date(nextAt).getTime() > Date.now() ? nextAt : '', days: days, codes: codes,
+    ledger: led.sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 30).map(function (x) { return { delta: Number(x.delta) || 0, reason: x.reason, day: x.day, ref: x.ref, created_at: x.created_at }; }) };
+}
+function cellsRedeem_(d, p) {
+  var u = auth_(p);
+  if (!cellsOn_()) throw err_('OFF', 'ระบบเซลล์ปิดอยู่');
+  var code = withLock_(function () {
+    var st = streakRow_(u.user_id, true), pts = ledgerSum_(u.user_id);
+    if (pts < CELLS.COST) throw err_('BAD_INPUT', 'เซลล์ยังไม่ครบ ' + CELLS.COST + ' (มี ' + pts + ')');
+    if (st.last_redeem_at && new Date(st.last_redeem_at).getTime() + CELLS.REDEEM_GAP_DAYS * 864e5 > Date.now()) throw err_('BAD_INPUT', 'แลกได้เดือนละ 1 ครั้ง แลกครั้งถัดไปได้วันที่ ' + thDateTxt_(new Date(new Date(st.last_redeem_at).getTime() + CELLS.REDEEM_GAP_DAYS * 864e5).toISOString()));
+    var c; do { c = 'CELL' + rand_(6).toUpperCase(); } while (findOne_('Coupons', function (x) { return x.code === c; }));
+    append_('Coupons', { code: c, kind: 'fixed', value: String(CELLS.VALUE), max_discount: '', scope: 'all', targets: '', min_total: '', max_uses: '1', per_user: '1',
+      starts_at: '', ends_at: new Date(Date.now() + CELLS.CODE_DAYS * 864e5).toISOString(), status: 'active', note: 'แลกเซลล์ · ' + u.nickname + ' ' + u.email, created_at: now_(), owner_id: u.user_id });
+    ledgerAdd_(u.user_id, -CELLS.COST, 'redeem', thDay_(), c);
+    update_('Streaks', st._row, { points: ledgerSum_(u.user_id), last_redeem_at: now_(), updated_at: now_() });
+    return c;
+  });
+  cache_().remove('pub_coupons');
+  return { code: code, value: CELLS.VALUE };
+}
+function cellsTheme_(d, p) {
+  var u = auth_(p), key = String(d.theme || 'base');
+  withLock_(function () {
+    var st = streakRow_(u.user_id, true);
+    if (themesFor_(Number(st.best) || 0).indexOf(key) < 0) throw err_('BAD_INPUT', 'ยังไม่ได้ปลดล็อกธีมนี้');
+    update_('Streaks', st._row, { theme: key, updated_at: now_() });
+  });
+  return { theme: key };
+}
+function adminCells_(d) {
+  var users = read_('Users'), led = read_('CellLedger'), day = thDay_();
+  var name = function (id) { var u = users.filter(function (x) { return x.user_id === id; })[0]; return u ? { name: u.first_name + ' ' + u.last_name, nickname: u.nickname, email: u.email } : { name: id }; };
+  if (d.user_id) return { user: name(d.user_id), ledger: led.filter(function (x) { return x.user_id === d.user_id; }).sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 200)
+    .map(function (x) { return { delta: Number(x.delta) || 0, reason: x.reason, day: x.day, ref: x.ref, created_at: x.created_at }; }),
+    days: read_('StudyDays').filter(function (x) { return x.user_id === d.user_id; }).sort(function (a, b) { return a.day < b.day ? 1 : -1; }).slice(0, 60).map(function (x) { return { day: x.day, minutes: Number(x.minutes) || 0, credited: !!x.credited }; }) };
+  var rows = read_('Streaks').map(function (s) {
+    var gap = s.last_day ? dayDiff_(s.last_day, day) : 99, alive = gap <= 1 || gap - 1 <= (Number(s.freezes) || 0);
+    return Object.assign(name(s.user_id), { user_id: s.user_id, streak: alive ? Number(s.streak) || 0 : 0, best: Number(s.best) || 0, points: ledgerSum_(s.user_id), last_day: s.last_day, freezes: Number(s.freezes) || 0 });
+  }).sort(function (a, b) { return b.streak - a.streak || b.best - a.best; });
+  return { today: day, active_today: read_('StudyDays').filter(function (x) { return x.day === day && x.credited; }).length, rows: rows.slice(0, 300),
+    redeemed: led.filter(function (x) { return x.reason === 'redeem'; }).length };
+}
+// ───── รีวิวคอร์ส + ส่งผลการเรียน (แอดมินอ่านก่อน อนุมัติแล้วค่อยได้เซลล์) ─────
+function reviewSubmit_(d, p) {
+  var u = auth_(p), cid = String(d.course_id || ''), rating = Math.round(Number(d.rating) || 0), text = clip_(String(d.text || '').trim(), 1000);
+  if (!enrollActive_(latestEnroll_(u.user_id, cid))) throw err_('NO_ACCESS', 'รีวิวได้เฉพาะคอร์สที่เรียนอยู่');
+  if (rating < 1 || rating > 5) throw err_('BAD_INPUT', 'ให้ดาว 1–5 ดวง');
+  if (text.length < 20) throw err_('BAD_INPUT', 'เขียนรีวิวอย่างน้อย 20 ตัวอักษร');
+  withLock_(function () {
+    var r = findOne_('Reviews', function (x) { return x.user_id === u.user_id && x.course_id === cid; });
+    if (r && r.status !== 'pending') throw err_('ALREADY', 'รีวิวคอร์สนี้ไปแล้ว ขอบคุณมาก');
+    if (r) update_('Reviews', r._row, { rating: rating, text: text, created_at: now_() });
+    else append_('Reviews', { review_id: 'RV' + id_(), user_id: u.user_id, course_id: cid, rating: rating, text: text, status: 'pending', created_at: now_() });
+  });
+  return { cells: CELLS.REVIEW };
+}
+function gradesSubmit_(d, p) {
+  var u = auth_(p), year = String(d.year || '').replace(/\D/g, ''), term = String(d.term || '');
+  if (!/^25\d\d$/.test(year)) throw err_('BAD_INPUT', 'ใส่ปีการศึกษา เช่น 2569');
+  if (['1', '2', 'summer'].indexOf(term) < 0) throw err_('BAD_INPUT', 'เลือกภาคเรียน');
+  var grades = (Array.isArray(d.grades) ? d.grades : []).slice(0, 12).map(function (g) { return { subject: clip_(g.subject, 40), grade: clip_(g.grade, 5) }; })
+    .filter(function (g) { return g.subject && /^(4|3\.5|3|2\.5|2|1\.5|1|0)$/.test(g.grade); });
+  if (!grades.length) throw err_('BAD_INPUT', 'ใส่เกรดอย่างน้อย 1 วิชา');
+  var gpa = d.gpa === '' || d.gpa == null ? '' : Number(d.gpa);
+  if (gpa !== '' && !(gpa >= 0 && gpa <= 4)) throw err_('BAD_INPUT', 'GPA ต้องอยู่ระหว่าง 0.00–4.00');
+  var hasProof = checkPhoto_(d.proof, false);
+  var fid = hasProof ? savePhoto_(d.proof, 'grades_' + u.email) : '';
+  withLock_(function () {
+    var r = findOne_('GradeReports', function (x) { return x.user_id === u.user_id && x.year === year && x.term === term; });
+    if (r && r.status !== 'pending') throw err_('ALREADY', 'ส่งผลการเรียนเทอมนี้ไปแล้ว ขอบคุณมาก');
+    var row = { year: year, term: term, grade_level: u.grade || '', grades: JSON.stringify(grades), gpa: gpa === '' ? '' : gpa.toFixed(2), exam: clip_(d.exam, 200), message: clip_(d.message, 1000),
+      consent_publish: d.consent_publish ? '1' : '', created_at: now_() };
+    if (fid) row.proof_file_id = fid;
+    if (r) update_('GradeReports', r._row, row);
+    else { row.report_id = 'GR' + id_(); row.user_id = u.user_id; row.status = 'pending'; append_('GradeReports', row); }
+  });
+  return { cells: CELLS.GRADES + (hasProof ? CELLS.GRADES_PROOF : 0) };
+}
+/** ให้นักเรียนรู้แค่ว่าส่งแล้ว (ไม่บอกสถานะการตรวจ) */
+function mySubmissions_(d, p) {
+  var u = auth_(p);
+  return { reviews: read_('Reviews').filter(function (x) { return x.user_id === u.user_id; }).map(function (x) { return x.course_id; }),
+    grades: read_('GradeReports').filter(function (x) { return x.user_id === u.user_id; }).map(function (x) { return x.year + '/' + x.term; }),
+    cells: { review: CELLS.REVIEW, grades: CELLS.GRADES, proof: CELLS.GRADES_PROOF } };
+}
+function adminFeedback_(d) {
+  var st = d.status === 'done' ? 'done' : 'pending', users = read_('Users'), courses = read_('Courses');
+  var who = function (id) { var u = users.filter(function (x) { return x.user_id === id; })[0]; return u ? { user_id: u.user_id, name: u.first_name + ' ' + u.last_name, nickname: u.nickname, school: u.school, grade: u.grade, email: u.email } : { name: id }; };
+  var pick = function (x) { return st === 'pending' ? x.status === 'pending' : x.status !== 'pending'; };
+  var sort = function (a, b) { return a.created_at < b.created_at ? (st === 'pending' ? -1 : 1) : (st === 'pending' ? 1 : -1); };
+  return {
+    reviews: read_('Reviews').filter(pick).sort(sort).slice(0, 200).map(function (x) { var c = courses.filter(function (y) { return y.course_id === x.course_id; })[0];
+      return { id: x.review_id, user: who(x.user_id), course: c ? c.title : x.course_id, rating: Number(x.rating) || 0, text: x.text, status: x.status, created_at: x.created_at }; }),
+    grades: read_('GradeReports').filter(pick).sort(sort).slice(0, 200).map(function (x) {
+      return { id: x.report_id, user: who(x.user_id), year: x.year, term: x.term, grade_level: x.grade_level, grades: jsonParse_(x.grades, []), gpa: x.gpa, exam: x.exam, message: x.message,
+        has_proof: !!x.proof_file_id, consent_publish: !!x.consent_publish, status: x.status, created_at: x.created_at }; }),
+    counts: { reviews: read_('Reviews').filter(function (x) { return x.status === 'pending'; }).length, grades: read_('GradeReports').filter(function (x) { return x.status === 'pending'; }).length },
+    trial: trialAdmin_()
+  };
+}
+function adminFeedbackDecide_(d, p, admin) {
+  var kind = d.kind === 'grades' ? 'GradeReports' : 'Reviews', idk = kind === 'Reviews' ? 'review_id' : 'report_id';
+  var ok = d.decision === 'approve';
+  withLock_(function () {
+    var r = findOne_(kind, function (x) { return x[idk] === d.id; });
+    if (!r) throw err_('NOT_FOUND', 'ไม่พบรายการ');
+    if (r.status !== 'pending' && !(ok && r.status === 'hidden')) throw err_('ALREADY', 'ตรวจรายการนี้ไปแล้ว');
+    update_(kind, r._row, { status: ok ? 'approved' : 'hidden', decided_by: admin.user_id, decided_at: now_() });
+    if (ok) {
+      var reason = kind === 'Reviews' ? 'review' : 'grades';
+      var already = read_('CellLedger').some(function (x) { return x.user_id === r.user_id && x.reason === reason && x.ref === r[idk]; });
+      var n = kind === 'Reviews' ? CELLS.REVIEW : CELLS.GRADES + (r.proof_file_id ? CELLS.GRADES_PROOF : 0);
+      if (!already) { ledgerAdd_(r.user_id, n, reason, thDay_(), r[idk]); var st = streakRow_(r.user_id, true); update_('Streaks', st._row, { points: ledgerSum_(r.user_id) }); }
+    }
+    log_(admin, kind === 'Reviews' ? 'review.' + (ok ? 'approve' : 'hide') : 'grades.' + (ok ? 'approve' : 'hide'), d.id);
+  });
+  cache_().remove('pub_courses');
+  return true;
+}
+function adminGradesProof_(d) {
+  var r = findOne_('GradeReports', function (x) { return x.report_id === d.id; });
+  if (!r) throw err_('NOT_FOUND', 'ไม่พบรายการ');
+  return photoOut_(r.proof_file_id);
+}
+// ───── ความเห็นจากคนที่ลองดูตอนฟรี (ไม่ต้องล็อกอิน ไม่ได้เซลล์ ใช้ดูว่าตอนตัวอย่างเข้าใจง่ายไหม) ─────
+var TRIAL_LEVELS = { clear: 'เข้าใจ', partly: 'เข้าใจบางส่วน', lost: 'ยังไม่เข้าใจ' };
+function trialFeedback_(d, p) {
+  var cid = String(d.course_id || ''), level = String(d.level || '');
+  if (!TRIAL_LEVELS[level]) throw err_('BAD_INPUT', 'เลือกว่าเข้าใจแค่ไหน');
+  var c = findOne_('Courses', function (x) { return x.course_id === cid && x.status === 'published'; });
+  if (!c) throw err_('NOT_FOUND', 'ไม่พบคอร์สนี้');
+  var u = null; if (p && p.token) { try { u = auth_(p); } catch (ignore) {} }
+  var who = u ? u.user_id : String((p && p.device_id) || '').slice(0, 60);
+  if (!who) throw err_('BAD_INPUT', 'ส่งไม่ได้ ลองรีเฟรชหน้าอีกครั้ง');
+  var key = 'tf:' + who + ':' + cid + ':' + String(d.lesson || '').slice(0, 40);
+  if (cache_().get(key)) return { ok: true, repeat: true };
+  cache_().put(key, '1', 21600);
+  withLock_(function () {
+    append_('TrialFeedback', { fb_id: 'TF' + id_(), course_id: cid, lesson: clip_(d.lesson, 120), level: level, text: clip_(String(d.text || '').trim(), 500), user_id: u ? u.user_id : '', device_id: u ? '' : who, created_at: now_() });
+  });
+  return { ok: true };
+}
+function trialStats_(cid) {
+  var rows = read_('TrialFeedback').filter(function (x) { return x.course_id === cid; });
+  if (rows.length < 5) return null;
+  var clear = rows.filter(function (x) { return x.level === 'clear'; }).length, partly = rows.filter(function (x) { return x.level === 'partly'; }).length;
+  return { n: rows.length, clear_pct: Math.round(clear / rows.length * 100), ok_pct: Math.round((clear + partly) / rows.length * 100) };
+}
+function trialAdmin_() {
+  var courses = read_('Courses'), rows = read_('TrialFeedback'), by = {};
+  rows.forEach(function (x) { var b = by[x.course_id] = by[x.course_id] || { course_id: x.course_id, clear: 0, partly: 0, lost: 0, n: 0 }; b[x.level] = (b[x.level] || 0) + 1; b.n++; });
+  return { summary: Object.keys(by).map(function (k) { var c = courses.filter(function (y) { return y.course_id === k; })[0]; by[k].course = c ? c.title : k; return by[k]; }).sort(function (a, b) { return b.n - a.n; }),
+    comments: rows.filter(function (x) { return x.text; }).sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 100).map(function (x) {
+      var c = courses.filter(function (y) { return y.course_id === x.course_id; })[0];
+      return { course: c ? c.title : x.course_id, lesson: x.lesson, level: x.level, text: x.text, member: !!x.user_id, created_at: x.created_at }; }) };
+}
+function courseReviews_(cid) {
+  var users = read_('Users');
+  return read_('Reviews').filter(function (x) { return x.course_id === cid && x.status === 'approved'; }).sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 30).map(function (x) {
+    var u = users.filter(function (y) { return y.user_id === x.user_id; })[0];
+    return { nickname: u ? u.nickname : 'นักเรียน', grade: u ? u.grade : '', rating: Number(x.rating) || 0, text: x.text, created_at: x.created_at };
+  });
+}
 function siteUrl_() { return String(getSetting_('site_url') || 'https://ineedbio.shop').replace(/\/+$/, ''); }
 function bahtTxt_(n) { return '฿' + Number(n || 0).toLocaleString('en-US'); }
 function thDateTxt_(iso) {
@@ -2107,6 +2730,8 @@ function sendOrderEmail_(u, res) {
     var accRows = acc.method === 'bank'
       ? [['ธนาคาร', acc.bank], ['เลขบัญชี', acc.account_no], ['ชื่อบัญชี', acc.account_name]]
       : [['พร้อมเพย์', acc.promptpay_id], ['ชื่อบัญชี', acc.account_name]];
+    accRows = accRows.filter(function (r) { return r[1]; });
+    if (!accRows.length && acc.qr_url) accRows = [['ช่องทาง', 'สแกน QR ในหน้าบิลบนเว็บ']];
     return '<tr><td style="padding:0 32px 16px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e6e4;border-radius:14px;">' +
       '<tr><td style="padding:14px 16px 4px;"><span style="font-size:12px;color:#8a8a8a;">' + (bills.length > 1 ? 'บิลที่ ' + (i + 1) + ' จาก ' + bills.length + ' · ' : '') + esc_(b.bill_id) + '</span></td></tr>' +
       '<tr><td style="padding:0 16px 6px;">' + mailRows_(items) + '</td></tr>' +
@@ -2135,7 +2760,7 @@ function sendBillEmail_(u, b, decision, note) {
   if (MailApp.getRemainingDailyQuota() < 1) return;
   var ok = decision === 'approved', items = jsonParse_(b.items, []), pr = jsonParse_(b.proof, {}) || {};
   var acc = ((jsonParse_(b.account, {}) || {}).pub) || {};
-  var meta = [['เลขบิล', b.bill_id], ['วันที่ชำระ', pr.paid_at ? thDateTxt_(pr.paid_at) : thDateTxt_(now_())], ['ชำระเข้า', acc.method === 'bank' ? (acc.bank + ' · ' + acc.account_name) : ('พร้อมเพย์ · ' + (acc.account_name || ''))]];
+  var meta = [['เลขบิล', b.bill_id], ['วันที่ชำระ', pr.paid_at ? thDateTxt_(pr.paid_at) : thDateTxt_(now_())], ['ชำระเข้า', [acc.method === 'bank' ? acc.bank || 'โอนธนาคาร' : 'พร้อมเพย์', acc.account_name].filter(Boolean).join(' · ')]];
   var inner = ok
     ? '<tr><td style="padding:0 32px 16px;"><p style="margin:0;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc_(u.nickname) + '<br>แอดมินตรวจยอดเงินเรียบร้อย ตอนนี้เข้าเรียนได้เลย</p></td></tr>' +
       '<tr><td style="padding:0 32px 16px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e6e4;border-radius:14px;">' +
@@ -2166,15 +2791,17 @@ function adminAccounts_() {
 }
 function adminAccountSave_(d, p, admin) {
   var method = d.method === 'bank' ? 'bank' : 'promptpay';
-  var patch = { label: req_(d.label, 'ชื่อเรียกบัญชี', 60), method: method, account_name: req_(d.account_name, 'ชื่อบัญชี', 100),
+  var patch = { label: req_(d.label, 'ชื่อเรียกบัญชี', 60), method: method, account_name: clip_(d.account_name, 100),
     promptpay_id: String(d.promptpay_id || '').replace(/\D/g, ''), bank: clip_(d.bank, 60), account_no: clip_(d.account_no, 30),
     qr_url: clip_(d.qr_url, 500), note: clip_(d.note, 300), ig: clip_(String(d.ig || '').replace(/^@/, ''), 40),
     subjects: csv_(d.subjects).filter(function (s) { return APP.SUBJECTS[s]; }).join(','), status: d.status === 'inactive' ? 'inactive' : 'active',
     sort_order: String(Number(d.sort_order) || 0), owner_id: clip_(d.owner_id, 30) };
   if (patch.owner_id && !findOne_('Users', function (r) { return r.user_id === patch.owner_id && isStaff_(r); })) throw err_('BAD_INPUT', 'เจ้าของบัญชีต้องเป็นผู้สอนหรือแอดมิน');
-  if (method === 'promptpay' && !/^(\d{10}|\d{13}|\d{15})$/.test(patch.promptpay_id)) throw err_('BAD_INPUT', 'เลขพร้อมเพย์ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตร/เลขผู้เสียภาษี 13 หลัก');
-  if (method === 'bank' && (!patch.bank || !patch.account_no)) throw err_('BAD_INPUT', 'กรอกธนาคารและเลขบัญชี');
-  if (patch.qr_url && !/^https:\/\//.test(patch.qr_url)) throw err_('BAD_INPUT', 'ลิงก์รูป QR ต้องขึ้นต้นด้วย https://');
+  if (method === 'promptpay' && !patch.promptpay_id && !patch.qr_url) throw err_('BAD_INPUT', 'ใส่เลขพร้อมเพย์ หรืออัปโหลดรูป QR อย่างน้อย 1 อย่าง');
+  if (method === 'promptpay' && patch.promptpay_id && !/^(\d{10}|\d{13}|\d{15})$/.test(patch.promptpay_id)) throw err_('BAD_INPUT', 'เลขพร้อมเพย์ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตร/เลขผู้เสียภาษี 13 หลัก');
+  if (method === 'bank' && !patch.account_no && !patch.qr_url) throw err_('BAD_INPUT', 'ใส่เลขบัญชี หรืออัปโหลดรูป QR อย่างน้อย 1 อย่าง');
+  if (method === 'bank' && patch.account_no && !patch.bank) throw err_('BAD_INPUT', 'เลือกธนาคารของเลขบัญชีนี้');
+  if (patch.qr_url && !/^(https:\/\/|\/)/.test(patch.qr_url)) throw err_('BAD_INPUT', 'ลิงก์รูป QR ต้องขึ้นต้นด้วย https://');
   var id = withLock_(function () {
     ensureCols_('PayAccounts');
     if (d.account_id) {
@@ -2216,7 +2843,7 @@ function adminCoupons_() {
 function adminCouponSave_(d, p, admin) {
   var code = normCode_(d.code);
   if (!/^[A-Z0-9_-]{3,30}$/.test(code)) throw err_('BAD_INPUT', 'โค้ดใช้ได้เฉพาะ A-Z 0-9 - _ ยาว 3–30 ตัว');
-  var kind = d.kind === 'fixed' ? 'fixed' : 'percent', value = Number(d.value);
+  var kind = d.kind === 'fixed' || d.kind === 'each' ? d.kind : 'percent', value = Number(d.value);
   if (!(value > 0)) throw err_('BAD_INPUT', 'ใส่มูลค่าส่วนลด');
   if (kind === 'percent' && value > 100) throw err_('BAD_INPUT', 'ส่วนลดเปอร์เซ็นต์ต้องไม่เกิน 100');
   var scope = d.scope === 'subject' || d.scope === 'course' ? d.scope : 'all';
@@ -3662,6 +4289,7 @@ function chapterRename_(d, p, me) {
   // ร้านค้า: บัญชีรับเงินแยกวิชา + โค้ดส่วนลด + คำสั่งซื้อตัวอย่าง
   append_('PayAccounts', { account_id: 'ACBIO', label: 'บัญชีชีวะ-เคมี', method: 'promptpay', promptpay_id: '0910256171', account_name: 'INeedBio', subjects: 'bio,chem', status: 'active', sort_order: '1', note: 'โอนแล้วรออนุมัติไม่เกิน 12 ชม.', created_at: iso(30 * day) });
   append_('PayAccounts', { account_id: 'ACPHYS', label: 'บัญชีผู้สอนฟิสิกส์', method: 'bank', bank: 'กสิกรไทย', account_no: '000-0-00000-0', account_name: 'บัญชีตัวอย่าง (เดโม)', subjects: 'phys', status: 'active', sort_order: '2', created_at: iso(30 * day) });
+  append_('Coupons', { code: 'INEEDWEB', kind: 'fixed', value: '100', scope: 'all', targets: '', min_total: '', max_uses: '', per_user: '', ends_at: '2026-09-30T16:59:00.000Z', status: 'active', note: 'ส่วนลด 100 บาท (โปสเตอร์)', created_at: iso(1 * day) });
   append_('Coupons', { code: 'WELCOME10', kind: 'percent', value: '10', max_discount: '300', scope: 'all', targets: '', min_total: '', max_uses: '100', per_user: '1', status: 'active', note: 'โค้ดต้อนรับสมาชิกใหม่', created_at: iso(10 * day) });
   append_('Coupons', { code: 'PHYS200', kind: 'fixed', value: '200', scope: 'subject', targets: 'phys', min_total: '', max_uses: '', per_user: '', ends_at: new Date(now + 20 * day).toISOString(), status: 'active', note: 'โปรเปิดคอร์สฟิสิกส์', created_at: iso(5 * day) });
   var tok = function (email) { return __mock.call({ action: 'login', data: { email: email, password: 'demo1234' }, device_id: 'seed-' + email, device_info: 'seed' }).data.token; };
@@ -3698,6 +4326,51 @@ function chapterRename_(d, p, me) {
   __yt.titles.PLdemoChemPlaylist01 = 'คอร์สเนื้อหา สอวน.เคมี (ตัวอย่าง)';
   __yt.playlists.PLdemoChemPlaylist01 = [{ id: 'dEmoNew0001', title: 'สอวน.เคมี Ep.44 ตอนใหม่ตัวอย่าง', dur: 72 }, { id: 'dEmoNew0002', title: 'สอวน.เคมี Ep.45 ตอนใหม่ตัวอย่าง', dur: 65 }];
   read_('Courses').forEach(function (c) { if (c.course_id === 'CHEM-POSN') update_('Courses', c._row, { playlists: JSON.stringify([{ id: 'PLdemoChemPlaylist01', chapter: 'อัตราการเกิดปฏิกิริยาและสมดุลเคมี › สมดุลเคมี', strip: 'สอวน.เคมี', title: '', last_sync: '', last_count: 0 }]) }); });
+  // รีวิวคอร์สและผลการเรียนตัวอย่าง (บัญชีสมมติ)
+  (function () {
+    var t = function (h) { return new Date(Date.now() - h * 36e5).toISOString(); };
+    [['UKAO', 'BIO-POSN', 5, 'ปูพื้นฐานช่วยมาก ไม่เคยเรียนชีวะลึกมาก่อนก็ตามทัน ชีทสรุปท้ายบทใช้ทวนก่อนสอบได้ดี', 'approved', 60],
+     ['UTON', 'BIO-POSN', 4, 'ตะลุยโจทย์ย้อนหลังแยกเรื่องทำให้รู้ว่าตัวเองอ่อนตรงไหน อยากให้มีโจทย์เพิ่มอีก', 'approved', 40],
+     ['UPOOM', 'CHEM-POSN', 5, 'อธิบายพันธะเคมีเข้าใจกว่าที่เรียนในห้องมาก ดูซ้ำตอนก่อนสอบกลางภาคได้เลย', 'pending', 5],
+     ['UTOEY', 'MATH-M4-T1', 4, 'เรียนเซตกับตรรกศาสตร์ตามทันในห้อง ทำการบ้านได้เองมากขึ้น', 'pending', 3]].forEach(function (x, i) {
+      append_('Reviews', { review_id: 'RVDEMO' + i, user_id: x[0], course_id: x[1], rating: x[2], text: x[3], status: x[4], created_at: t(x[5]), decided_by: x[4] === 'approved' ? 'UADMIN' : '', decided_at: x[4] === 'approved' ? t(x[5] - 2) : '' });
+      if (x[4] === 'approved') ledgerAdd_(x[0], 5, 'review', '', 'RVDEMO' + i);
+    });
+    [['BIO-POSN', 'clear', 'อธิบายช้า ๆ ตามทัน ชอบที่วาดรูปประกอบ'], ['BIO-POSN', 'clear', ''], ['BIO-POSN', 'partly', 'ตอนพูดเรื่องเยื่อหุ้มเซลล์เร็วไปนิด'], ['BIO-POSN', 'clear', ''], ['BIO-POSN', 'clear', 'เข้าใจกว่าอ่านหนังสือเอง'], ['BIO-POSN', 'clear', ''], ['BIO-POSN', 'lost', 'ยังไม่เคยเรียนชีวะมาก่อนเลย งงศัพท์'],
+     ['CHEM-POSN', 'clear', ''], ['CHEM-POSN', 'partly', 'อยากให้มีตัวอย่างโจทย์มากกว่านี้'], ['CHEM-POSN', 'clear', 'สอนสนุก'], ['CHEM-POSN', 'clear', ''], ['CHEM-POSN', 'clear', '']].forEach(function (x, i) {
+      append_('TrialFeedback', { fb_id: 'TFDEMO' + i, course_id: x[0], lesson: 'ตอนตัวอย่าง', level: x[1], text: x[2], user_id: '', device_id: 'demo' + i, created_at: t(i * 5 + 1) });
+    });
+    var sheet = '';
+    try {
+      var cv = document.createElement('canvas'); cv.width = 620; cv.height = 420; var g = cv.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, 620, 420); g.fillStyle = '#111'; g.font = '600 22px sans-serif'; g.fillText('รายงานผลการเรียน (ตัวอย่างสำหรับเดโม)', 24, 44);
+      g.font = '15px sans-serif'; g.fillStyle = '#666'; g.fillText('ปีการศึกษา 2569 ภาคเรียนที่ 1 · ชั้น ม.4', 24, 74);
+      [['ชีววิทยา', '4'], ['เคมี', '3.5'], ['ฟิสิกส์', '3.5'], ['คณิตศาสตร์', '4'], ['ภาษาอังกฤษ', '3']].forEach(function (r, i) { g.fillStyle = '#111'; g.fillText(r[0], 40, 120 + i * 40); g.fillText(r[1], 480, 120 + i * 40); g.fillStyle = '#eee'; g.fillRect(24, 132 + i * 40, 572, 1); });
+      g.fillStyle = '#111'; g.font = '600 17px sans-serif'; g.fillText('เกรดเฉลี่ย 3.64', 40, 340);
+      sheet = cv.toDataURL('image/jpeg', 0.85).split(',')[1];
+    } catch (e) {}
+    append_('GradeReports', { report_id: 'GRDEMO1', user_id: 'UTOEY', year: '2569', term: '1', grade_level: 'ม.4', grades: JSON.stringify([{ subject: 'ชีววิทยา', grade: '4' }, { subject: 'เคมี', grade: '3.5' }, { subject: 'ฟิสิกส์', grade: '3.5' }, { subject: 'คณิตศาสตร์', grade: '4' }]),
+      gpa: '3.64', exam: 'ผ่านรอบคัดเลือก สอวน. ชีวะ ของโรงเรียน', message: 'ดูคลิปทวนก่อนสอบทุกบท เกรดชีวะขึ้นจาก 3 เป็น 4', proof_file_id: sheet ? savePhoto_({ mime: 'image/jpeg', base64: sheet }, 'grades_demo') : '', consent_publish: '1', status: 'pending', created_at: t(8) });
+    append_('GradeReports', { report_id: 'GRDEMO2', user_id: 'UPOOM', year: '2569', term: '1', grade_level: 'ม.5', grades: JSON.stringify([{ subject: 'คณิตศาสตร์', grade: '3.5' }, { subject: 'ฟิสิกส์', grade: '3' }]),
+      gpa: '', exam: '', message: '', proof_file_id: '', consent_publish: '', status: 'pending', created_at: t(20) });
+  })();
+  // เซลล์แบ่งตัว: นักเรียนตัวอย่างเรียนติดกันมา 13 วัน (ถึงเมื่อวาน) + เซลล์ตั้งต้นให้ลองแลกโค้ด
+  (function () {
+    for (var d = 13; d >= 1; d--) {
+      DAY_SHIFT_MS = -d * 864e5; var day = thDay_();
+      append_('StudyDays', { user_id: 'UMINT', day: day, minutes: 15 + (d * 7) % 20, credited: '1', updated_at: now_() });
+      creditDay_('UMINT', day);
+    }
+    DAY_SHIFT_MS = -20 * 864e5; append_('StudyDays', { user_id: 'UMINT', day: thDay_(), minutes: 6, credited: '', updated_at: now_() });
+    DAY_SHIFT_MS = 0;
+    append_('StudyDays', { user_id: 'UMINT', day: thDay_(), minutes: 6, credited: '', updated_at: now_() });
+    ledgerAdd_('UMINT', 80, 'demo-start', '', '');
+    var st = streakRow_('UMINT'); update_('Streaks', st._row, { points: ledgerSum_('UMINT'), best: 365 }); // เดโม: ปลดล็อกทุกธีมให้ลองเล่น
+    [['UKAO', 34, 41], ['UTON', 0, 9], ['UPOOM', 5, 5]].forEach(function (x) {
+      append_('Streaks', { user_id: x[0], streak: x[1], best: x[2], last_day: x[1] ? thDay_(Date.now() - 864e5) : '', freezes: 1, points: 0, theme: 'base', last_redeem_at: '', updated_at: now_() });
+      ledgerAdd_(x[0], x[2] + 5, 'study', '', '');
+    });
+  })();
   deleteRows_('Sessions', read_('Sessions').filter(function (x) { return /^seed/.test(x.device_id); }));
   __mock.outbox.length = 0;
 
@@ -3709,6 +4382,15 @@ function chapterRename_(d, p, me) {
       if (p.action === 'admin.upload') { var r = __mock.call(p); if (r.ok) { window.__DEMO.imgs[r.data.url] = 'data:' + p.data.mime + ';base64,' + p.data.base64; } return r; }
       return __mock.call(p);
     },
+    cellsStudy: function (token, uid) {
+      var e = read_('Enrollments').filter(function (x) { return x.user_id === uid && enrollActive_(x); })[0];
+      var l = e && read_('Lessons').filter(function (x) { return x.course_id === e.course_id; })[0];
+      if (!l) return null;
+      var dev = localStorageSafe(), r = null;
+      for (var i = 0; i < 20; i++) { cache_().remove('cp:' + uid); window.__cpos = (window.__cpos || 0) + 60; var x = __mock.call({ action: 'study.ping', data: { lesson_id: l.lesson_id, pos: window.__cpos }, token: token, device_id: dev, device_info: 'เดโม' }); if (x.ok) r = x.data.credited || r; }
+      return { credited: r };
+    },
+    cellsShift: function (days) { DAY_SHIFT_MS += days * 864e5; },
     login: function (role) { var r = __mock.call({ action: 'login', data: { email: creds[role], password: 'demo1234' }, device_id: localStorageSafe(), device_info: 'เดโม' }); return r.data; }
   };
   function localStorageSafe() { try { return localStorage.getItem('ib_device') || 'demo'; } catch (e) { return 'demo'; } }
@@ -3815,10 +4497,10 @@ function api(action, data) {
 function isStaff() { return !!S.user && (S.user.role === 'admin' || S.user.role === 'teacher'); }
 function isAdm() { return !!S.user && S.user.role === 'admin'; }
 function mySubj() { var all = Object.keys(S.cfg.subjects || {}); return isAdm() ? all : all.filter(function (k) { return (S.user.subjects || []).indexOf(k) >= 0; }); }
-function setSession(r) { S.token = r.token; S.user = r.user; S.photo = null; if (!DEMO) store('ib_token', r.token); S.mem = {}; }
+function setSession(r) { S.cells = null; S.token = r.token; S.user = r.user; S.photo = null; if (!DEMO) store('ib_token', r.token); S.mem = {}; }
 function signOut(silent) {
   if (S.token && !silent) api('logout').catch(function () {});
-  S.token = null; S.user = null; S.mem = {}; if (!DEMO) store('ib_token', null);
+  S.token = null; S.user = null; S.mem = {}; S.cells = null; if (!DEMO) store('ib_token', null);
   if (!silent) { toast('ออกจากระบบแล้ว'); go('/'); } else route();
 }
 
@@ -4047,7 +4729,7 @@ function mdLite(t) {
   return out.join('');
 }
 function viewLegal(kind) {
-  page('legal', '<div class="legal"><div class="rowx" style="margin-bottom:10px"><a class="chip" href="#/terms" aria-pressed="' + (kind === 'terms') + '">ข้อตกลงการใช้งาน</a><a class="chip" href="#/privacy" aria-pressed="' + (kind === 'privacy') + '">นโยบายความเป็นส่วนตัว</a></div>' + mdLite(legalText(kind)) + '</div>');
+  page('legal', (UI2() ? '<div class="page-h"><span class="mono">INeedBio · ineedbio.shop</span><h1>' + (kind === 'terms' ? 'ข้อตกลงการใช้งาน' : 'นโยบายความเป็นส่วนตัว') + '</h1></div>' : '') + '<div class="legal"><div class="rowx" style="margin-bottom:10px"><a class="chip" href="#/terms" aria-pressed="' + (kind === 'terms') + '">ข้อตกลงการใช้งาน</a><a class="chip" href="#/privacy" aria-pressed="' + (kind === 'privacy') + '">นโยบายความเป็นส่วนตัว</a></div>' + mdLite(legalText(kind)) + '</div>');
 }
 function legalModal(kind, back) {
   openModal(mhead(kind === 'terms' ? 'ข้อตกลงการใช้งาน' : 'นโยบายความเป็นส่วนตัว') + '<div class="legal in-modal">' + mdLite(legalText(kind).replace(/^# .*\n/, '')) + '</div><button class="pill block" id="lg-back">กลับไปสมัครต่อ</button>', true, back);
@@ -4085,10 +4767,11 @@ function header(active) {
     : '<div class="rowx"><button class="pill ghost s" data-act="login">เข้าสู่ระบบ</button><button class="pill s" data-act="signup">สมัครสมาชิก</button></div>';
   var mnav = '<nav class="mnav" aria-label="เมนู">' + nav.map(function (n) { return '<a href="#' + n[0] + '" class="' + (active === n[2] ? 'on' : '') + '">' + n[1] + '</a>'; }).join('') + (u ? '<a href="#/profile" class="' + (active === 'profile' ? 'on' : '') + '">บัญชี</a>' : '') + '</nav>';
   document.body.classList.toggle('has-mnav', !!u);
-  return (S.cfg.announcement ? '<div class="ann">' + esc(S.cfg.announcement) + '</div>' : '') +
+  var fe = festOn();
+  return (fe ? '<div class="fest-bar">' + esc(FESTS[fe].bar) + '</div>' : S.cfg.announcement ? '<div class="ann">' + esc(S.cfg.announcement) + '</div>' : '') +
     '<header class="hdr gut"><div class="w"><a class="logo" href="#/"><img src="' + CATSRC + '" alt=""><span>INeed<span>Bio</span></span></a><nav class="nav">' +
     nav.map(function (n) { return '<a href="#' + n[0] + '" class="' + (active === n[2] ? 'on' : '') + '">' + n[1] + '</a>'; }).join('') + '</nav>' +
-    '<form class="srch" id="srch" role="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="srch-q" name="q" placeholder="ค้นหาคอร์ส เช่น ชีวะ, A-Level" value="' + esc(S.q || '') + '" autocomplete="off"></form><div class="hr">' + themeSwitch() + cartBtn() + right + '</div></div></header>' + (u ? mnav : '');
+    '<form class="srch" id="srch" role="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="srch-q" name="q" placeholder="ค้นหาคอร์ส เช่น ชีวะ, A-Level" value="' + esc(S.q || '') + '" autocomplete="off"></form><div class="hr">' + themeSwitch() + cellChip() + cartBtn() + right + '</div></div></header>' + (u ? mnav : '');
 }
 function footer() {
   var ig = S.cfg.contact_ig || 'ineedbiochem', cs = S.courses || [];
@@ -4118,9 +4801,20 @@ function page(active, body, noFooter, skel) {
   var fresh = S.fresh, anim = fresh && !skel ? 'pg-enter' : 'pg-fade';
   if (!skel) S.fresh = false;
   if (fresh) { freshScroll(); setSubj(S.wantSubj); }
-  $('#app').innerHTML = (DEMO ? '<div class="demo-bar">เดโม: ข้อมูลทั้งหมดเป็นตัวอย่างและอยู่ในเบราว์เซอร์นี้เท่านั้น รีเฟรชแล้วจะเริ่มใหม่</div>' : '') + header(active) + '<main class="gut ' + anim + '"><div class="w">' + body + '</div></main>' + (noFooter ? '' : footer()) +
+  glideSnap(); $('#app').innerHTML = (DEMO ? '<div class="demo-bar">เดโม: ข้อมูลทั้งหมดเป็นตัวอย่างและอยู่ในเบราว์เซอร์นี้เท่านั้น รีเฟรชแล้วจะเริ่มใหม่<button class="uisw" data-uisw="1">' + (UI2() ? 'ดูหน้าแรกแบบเดิม' : 'ดูหน้าแรกแบบใหม่') + '</button></div>' : '') + header(active) + '<main class="gut ' + anim + '"><div class="w">' + body + '</div></main>' + (noFooter ? '' : footer()) +
     '<div class="fab"><a class="ig" href="https://www.instagram.com/' + esc(S.cfg.contact_ig || 'ineedbiochem') + '" target="_blank" rel="noopener" title="ทักแอดมินทาง IG" aria-label="ทักแอดมินทาง IG"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></svg></a><button data-top="1" title="กลับขึ้นบน" aria-label="กลับขึ้นบน"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>';
   fadeImgs();
+  if (UI2() && !skel) v2Post();
+  glideAll();
+}
+function v2Post() {
+  var ph = $('main .page-h'), w = $('main > .w');
+  if (ph && w && ph.parentNode !== w) { var top = ph; while (top.parentNode && top.parentNode !== w) top = top.parentNode; if (top.parentNode === w) w.insertBefore(ph, top); }
+  var ch = $('.cd .chero'), cd = $('.cd');
+  if (!ch || !cd) return;
+  cd.parentNode.insertBefore(ch, cd); ch.classList.add('v2b');
+  var im = $('img', ch) || $('.cd img');
+  if (im && im.getAttribute('src')) { var bg = document.createElement('div'); bg.className = 'v2bg'; bg.style.setProperty('--img', 'url("' + im.getAttribute('src').replace(/"/g, '') + '")'); ch.insertBefore(bg, ch.firstChild); }
 }
 function skTiles(n) { var h = ''; for (var i = 0; i < n; i++) h += '<div class="sk-tile" style="padding:0;min-height:0;border-radius:16px;overflow:hidden"><div class="sk" style="aspect-ratio:16/9;border-radius:0"></div><div class="stack" style="padding:16px 18px 18px;gap:10px"><div class="sk sk-l" style="width:25%"></div><div class="sk sk-h"></div><div class="sk sk-l" style="width:60%"></div></div></div>'; return '<div class="grid">' + h + '</div>'; }
 function skeleton(kind) {
@@ -4139,18 +4833,21 @@ function route() {
   if (S.timer) { clearInterval(S.timer); S.timer = null; }
   stopPlayer();
   var parts = (location.hash.replace(/^#\/?/, '') || '').split('/').map(decodeURIComponent);
+  if (S.user && !S.cells) loadCells(); applyCellTheme();
   var r = parts[0] || '';
-  if (r === '') return viewHome();
+  document.documentElement.classList.toggle('theater', UI2() && r === 'learn');
+  if (r === '') return UI2() ? viewHome2() : viewHome();
   if (r === 'course') return viewCourse(parts[1]);
   if (r === 'results') return viewResults(parts[1]);
   if (r === 'terms' || r === 'privacy') return viewLegal(r);
   if (r === 'cart') return viewCart();
   if (r === 'bundle') return viewBundle(parts[1]);
-  if (!S.user) { if (['my', 'learn', 'profile', 'admin', 'orders'].indexOf(r) >= 0) { go('/'); setTimeout(function () { authModal('login'); }, 50); return; } }
+  if (!S.user) { if (['my', 'learn', 'profile', 'admin', 'orders', 'cells'].indexOf(r) >= 0) { go('/'); setTimeout(function () { authModal('login'); }, 50); return; } }
   if (r === 'my') return viewMy();
   if (r === 'orders') return viewOrders(parts[1]);
   if (r === 'learn') return viewLearn(parts[1], parts[2]);
   if (r === 'profile') return viewProfile();
+  if (r === 'cells') return viewCells();
   if (r === 'admin') { if (!isStaff()) return go('/'); return viewAdmin(parts[1] || 'dash', parts[2]); }
   go('/');
 }
@@ -4227,6 +4924,127 @@ function viewHome() {
   Promise.all(jobs).then(render).catch(function (e) { failed('home', e); });
   S.homeRender = render;
 }
+/* ─── หน้าแรกแบบใหม่ (v2) ─── */
+function UI2() { return store('ib_ui') !== '1'; }
+function ncCard(c, mine, prog) {
+  var st = mine && mine[c.course_id], p = prog && prog[c.course_id];
+  var href = p && st === 'approved' ? '#/learn/' + encodeURIComponent(c.course_id) + (p.last ? '/' + p.last : '') : '#/course/' + encodeURIComponent(c.course_id);
+  return '<a class="nc' + sc(c.subject) + '" href="' + href + '"><span class="nc-cv">' + (c.cover_url ? '<img src="' + esc(imgSrc(c.cover_url)) + '" alt="" loading="lazy" onerror="this.remove()">' : '<span class="ty">' + esc(SHORT[c.subject] || c.subject_name) + '</span>') +
+    (c.level ? '<span class="nc-lv">' + esc(c.level) + '</span>' : '') + (c.full_price > c.price && !st ? '<span class="nc-off">ลด ' + baht(c.full_price - c.price) + '</span>' : '') +
+    (p ? '<span class="nc-pg"><i style="width:' + p.pct + '%"></i></span>' : '') + '<span class="nc-go" aria-hidden="true">' + (p ? '▶' : '→') + '</span></span>' +
+    '<span class="nc-b"><span class="nc-t">' + esc(c.title) + '</span><span class="nc-m">' + (p ? 'เรียนแล้ว ' + p.pct + '% · ' + p.done + '/' + c.lesson_count + ' ตอน' : c.lesson_count + ' ตอน · ' + hm(c.total_min)) + '</span>' +
+    (st ? '' : '<span class="nc-p">' + baht(c.price) + (c.full_price > c.price ? '<s>' + baht(c.full_price) + '</s>' : '') + '</span>') + '</span></a>';
+}
+function rowHtml(id, kicker, title, cards, more) {
+  return '<section class="rw" id="rw-' + id + '"><div class="rw-h"><div>' + (kicker ? '<small>' + kicker + '</small>' : '') + '<h2>' + title + '</h2></div><div class="rowx" style="gap:10px">' + (more || '') +
+    '<div class="rw-nav"><button type="button" data-rw="' + id + '" data-d="-1" aria-label="เลื่อนซ้าย">‹</button><button type="button" data-rw="' + id + '" data-d="1" aria-label="เลื่อนขวา">›</button></div></div></div><div class="rw-t">' + cards + '</div></section>';
+}
+function viewHome2() {
+  var render = function () {
+    var cs = S.courses, mine = S.mem.mine || {}, subs = S.cfg.subjects || {}, ig = S.cfg.contact_ig || 'ineedbiochem';
+    var title = (S.cfg.hero_title || 'ติวเข้ม ม.ปลาย|กับ INeedBio').split('|');
+    var html = '<div class="v2"><div class="v2-hi"><div><h1>' + (S.user ? 'สวัสดี ' + esc(S.user.nickname) : esc(title[0]) + (title[1] ? ' ' + esc(title[1]) : '')) + '</h1><p>' + (S.user && S.cells ? (S.cells.today_done ? 'วันนี้เรียนครบแล้ว เรียนติดกัน ' + S.cells.streak + ' วัน' : 'วันนี้ดูคลิปไปแล้ว ' + S.cells.today_min + ' จาก 15 นาที') : esc(S.cfg.hero_subtitle || 'คอร์สเดียว เรียนได้ตลอดชีพ')) + '</p></div></div>';
+    if (!cs) { page('home', html + '<div class="bbd sk" style="min-height:420px"></div>' + skTiles(3) + '</div>'); return; }
+    var q = (S.q || '').trim().toLowerCase(), filtered = S.lv || S.fsub || q;
+    if (filtered) {
+      var list = cs.filter(function (c) { return (!S.lv || c.level === S.lv) && (!S.fsub || c.subject === S.fsub) && (!q || [c.title, c.subtitle, c.subject_name, c.level].join(' ').toLowerCase().indexOf(q) >= 0); });
+      html += '<div class="results-h" style="margin-top:6px"><h2 style="font-size:24px;font-weight:800">' + list.length + ' คอร์ส</h2>' + (S.fsub ? '<button class="x2" data-clear="fsub">' + esc(subs[S.fsub] || S.fsub) + ' ✕</button>' : '') + (S.lv ? '<button class="x2" data-clear="lv">' + esc(S.lv) + ' ✕</button>' : '') + (q ? '<button class="x2" data-clear="q">“' + esc(S.q) + '” ✕</button>' : '') + '</div>' +
+        (list.length ? '<div class="v2-grid">' + list.map(function (c) { return ncCard(c, mine, S.mem.prog); }).join('') + '</div>' : '<div class="empty"><p>ไม่เจอคอร์สที่ตรงกับที่ค้นหา</p><button class="pill ghost" data-clear="all">ดูคอร์สทั้งหมด</button></div>');
+      page('home', html + '</div>'); return;
+    }
+    var feat = cs.slice(0, 5);
+    html += '<section class="bbd" id="bbd" aria-roledescription="carousel" aria-label="คอร์สแนะนำ">' + feat.map(function (c, i) {
+      return '<div class="bbd-s' + sc(c.subject) + (i === 0 ? ' on' : '') + '" aria-hidden="' + (i !== 0) + '">' + (c.cover_url ? '<div class="bbd-bg" style="--img:url(\'' + esc(imgSrc(c.cover_url)) + '\')"></div>' : '') +
+        '<div class="bbd-in"><div><span class="bbd-k"><i></i>' + esc(c.subject_name) + (c.level ? ' · ' + esc(c.level) : '') + '</span><h2>' + esc(c.title) + '</h2>' + (c.subtitle ? '<p class="sub">' + esc(c.subtitle) + '</p>' : '') +
+        '<div class="bbd-f"><span>' + c.lesson_count + ' ตอน</span><span>' + hm(c.total_min) + '</span><span>ดูได้ตลอดชีพ</span><span>' + baht(c.price) + '</span></div>' +
+        '<div class="bbd-cta">' + (mine[c.course_id] === 'approved' ? '<a class="bbtn pri" href="#/learn/' + encodeURIComponent(c.course_id) + '">▶ เรียนต่อ</a>' : '<a class="bbtn pri" href="#/course/' + encodeURIComponent(c.course_id) + '">▶ ดูตอนตัวอย่างฟรี</a><button class="bbtn gh" type="button" data-cart-add="' + esc(c.course_id) + '">+ ใส่ตะกร้า</button>') + '</div></div>' +
+        (c.cover_url ? '<a class="bbd-art" href="#/course/' + encodeURIComponent(c.course_id) + '" tabindex="-1"><img src="' + esc(imgSrc(c.cover_url)) + '" alt=""></a>' : '') + '</div></div>';
+    }).join('') + (feat.length > 1 ? '<div class="bbd-dots">' + feat.map(function (c, i) { return '<button type="button" data-bb="' + i + '" class="' + (i === 0 ? 'on' : '') + '" aria-label="' + esc(c.title) + '"></button>'; }).join('') + '</div>' : '') + '</section>';
+    var prog = S.mem.prog || {};
+    var cont = cs.filter(function (c) { return mine[c.course_id] === 'approved'; });
+    if (cont.length) html += rowHtml('cont', 'ห้องเรียนของฉัน', 'เรียนต่อจากที่ค้างไว้', cont.map(function (c) { return ncCard(c, mine, prog); }).join(''), '<a class="link sm" href="#/my">คอร์สของฉัน</a>');
+    var keys = Object.keys(subs).filter(function (k) { return cs.some(function (c) { return c.subject === k; }); });
+    var cnt = function (k) { return cs.filter(function (c) { return c.subject === k; }).length; };
+    var few = keys.filter(function (k) { return cnt(k) < 4; }), many = keys.filter(function (k) { return cnt(k) >= 4; });
+    (few.length ? [few] : []).concat(many.map(function (k) { return [k]; })).forEach(function (ks, ri) {
+      var row = cs.filter(function (c) { return ks.indexOf(c.subject) >= 0; });
+      var t = ks.length > 1 ? (ks.every(function (k) { return /^(bio|chem|phys)$/.test(k); }) ? 'วิทยาศาสตร์' : 'คอร์สแนะนำ') : esc(subs[ks[0]]);
+      html += rowHtml('s' + ri, ks.map(function (k) { return esc(subs[k]); }).join(' · '), t, row.map(function (c) { return ncCard(c, mine, prog); }).join(''), ks.length === 1 ? '<button class="link sm" data-fsub="' + ks[0] + '">ดูทั้งหมด</button>' : '');
+    });
+    if ((S.bundles || []).length) html += '<section class="rw"><div class="rw-h"><div><small>ซื้อคู่ถูกกว่า</small><h2>แพ็กเกจสุดคุ้ม</h2></div></div>' + bundleCards(S.bundles) + '</section>';
+    html += hofHtml();
+    var ic = function (d) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; };
+    html += '<div class="prm"><div>' + ic('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>') + '<b>ดูได้ตลอดชีพ</b><span>ซื้อครั้งเดียว ไม่มีการลบคลิป</span></div>' +
+      '<div>' + ic('<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>') + '<b>ชีทประกอบทุกบท</b><span>เปิดข้างคลิป จดตามได้ทันที</span></div>' +
+      '<div>' + ic('<circle cx="9" cy="10" r="5"/><circle cx="16" cy="15" r="4"/>') + '<b>เรียนทุกวัน เซลล์แบ่งตัว</b><span>สะสมครบ 100 แลกส่วนลด 100 บาท</span></div></div>' +
+      '<div class="ask"><div><b>ยังไม่แน่ใจว่าจะเริ่มคอร์สไหน?</b><p>ทักพี่ทาง IG บอกระดับชั้นกับสนามสอบ เดี๋ยวพี่แนะนำให้</p></div><a class="pill" href="https://www.instagram.com/' + esc(ig) + '" target="_blank" rel="noopener">ทัก IG @' + esc(ig) + '</a></div></div>';
+    page('home', html);
+    startBillboard();
+    $$('[data-rw]').forEach(function (b) { b.onclick = function () { var t = $('#rw-' + b.dataset.rw + ' .rw-t'); t.scrollBy({ left: Number(b.dataset.d) * t.clientWidth * 0.85, behavior: 'smooth' }); }; });
+  };
+  render();
+  var jobs = [api('courses.list').then(function (c) { S.courses = c; }), loadResults(), api('bundles.list').then(function (b) { S.bundles = b; }).catch(function () { S.bundles = []; })];
+  if (S.user) jobs.push(api('my.courses').then(function (m) { var o = {}, pg = {}; m.forEach(function (x) { o[x.course_id] = x.enrollment; pg[x.course_id] = { pct: x.percent || 0, done: x.done_count || 0, last: x.last_lesson_id || '' }; }); S.mem.mine = o; S.mem.prog = pg; }).catch(function () {}));
+  Promise.all(jobs).then(render).catch(function (e) { failed('home', e); });
+  S.homeRender = render;
+}
+function startBillboard() {
+  clearInterval(S.featT);
+  var bb = $('#bbd'); if (!bb) return;
+  var sl = $$('.bbd-s', bb), dots = $$('[data-bb]', bb), i = 0;
+  if (sl.length < 2) return;
+  var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var show = function (n) {
+    i = (n + sl.length) % sl.length;
+    sl.forEach(function (s, k) { s.classList.toggle('on', k === i); s.setAttribute('aria-hidden', String(k !== i)); });
+    dots.forEach(function (d, k) { d.classList.remove('on', 'run'); if (k === i) { d.classList.add('on'); void d.offsetWidth; if (!still) d.classList.add('run'); } });
+  };
+  // เลื่อนไปคอร์สถัดไปเมื่อแถบเวลาบนจุดวิ่งครบ (ชี้เมาส์ค้างไว้ แถบหยุด คอร์สก็หยุด)
+  bb.addEventListener('animationend', function (e) { if (e.target.matches && e.target.matches('[data-bb].run')) show(i + 1); });
+  dots.forEach(function (d) { d.onclick = function () { show(+d.dataset.bb); }; });
+  var x0 = null;
+  bb.addEventListener('pointerdown', function (e) { x0 = e.clientX; });
+  bb.addEventListener('pointerup', function (e) { if (x0 === null) return; var dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1)); });
+  show(0);
+}
+/* ─── ป้ายสีเข้มเลื่อนตามปุ่มที่กด (เมนูหัวเว็บ เมนูมือถือ เมนูหลังบ้าน ปุ่มแบ่งกลุ่ม) ─── */
+var GLIDES = [['.hdr .nav', 'a.on'], ['.mnav', 'a.on'], ['.aside', 'a.on'], ['.seg', '[aria-pressed="true"]'], ['.lside', 'a.ep.on']];
+S.glide = {};
+function glideTo(box, act, key, instant) {
+  var ind = box.querySelector(':scope > .glide');
+  if (!ind) { ind = document.createElement('span'); ind.className = 'glide'; ind.setAttribute('aria-hidden', 'true'); box.insertBefore(ind, box.firstChild); }
+  if (!act) { ind.style.opacity = '0'; return; }
+  var br = box.getBoundingClientRect(), r = act.getBoundingClientRect();
+  var to = { x: r.left - br.left + box.scrollLeft, y: r.top - br.top + box.scrollTop, w: r.width, h: r.height };
+  var put = function (p) { ind.style.transform = 'translate(' + p.x + 'px,' + p.y + 'px)'; ind.style.width = p.w + 'px'; ind.style.height = p.h + 'px'; ind.style.opacity = '1'; };
+  var from = S.glide[key];
+  ind.style.transition = 'none'; put(instant || !from ? to : from); void ind.offsetWidth; ind.style.transition = ''; put(to);
+  S.glide[key] = to;
+}
+/** ก่อนวาดหน้าใหม่ จำตำแหน่งที่ป้ายอยู่จริงตอนนี้ (แม้กำลังเลื่อนอยู่) แล้วให้ป้ายในหน้าใหม่เลื่อนต่อจากตรงนั้น */
+function glideSnap() {
+  if (!UI2()) return;
+  GLIDES.forEach(function (g) { $$(g[0]).forEach(function (box, n) {
+    var ind = box.querySelector(':scope > .glide'); if (!ind || ind.style.opacity === '0') return;
+    var br = box.getBoundingClientRect(), r = ind.getBoundingClientRect();
+    S.glide[g[0] + n] = { x: r.left - br.left + box.scrollLeft, y: r.top - br.top + box.scrollTop, w: r.width, h: r.height };
+  }); });
+}
+function glideAll() {
+  if (!UI2()) return;
+  GLIDES.forEach(function (g) { $$(g[0]).forEach(function (box, n) { box.classList.add('has-glide'); glideTo(box, $(g[1], box), g[0] + n); }); });
+}
+document.addEventListener('click', function (e) {
+  if (!UI2()) return;
+  GLIDES.forEach(function (g) {
+    var el = e.target.closest(g[0] + ' a, ' + g[0] + ' button'); if (!el || el.classList.contains('glide')) return;
+    var box = el.closest(g[0]), n = $$(g[0]).indexOf(box); if (n < 0) return;
+    $$(g[1], box).forEach(function (x) { if (x !== el) { x.classList.remove('on'); x.setAttribute('aria-pressed', x.hasAttribute('aria-pressed') ? 'false' : x.getAttribute('aria-pressed')); } });
+    el.classList.add('on'); if (el.hasAttribute('aria-pressed')) el.setAttribute('aria-pressed', 'true');
+    glideTo(box, el, g[0] + n);
+  });
+}, true);
+window.addEventListener('resize', function () { if (!UI2()) return; GLIDES.forEach(function (g) { $$(g[0]).forEach(function (box, n) { glideTo(box, $(g[1], box), g[0] + n, true); }); }); });
 function featPrice(c) { return (c.full_price > c.price ? '<s>' + baht(c.full_price) + '</s> ' : '') + baht(c.price) + ' · ' + c.lesson_count + ' ตอน'; }
 function startFeat() {
   clearInterval(S.featT);
@@ -4291,9 +5109,13 @@ function viewResults(focus) {
 
 /* ─── COURSE ─── */
 function revSec(c) {
-  var rs = (S.results || []).filter(function (r) { return r.subject === c.subject && r.review; }).slice(0, 4);
-  if (!rs.length) return '';
-  return '<section class="sec" id="sec-reviews"><div class="spread"><h2>เสียงจากน้องที่ติดค่าย</h2><a class="link" href="#/results">ดูทั้งหมด</a></div><div class="rvs two">' + rs.map(reviewCard).join('') + '</div></section>';
+  var rs = (S.results || []).filter(function (r) { return r.subject === c.subject && r.review; }).slice(0, 4), cr = c.reviews || [];
+  if (!rs.length && !cr.length) return '';
+  var avg = cr.length ? cr.reduce(function (a, x) { return a + x.rating; }, 0) / cr.length : 0;
+  return '<section class="sec" id="sec-reviews">' +
+    (cr.length ? '<div class="spread"><h2>รีวิวจากคนที่เรียนคอร์สนี้</h2><span class="sm">' + stars(Math.round(avg)) + ' ' + avg.toFixed(1) + ' · ' + cr.length + ' รีวิว</span></div><div class="rvs two" style="margin-bottom:26px">' + cr.slice(0, 6).map(function (x) {
+      return '<article class="rv"><div class="rv-h"><div><b>' + esc(x.nickname) + '</b><span>' + esc(x.grade || '') + ' · ' + thDate(x.created_at) + '</span></div></div><div>' + stars(x.rating) + '</div><p class="rv-q">' + esc(x.text) + '</p></article>'; }).join('') + '</div>' : '') +
+    (rs.length ? '<div class="spread"><h2>เสียงจากน้องที่ติดค่าย</h2><a class="link" href="#/results">ดูทั้งหมด</a></div><div class="rvs two">' + rs.map(reviewCard).join('') + '</div>' : '') + '</section>';
 }
 function viewCourse(id) {
   loading('home', 'course');
@@ -4322,15 +5144,15 @@ function viewCourse(id) {
     ]);
     var jumps = [['overview', 'ภาพรวม'], ['syllabus', 'เนื้อหา']];
     if (c.instructor) jumps.push(['instructor', 'ผู้สอน']);
-    if ((S.results || []).some(function (r) { return r.subject === c.subject && r.review; })) jumps.push(['reviews', 'รีวิว']);
+    if ((c.reviews || []).length || (S.results || []).some(function (r) { return r.subject === c.subject && r.review; })) jumps.push(['reviews', 'รีวิว']);
     jumps.push(['faq', 'คำถามที่พบบ่อย']);
     var CK = '<svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="currentColor"/><path d="M5.5 10.3l3 3 6-6.3" fill="none" stroke="var(--on-acc)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     page('home',
       '<div style="padding-top:24px"><a class="back" href="#/">← คอร์สทั้งหมด</a></div><div class="cd"><div>' +
       '<section class="chero" id="sec-overview"><span class="mono sj">' + esc(c.subject_name) + '</span><h1>' + esc(c.title) + '</h1>' + (c.subtitle ? '<p class="ink2 lead">' + esc(c.subtitle) + '</p>' : '') +
-      '<div class="facts"><span><b>' + total + '</b> ตอน</span><span><b>' + hm(c.total_min) + '</b> วิดีโอ</span><span><b>ดูได้ตลอด</b> ไม่มีวันหมดอายุ</span></div>' +
+      '<div class="facts"><span><b>' + total + '</b> ตอน</span><span><b>' + hm(c.total_min) + '</b> วิดีโอ</span><span><b>ดูได้ตลอด</b> ไม่มีวันหมดอายุ</span>' + (c.trial ? '<span title="จาก ' + c.trial.n + ' คนที่ลองดูตอนฟรี"><b>' + c.trial.clear_pct + '%</b> ของคนที่ลองเรียนฟรีบอกว่าเข้าใจ</span>' : '') + '</div>' +
       (c.trailer_id ? '<div class="player trailer">' + playerInner(c.trailer_id, '') + '</div>' : (c.cover_url ? '<div class="cover trailer" style="border-radius:16px;aspect-ratio:16/8"><img src="' + esc(imgSrc(c.cover_url)) + '" alt="" style="object-fit:contain"></div>' : '')) +
-      (!c.trailer_id && previews.length ? '<button class="pill ghost s" style="justify-self:start" data-preview="' + esc(previews[0].youtube_id) + '" data-title="' + esc(previews[0].title) + '">▶ ดูตอนตัวอย่างฟรี</button>' : '') + '</section>' +
+      (!c.trailer_id && previews.length ? '<button class="pill ghost s" style="justify-self:start" data-preview="' + esc(previews[0].youtube_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(previews[0].title) + '">▶ ดูตอนตัวอย่างฟรี</button>' : '') + '</section>' +
       '<nav class="jump" aria-label="ส่วนของหน้า">' + jumps.map(function (j) { return '<button data-jump="' + j[0] + '">' + j[1] + '</button>'; }).join('') + '</nav>' +
       (c.highlights && c.highlights.length ? '<section class="sec"><h2>จุดเด่นของคอร์ส</h2><div class="hl">' + c.highlights.map(function (h) { return '<div><span class="ic">' + CK + '</span><span>' + esc(h) + '</span></div>'; }).join('') + '</div></section>' : '') +
       (c.audience && c.audience.length ? '<section class="sec"><h2>คอร์สนี้เหมาะกับ</h2><ul class="aud">' + c.audience.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></section>' : '') +
@@ -4340,7 +5162,7 @@ function viewCourse(id) {
         return (sec.name ? '<div class="secth"><span>' + esc(sec.name) + '</span><small>' + sl.length + ' ตอน · ' + hm(sl.reduce(function (a, l) { return a + l.duration_min; }, 0)) + '</small></div>' : '') + sec.chs.map(function (x) { var ch = x.ch, i = k++;
         var mins = ch.lessons.reduce(function (a, l) { return a + l.duration_min; }, 0);
         return '<details' + (i === 0 ? ' open' : '') + '><summary><span>' + esc(x.sub || ch.title) + '</span><span class="n">' + ch.lessons.length + ' ตอน · ' + hm(mins) + '</span></summary><ul>' + ch.lessons.map(function (l) {
-          return '<li><span>' + esc(l.title) + (l.is_preview ? ' <button class="pill s ghost" style="margin-left:6px" data-preview="' + esc(l.youtube_id) + '" data-title="' + esc(l.title) + '">ดูฟรี</button>' : '') + '</span><span class="d">' + l.duration_min + ' นาที</span></li>';
+          return '<li><span>' + esc(l.title) + (l.is_preview ? ' <button class="pill s ghost" style="margin-left:6px" data-preview="' + esc(l.youtube_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(l.title) + '">ดูฟรี</button>' : '') + '</span><span class="d">' + l.duration_min + ' นาที</span></li>';
         }).join('') + '</ul></details>';
       }).join(''); }).join(''); })() + '</div></section>' +
       (c.instructor ? '<section class="sec" id="sec-instructor"><h2>ผู้สอน</h2>' + (c.instructors || [c.instructor]).map(instBlock).join('') + '</section>' : '') +
@@ -4398,8 +5220,17 @@ function promptpay(id, amount) {
   for (var i = 0; i < s.length; i++) { crc ^= s.charCodeAt(i) << 8; for (var j = 0; j < 8; j++) crc = (crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1) & 0xFFFF; }
   return s + ('000' + crc.toString(16).toUpperCase()).slice(-4);
 }
-function previewVideo(id, title) {
-  openModal(mhead(esc(title), 'ตอนตัวอย่าง ดูได้ฟรี') + '<div class="player">' + playerInner(id, '') + '</div>', true);
+function previewVideo(id, title, cid) {
+  openModal(mhead(esc(title), 'ตอนตัวอย่าง ดูได้ฟรี') + '<div class="player">' + playerInner(id, '') + '</div>' +
+    (cid && feat('reviews') ? '<div class="tfb" id="tfb"><b>ลองเรียนฟรีแล้ว เข้าใจไหม?</b><div class="rowx" role="group" aria-label="เข้าใจแค่ไหน">' + [['clear', 'เข้าใจ'], ['partly', 'เข้าใจบางส่วน'], ['lost', 'ยังไม่เข้าใจ']].map(function (x) { return '<button class="pill ghost s" data-tf="' + x[0] + '" aria-pressed="false">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div id="tf-more" hidden class="stack" style="gap:8px"><textarea class="i" id="tf-text" rows="2" maxlength="500" placeholder="อยากบอกอะไรเพิ่มไหม เช่น ตรงไหนงง หรือชอบตรงไหน (ไม่ใส่ก็ได้)"></textarea><button class="pill s" id="tf-send" style="justify-self:start">ส่งความเห็น</button></div></div>' : ''), true);
+  if (!cid) return;
+  var lv = '';
+  $$('[data-tf]').forEach(function (b) { b.onclick = function () { lv = b.dataset.tf; $$('[data-tf]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); x.classList.toggle('ghost', x !== b); }); $('#tf-more').hidden = false; }; });
+  $('#tf-send').onclick = function () {
+    var bt = this; busy(bt, true);
+    api('trial.feedback', { course_id: cid, lesson: title, level: lv, text: $('#tf-text').value }).then(function () { $('#tfb').innerHTML = '<b>ขอบคุณที่บอกเรา</b><p class="sm ink2">ความเห็นของน้องช่วยให้พี่ ๆ ปรับคลิปให้เข้าใจง่ายขึ้น</p>'; }).catch(function (e) { busy(bt, false); toast(e.message, true); });
+  };
 }
 function playerInner(id, wm, poster) {
   var v = DEMO
@@ -4415,7 +5246,7 @@ function cartAdd(id, silent) { if (CART.indexOf(id) < 0) { CART.push(id); saveCa
 function cartRemove(id) { CART = CART.filter(function (x) { return x !== id; }); saveCart(); }
 var DEFAULT_PAY_TERMS = '- ชำระเงินโดยโอนเข้าบัญชี {account} ที่แสดงในหน้าชำระเงินของบิลนี้เท่านั้น\n- INeedBio ไม่รับผิดชอบทุกกรณี หากโอนเข้าบัญชีอื่นที่ไม่ได้แสดงในหน้านี้ แม้จะมีผู้อ้างว่าเป็นทีมงาน\n- ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว\n- โอนแล้วแนบสลิปและกรอกข้อมูลการโอนให้ครบ แล้วแจ้งการชำระเงินทาง IG @{ig} อีกครั้ง\n- สิทธิ์เข้าเรียนจะเปิดหลังแอดมินตรวจยอดเงินแล้ว';
 function ppFmt(id) { var n = String(id || '').replace(/\D/g, ''); return n.length === 10 ? n.slice(0, 3) + '-' + n.slice(3, 6) + '-' + n.slice(6) : n; }
-function accLine(a) { return a.method === 'bank' ? 'ธนาคาร' + a.bank + ' เลขที่ ' + a.account_no + ' ชื่อบัญชี ' + a.account_name : 'พร้อมเพย์ ' + ppFmt(a.promptpay_id) + ' ชื่อบัญชี ' + a.account_name; }
+function accLine(a) { return [a.method === 'bank' ? (a.bank ? 'ธนาคาร' + a.bank : '') + (a.account_no ? ' เลขที่ ' + a.account_no : '') : (a.promptpay_id ? 'พร้อมเพย์ ' + ppFmt(a.promptpay_id) : ''), !a.account_no && !a.promptpay_id && a.qr_url ? 'ตาม QR ในหน้าบิล' : '', a.account_name ? 'ชื่อบัญชี ' + a.account_name : ''].filter(Boolean).join(' ').trim(); }
 function billIg(a) { return (a && a.ig) || S.cfg.contact_ig || 'ineedbiochem'; }
 function instBlock(t) {
   var ls = String(t.bio || '').split(/\n+/).filter(function (x) { return x.trim(); });
@@ -4515,12 +5346,12 @@ function billCard(b, i, n) {
       '<p class="sm ink2">ชำระภายใน <b>' + thDate(b.expires_at, true) + '</b> ถ้าเลยเวลา บิลจะถูกยกเลิกอัตโนมัติ</p>' +
       '<div class="paygrid"><div class="stack" style="gap:12px">' +
       '<h3 class="bh">1. โอนเงิน ' + baht(b.total) + '</h3>' +
-      (a.qr_url ? '<div class="qrbox"><img src="' + esc(imgSrc(a.qr_url)) + '" alt="QR รับเงิน" style="max-width:220px;width:100%"><small>' + esc(a.account_name) + '<br>ยอด ' + baht(b.total) + '</small></div>' :
-        a.method === 'bank' ? '' : '<div class="qrbox"><span class="pp">PromptPay</span>' + (qr || '') + '<small>' + esc(a.account_name) + '<br>ยอด ' + baht(b.total) + '</small></div>') +
+      (a.qr_url ? '<div class="qrbox"><img src="' + esc(imgSrc(a.qr_url)) + '" alt="QR รับเงิน" style="max-width:220px;width:100%"><small>' + (a.account_name ? esc(a.account_name) + '<br>' : '') + 'ยอด ' + baht(b.total) + '</small></div>' :
+        a.method === 'bank' || !qr ? '' : '<div class="qrbox"><span class="pp">PromptPay</span>' + qr + '<small>' + (a.account_name ? esc(a.account_name) + '<br>' : '') + 'ยอด ' + baht(b.total) + '</small></div>') +
       '<div class="accbox">' + (a.method === 'bank'
-        ? '<div><span>ธนาคาร</span><b>' + esc(a.bank) + '</b></div><div><span>เลขบัญชี</span><b class="mono-n">' + esc(a.account_no) + '</b><button class="pill quiet s" data-copy="' + esc(String(a.account_no).replace(/\D/g, '')) + '">คัดลอก</button></div>'
-        : '<div><span>พร้อมเพย์</span><b class="mono-n">' + esc(ppFmt(a.promptpay_id)) + '</b><button class="pill quiet s" data-copy="' + esc(a.promptpay_id) + '">คัดลอก</button></div>') +
-      '<div><span>ชื่อบัญชี</span><b>' + esc(a.account_name) + '</b></div><div><span>ยอดโอน</span><b>' + baht(b.total) + '</b><button class="pill quiet s" data-copy="' + b.total + '">คัดลอก</button></div></div>' +
+        ? (a.bank ? '<div><span>ธนาคาร</span><b>' + esc(a.bank) + '</b></div>' : '') + (a.account_no ? '<div><span>เลขบัญชี</span><b class="mono-n">' + esc(a.account_no) + '</b><button class="pill quiet s" data-copy="' + esc(String(a.account_no).replace(/\D/g, '')) + '">คัดลอก</button></div>' : '')
+        : (a.promptpay_id ? '<div><span>พร้อมเพย์</span><b class="mono-n">' + esc(ppFmt(a.promptpay_id)) + '</b><button class="pill quiet s" data-copy="' + esc(a.promptpay_id) + '">คัดลอก</button></div>' : '')) +
+      (a.account_name ? '<div><span>ชื่อบัญชี</span><b>' + esc(a.account_name) + '</b></div>' : '') + '<div><span>ยอดโอน</span><b>' + baht(b.total) + '</b><button class="pill quiet s" data-copy="' + b.total + '">คัดลอก</button></div></div>' +
       (a.note ? '<p class="sm ink2">' + esc(a.note) + '</p>' : '') +
       '<div class="pterms"><b class="sm">ข้อตกลงการชำระเงิน</b>' + mdLite(payTerms(a)) + '</div></div>' +
       '<div class="stack" style="gap:12px"><h3 class="bh">2. แจ้งหลักฐานการโอน</h3>' + proofForm(b) + '</div></div>' +
@@ -4606,7 +5437,7 @@ function viewMy() {
     page('my', '<div class="page-h"><span class="mono">สวัสดี ' + esc(S.user.nickname) + '</span><div class="spread"><h1>คอร์สของฉัน</h1><a class="pill quiet s" href="#/orders">คำสั่งซื้อทั้งหมด</a></div></div>' +
       (!S.user.has_photo && S.user.role !== 'admin' ? '<a class="note wait" style="display:block;margin-bottom:12px;text-decoration:none" href="#/profile">ยังไม่มีรูปถ่ายของน้องในบัญชี เพิ่มรูปไว้ แอดมินจะยืนยันตัวตนและตรวจการชำระเงินได้เร็วขึ้น → เพิ่มรูป</a>' : '') +
       (needPay.length ? '<a class="note no" style="display:block;margin-bottom:12px;text-decoration:none" href="#/orders/' + encodeURIComponent(needPay[0].o) + '">มีบิลรอชำระ/ส่งหลักฐาน ' + needPay.length + ' บิล · ' + needPay.map(function (x) { return x.b.items.map(function (i) { return esc(i.title); }).join(', '); }).join(' · ') + ' → ชำระเงิน</a>' : '') +
-      (S.user.role === 'student' ? '<div class="note plain spread" style="margin-bottom:12px"><span>เคยเรียนกับ INeedBio ก่อนมีเว็บนี้? กดตรวจรายชื่อ ระบบจะเปิดคอร์สเดิมให้โดยไม่ต้องจ่ายใหม่</span><button class="pill quiet s" id="legacy-btn">ตรวจรายชื่อนักเรียนเก่า</button></div>' : '') +
+      (S.user.role === 'student' ? '<div class="note plain" style="margin-bottom:12px">เคยเรียนกับ INeedBio ก่อนมีเว็บนี้? คอร์สเดิมจะขึ้นให้อัตโนมัติ ถ้าภายใน 24 ชม. ยังไม่ขึ้น ทักแอดมินที่ <a href="https://www.instagram.com/' + esc(S.cfg.contact_ig || 'ineedbiochem') + '" target="_blank" rel="noopener">IG @' + esc(S.cfg.contact_ig || 'ineedbiochem') + '</a></div>' : '') +
       (waitB.length ? '<div class="note wait" style="margin-bottom:12px">รอแอดมินตรวจยอด ' + waitB.length + ' บิล: ' + waitB.map(function (x) { return x.b.items.map(function (i) { return esc(i.title); }).join(', '); }).join(' · ') + '</div>' : '') +
       (list.length ? '<div class="mine">' + list.map(function (c, i) {
         var st = c.enrollment;
@@ -4650,6 +5481,7 @@ function loadYT() {
 function fmtT(s) { s = Math.max(0, Math.floor(s || 0)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + pad2(m) : m) + ':' + pad2(x); }
 function stopPlayer() {
   if (S.ytT) { clearInterval(S.ytT); S.ytT = null; }
+  clearInterval(S.studyT);
   if (S.yt) { try { S.yt.destroy(); } catch (e) {} S.yt = null; }
   S.ytCtl = null; document.body.classList.remove('fake-fs-on');
 }
@@ -4738,6 +5570,322 @@ document.addEventListener('keydown', function (e) {
   else if (k === 'Escape' && c.el.classList.contains('fake-fs')) c.fs();
 });
 
+/* ─── เซลล์แบ่งตัว (เรียนต่อเนื่อง) ─── */
+var CELL_BODY = 'M2-50C28-49 52-32 53-3S34 48 3 50-50 34-52 4-28-51 2-50Z';
+var CELL_DEFS = '<svg class="cl-defs" aria-hidden="true" focusable="false"><defs>' +
+  '<radialGradient id="cl-m" cx="48%" cy="46%" r="54%"><stop offset="0" style="stop-color:var(--cell1);stop-opacity:.16"/><stop offset=".72" style="stop-color:var(--cell1);stop-opacity:.42"/><stop offset=".93" style="stop-color:var(--cell2);stop-opacity:.78"/><stop offset="1" style="stop-color:var(--cell2);stop-opacity:.95"/></radialGradient>' +
+  '<radialGradient id="cl-n" cx="38%" cy="34%" r="70%"><stop offset="0" style="stop-color:var(--cell1);stop-opacity:.9"/><stop offset=".55" style="stop-color:var(--cnuc);stop-opacity:.55"/><stop offset="1" style="stop-color:var(--cnuc);stop-opacity:.85"/></radialGradient>' +
+  '<symbol id="cl-cell" viewBox="-60 -56 120 112">' +
+  '<path d="' + CELL_BODY + '" fill="url(#cl-m)"/><path d="' + CELL_BODY + '" style="fill:none;stroke:var(--cell2)" stroke-width="1.6"/><path d="' + CELL_BODY + '" transform="scale(.94)" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1"/>' +
+  '<g style="fill:none;stroke:var(--cell2)" stroke-width="1.4" stroke-linecap="round" opacity=".45"><path d="M-18-24c-8 6-11 16-8 26"/><path d="M-24-16c-6 8-7 18-3 26"/><path d="M28 14c-2 9-9 16-18 19"/><path d="M33 8c0 11-7 21-17 26"/></g>' +
+  '<g style="fill:var(--cell2)" opacity=".55"><ellipse cx="-26" cy="22" rx="8" ry="3.8" transform="rotate(-24 -26 22)"/><ellipse cx="30" cy="-24" rx="7" ry="3.4" transform="rotate(32 30 -24)"/></g>' +
+  '<g style="fill:none;stroke:var(--cnuc)" stroke-width=".9" opacity=".7"><path d="M-32 21.5l3 1.5 3-2 3 2 3-1.5" transform="rotate(-24 -26 22)"/><path d="M24.5-24.5l2.5 1.5 3-2 3 2 2.5-1.5" transform="rotate(32 30 -24)"/></g>' +
+  '<g style="fill:var(--cnuc)" opacity=".28"><circle cx="-34" cy="-6" r="1.6"/><circle cx="-10" cy="34" r="1.4"/><circle cx="20" cy="30" r="1.8"/><circle cx="36" cy="-4" r="1.3"/><circle cx="-6" cy="-38" r="1.5"/><circle cx="14" cy="-36" r="1.2"/><circle cx="-38" cy="10" r="1.1"/></g>' +
+  '<circle cx="4" cy="-2" r="18" fill="url(#cl-n)"/><circle cx="4" cy="-2" r="18" style="fill:none;stroke:var(--cnuc)" stroke-width="1" opacity=".55"/>' +
+  '<g fill="#fff" opacity=".35"><circle cx="-2" cy="-8" r="1.3"/><circle cx="10" cy="4" r="1.1"/><circle cx="-4" cy="6" r="1"/></g><circle cx="9" cy="-7" r="5" style="fill:var(--cnuc)" opacity=".85"/>' +
+  '<path d="M-30-30c8-9 20-13 30-12" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="3" stroke-linecap="round"/></symbol>' +
+  '<symbol id="cl-glow" viewBox="-60 -56 120 112"><path d="' + CELL_BODY + '" transform="scale(1.08)" style="fill:none;stroke:var(--cell2)" stroke-width="3" opacity=".35"/></symbol>' +
+  '<symbol id="cl-spark" viewBox="-60 -56 120 112"><g style="fill:var(--cnuc)"><circle cx="0" cy="-58" r="2.4"/><circle cx="55" cy="-8" r="1.8"/><circle cx="-50" cy="30" r="2"/><circle cx="30" cy="50" r="1.6"/></g></symbol>' +
+  '<symbol id="cl-halo" viewBox="-60 -56 120 112"><ellipse cx="0" cy="0" rx="62" ry="58" fill="none" stroke="#d4a52a" stroke-width="2" stroke-dasharray="3 7" opacity=".85"/></symbol></defs></svg>';
+var CELL_THEMES = [
+  { k: 'base', d: 0, name: 'INeedBio', desc: 'ธีมเริ่มต้น ขาว-เขียวของ INeedBio', m: ['#ffffff', '#0f1411', '#16875a', '#f4f6f3', 'linear-gradient(135deg,#bfe8d0,#e5eefc)'] },
+  { k: 'petri', d: 15, name: 'จานเพาะเชื้อ', desc: 'วุ้นสีอำพัน จุดโคโลนีกระจายทั่วพื้นหลัง', m: ['#fbf7ec', '#2a2413', '#b7791f', '#fffdf5', 'radial-gradient(circle at 25% 40%,#e7c97e 0 9px,transparent 10px),radial-gradient(circle at 70% 60%,#9fd3c1 0 6px,transparent 7px),radial-gradient(circle at 55% 25%,#d9b35e 0 4px,transparent 5px),#f5ead0'] },
+  { k: 'scope', d: 30, name: 'ย้อมสี H&E', desc: 'มองใต้กล้อง ม่วงฮีมาทอกซิลิน ชมพูอีโอซิน มีเส้นสเกล', m: ['#0e0b14', '#f3ecf7', '#e86fa8', '#17121f', 'radial-gradient(circle at 35% 45%,#8e6cff88 0 10px,transparent 11px),radial-gradient(circle at 65% 55%,#e86fa888 0 14px,transparent 15px),linear-gradient(#e86fa81a 1px,transparent 1px) 0 0/12px 12px,#16101f'] },
+  { k: 'reef', d: 60, name: 'แนวปะการัง', desc: 'ฟ้าน้ำตื้น ปะการังส้ม ลายคลื่นบนพื้น', m: ['#f2fafa', '#0a2e36', '#e8553b', '#ffffff', 'linear-gradient(170deg,#9fe0de,#2f9aa6 55%,#ff9b84)'] },
+  { k: 'forest', d: 100, name: 'ป่าดิบชื้น', desc: 'เขียวมอส เส้นใบไม้ แสงแดดสีทอง', m: ['#0f1a14', '#eef3e6', '#d9a441', '#15241b', 'linear-gradient(135deg,#2e6b3c,#16351f 55%,#d9a44155)'] },
+  { k: 'nebula', d: 200, name: 'เนบิวลา', desc: 'อวกาศลึก ดาว แสงม่วงชมพู ปุ่มไล่สี', m: ['#0b0a1a', '#f1eeff', '#9d8cff', '#141230', 'radial-gradient(circle at 20% 30%,#fff 0 1px,transparent 2px),radial-gradient(circle at 70% 70%,#fff 0 1px,transparent 2px),linear-gradient(135deg,#4b2fa8,#c2378f)'] },
+  { k: 'gold', d: 365, name: 'เกลียวทองคำ', desc: 'งาช้าง หมึกดำ ทองคำ ลายเกลียว DNA', m: ['#fcfaf4', '#16130b', '#a87b14', '#ffffff', 'repeating-linear-gradient(60deg,#e9cf7e 0 5px,#fbf3dc 5px 13px)'] }];
+var CELL_POS = { 1: [[200, 198, 150, 0]], 2: [[152, 204, 124, -8], [252, 190, 124, 14]],
+  4: [[148, 150, 104, 10], [256, 142, 98, -12], [146, 256, 98, 24], [254, 250, 106, -4]],
+  8: [[196, 94, 86, 0], [118, 138, 80, 30], [282, 132, 84, -20], [98, 226, 84, 12], [306, 222, 80, 40], [142, 304, 82, -14], [258, 306, 86, 8], [202, 200, 90, -30]] };
+var CELL_REASON = { study: 'เรียนครบ 15 นาที', redeem: 'แลกโค้ดส่วนลด', review: 'รีวิวคอร์ส', grades: 'ส่งผลการเรียน', 'demo-start': 'เซลล์ตั้งต้น (เดโม)' };
+/* ─── ตัวละครช่วงเทศกาล (แทนเซลล์) ─── */
+var FEST_DEFS = '<svg class="cl-defs" aria-hidden="true" focusable="false"><defs>' +
+  '<radialGradient id="fs-pk" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#ffb35c"/><stop offset=".6" stop-color="#f07a1f"/><stop offset="1" stop-color="#b8480a"/></radialGradient>' +
+  '<radialGradient id="fs-glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff3b0"/><stop offset="1" stop-color="#ffb52e"/></radialGradient>' +
+  '<linearGradient id="fs-ck" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d98b47"/><stop offset="1" stop-color="#a95e24"/></linearGradient>' +
+  '<linearGradient id="fs-gf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e2344c"/><stop offset="1" stop-color="#a50f28"/></linearGradient>' +
+  // ฟักทองแกะสลัก
+  '<symbol id="fs-pumpkin" viewBox="-60 -56 120 112"><path d="M2-38c2-8 8-13 14-14" fill="none" stroke="#5b4a1c" stroke-width="6" stroke-linecap="round"/><path d="M8-44c10-6 20-2 22 6-10 2-18 0-22-6z" fill="#4f8a36"/>' +
+  '<ellipse cx="-24" cy="6" rx="24" ry="36" fill="url(#fs-pk)"/><ellipse cx="24" cy="6" rx="24" ry="36" fill="url(#fs-pk)"/><ellipse cx="0" cy="6" rx="26" ry="39" fill="url(#fs-pk)"/>' +
+  '<g fill="none" stroke="#a8420a" stroke-width="1.6" opacity=".55"><path d="M-12-30c-6 12-6 60 0 72"/><path d="M12-30c6 12 6 60 0 72"/></g>' +
+  '<g fill="url(#fs-glow)" class="fs-lit"><path d="M-22-6l10-2-4 12z"/><path d="M22-6l-10-2 4 12z"/><path d="M-4 4h8l-4 7z"/><path d="M-24 18l6 5 6-5 6 5 6-5 6 5 6-5 6 5c-4 11-18 16-24 16s-20-5-24-16z"/></g></symbol>' +
+  // ลูกอมห่อกระดาษ
+  '<symbol id="fs-candy" viewBox="-60 -56 120 112"><path d="M-26 0l-26-20 6 20-6 20z" fill="#8a4fd6"/><path d="M26 0l26-20-6 20 6 20z" fill="#8a4fd6"/><g stroke="#5b2ba0" stroke-width="1.5" opacity=".6"><path d="M-44-12l14 8M-44 12l14-8M44-12l-14 8M44 12l-14-8"/></g>' +
+  '<circle r="28" fill="#ff8a1f"/><g fill="#fff" opacity=".85"><path d="M-20-19c10 10 10 28 0 38l6 4c12-12 12-34 0-46z"/><path d="M0-28c10 12 10 44 0 56l7 0c10-14 10-42 0-56z"/></g><circle r="28" fill="none" stroke="#c9560c" stroke-width="2"/><path d="M-16-18c6-6 16-8 24-4" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".6"/></symbol>' +
+  // คุกกี้ขิงรูปคน
+  '<symbol id="fs-cookie" viewBox="-60 -56 120 112"><path d="M0-52a16 16 0 0 1 12 27c10 1 22 2 28 6 5 4 1 12-5 11l-17-3 4 18 14 22c3 6-4 11-9 7L0 16l-27 20c-5 4-12-1-9-7l14-22 4-18-17 3c-6 1-10-7-5-11 6-4 18-5 28-6A16 16 0 0 1 0-52z" fill="url(#fs-ck)" stroke="#8a4a1a" stroke-width="1.5"/>' +
+  '<g fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M-30-17l3 3 3-3 3 3"/><path d="M21-17l3 3 3-3 3 3"/><path d="M-26 28l3 3 3-3 3 3"/><path d="M14 28l3 3 3-3 3 3"/><path d="M-5-30q5 4 10 0"/></g>' +
+  '<circle cx="-5" cy="-38" r="2.4" fill="#3a1d08"/><circle cx="5" cy="-38" r="2.4" fill="#3a1d08"/><circle cx="0" cy="-8" r="3.4" fill="#c8102e"/><circle cx="0" cy="3" r="3.4" fill="#1f8a4c"/></symbol>' +
+  // ลูกกวาดรูปตัว J
+  '<symbol id="fs-cane" viewBox="-60 -56 120 112"><path d="M8 50V-18a18 18 0 0 0-36 0v6" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>' +
+  '<path d="M8 50V-18a18 18 0 0 0-36 0v6" fill="none" stroke="#c8102e" stroke-width="13" stroke-linecap="round" stroke-dasharray="7 9"/><path d="M8 50V-18a18 18 0 0 0-36 0v6" fill="none" stroke="#000" stroke-opacity=".12" stroke-width="13" transform="translate(2 1)" style="mix-blend-mode:multiply"/>' +
+  '<path d="M4 44V-18a14 14 0 0 0-10-13" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity=".7"/></symbol>' +
+  // กล่องของขวัญ
+  '<symbol id="fs-gift" viewBox="-60 -56 120 112"><rect x="-34" y="-10" width="68" height="58" rx="5" fill="url(#fs-gf)"/><rect x="-40" y="-24" width="80" height="18" rx="4" fill="#c8102e"/><rect x="-6" y="-24" width="12" height="72" fill="#f2c14e"/><rect x="-40" y="-18" width="80" height="6" fill="#f2c14e" opacity=".0"/>' +
+  '<path d="M0-24c-6-18-26-22-26-10 0 8 14 10 26 10zM0-24c6-18 26-22 26-10 0 8-14 10-26 10z" fill="#f2c14e" stroke="#c9961f" stroke-width="1.5"/><rect x="-34" y="-6" width="68" height="4" fill="#000" opacity=".12"/></symbol>' +
+  '</defs></svg>';
+var FEST_KINDS = { halloween: [['fs-pumpkin', 'roll'], ['fs-candy', 'twirl']], christmas: [['fs-cookie', 'walk'], ['fs-cane', 'swing'], ['fs-gift', 'bounce']] };
+function festKind(i) { var f = festOn(), ks = f && FEST_KINDS[f]; return ks ? ks[i % ks.length] : null; }
+/** สวิตช์ฟีเจอร์ใหม่ต่อเว็บ: window.INEEDBIO_FEATURES = { cells, reviews, fest } ไม่ตั้ง = เปิดทั้งหมด (เดโม) */
+function feat(k) { var f = window.INEEDBIO_FEATURES; return !f || f[k] !== false; }
+function cellsOn() { return feat('cells') && !!S.user && S.cfg.cells_enabled === '1'; }
+function cellN(streak) { return streak >= 15 ? 8 : streak >= 7 ? 4 : streak >= 3 ? 2 : 1; }
+function colonySvg(streak, best, prevN) {
+  var sleep = streak === 0, n = cellN(streak), h = '';
+  var fx = sleep ? [] : [].concat(best >= 30 ? ['cl-glow'] : [], best >= 100 ? ['cl-spark'] : [], best >= 365 ? ['cl-halo'] : []);
+  CELL_POS[n].forEach(function (p, i) {
+    var isNew = prevN && n > prevN && i >= prevN, sz = p[2], x = p[0] - sz / 2, y = p[1] - sz / 2;
+    var fk = festKind(i);
+    h += '<g class="cl-cell' + (fk ? ' fs' : '') + (isNew ? ' new' : '') + (sleep ? ' rest' : '') + '" style="animation-delay:' + (isNew ? (i - prevN) * 0.08 : i * 0.35) + 's"><g class="cl-mv" data-cx="' + p[0] + '" data-cy="' + p[1] + '" data-m="' + (fk ? fk[1] : 'cell') + '" data-sz="' + sz + '"><g transform="rotate(' + (fk ? 0 : p[3]) + ' ' + p[0] + ' ' + p[1] + ')">' +
+      (fk ? [] : fx).map(function (f) { return '<use href="#' + f + '" x="' + x + '" y="' + y + '" width="' + sz + '" height="' + sz + '"/>'; }).join('') +
+      '<use href="#' + (festKind(i) ? festKind(i)[0] : 'cl-cell') + '" x="' + x + '" y="' + y + '" width="' + sz + '" height="' + sz + '"/></g></g></g>';
+  });
+  return '<svg class="colony" viewBox="0 0 400 400" role="img" aria-label="' + (sleep ? 'เซลล์กำลังพักตัว' : n + ' เซลล์') + '">' + h + '</svg>';
+}
+function cellChip() {
+  if (!cellsOn()) return '';
+  var c = S.cells, st = c ? c.streak : 0;
+  return '<a class="cchip' + (c && c.today_done ? '' : ' todo') + '" id="cell-chip" href="#/cells" title="' + (c ? (c.today_done ? 'วันนี้เรียนครบแล้ว' : 'วันนี้เรียนแล้ว ' + c.today_min + '/' + c.need + ' นาที') : 'เซลล์แบ่งตัว') + '" aria-label="เซลล์แบ่งตัว เรียนติดกัน ' + st + ' วัน">' +
+    '<svg viewBox="-60 -56 120 112" aria-hidden="true"><use href="#' + (festKind(0) ? festKind(0)[0] : 'cl-cell') + '" x="-60" y="-56" width="120" height="112"/></svg><b>' + st + '</b></a>';
+}
+/* ─── ลูกเล่นของธีม + ธีมเทศกาล ─── */
+var FESTS = { halloween: { name: 'ฮาโลวีน', bar: 'Hello-ween · เดือนแห่งการเรียนแบบไม่หลอก', from: '10-01', to: '10-31' }, christmas: { name: 'คริสต์มาส', bar: 'Merry Christmas · เรียนต่อเนื่องจนจบปี', from: '12-01', to: '12-31' } };
+function festActive() {
+  if (!feat('fest')) return '';
+  if (S.festPreview !== undefined) return S.festPreview;
+  var m = S.cfg.event_mode || 'off';
+  if (m === 'off') return '';
+  if (FESTS[m]) return m;
+  if (m !== 'auto') return '';
+  var md = new Date(Date.now() + 7 * 36e5).toISOString().slice(5, 10);
+  return Object.keys(FESTS).filter(function (k) { return md >= FESTS[k].from && md <= FESTS[k].to; })[0] || '';
+}
+function festOn() { var f = festActive(); return f && store('ib_fest_off') !== f ? f : ''; }
+function fxRand(a, b) { return a + Math.random() * (b - a); }
+function fxBuild(key) {
+  var h = '', i, n, st = function (o) { return Object.keys(o).map(function (k) { return k + ':' + o[k]; }).join(';'); };
+  var BAT = '<svg viewBox="0 0 34 16" width="48" height="23"><path d="M17 5c1-3 2-3 2-3l1 3c3-3 8-4 14-2-4 1-6 4-6 7-2-2-5-2-7 0-1-1-2-2-4-2s-3 1-4 2c-2-2-5-2-7 0 0-3-2-6-6-7 6-2 11-1 14 2z" fill="#6b4a8e"/></svg>';
+  if (key === 'christmas') for (i = 0; i < 26; i++) h += '<i class="fx-snow" style="' + st({ left: fxRand(0, 100).toFixed(1) + '%', '--s': fxRand(3, 7).toFixed(1) + 'px', '--t': fxRand(9, 18).toFixed(1) + 's', '--dl': (-fxRand(0, 18)).toFixed(1) + 's', '--dx': fxRand(-40, 40).toFixed(0) + 'px', opacity: fxRand(.5, .95).toFixed(2) }) + '"></i>';
+  if (key === 'halloween') { for (i = 0; i < 4; i++) h += '<i class="fx-bat" style="' + st({ top: fxRand(8, 45).toFixed(0) + '%', left: 0, '--t': fxRand(20, 34).toFixed(0) + 's', '--dl': (-fxRand(0, 30)).toFixed(0) + 's' }) + '">' + BAT + '</i>'; h += '<i class="fx-fog"></i>'; }
+  if (key === 'reef') for (i = 0; i < 12; i++) h += '<i class="fx-bub" style="' + st({ left: fxRand(0, 100).toFixed(1) + '%', '--s': fxRand(6, 16).toFixed(0) + 'px', '--t': fxRand(12, 22).toFixed(1) + 's', '--dl': (-fxRand(0, 22)).toFixed(1) + 's', '--dx': fxRand(-30, 30).toFixed(0) + 'px' }) + '"></i>';
+  if (key === 'forest') for (i = 0; i < 14; i++) h += '<i class="fx-fly" style="' + st({ left: fxRand(2, 98).toFixed(1) + '%', top: fxRand(10, 95).toFixed(1) + '%', '--t': fxRand(12, 22).toFixed(1) + 's', '--t2': fxRand(2, 4.5).toFixed(1) + 's', '--dl': (-fxRand(0, 20)).toFixed(1) + 's', '--a': fxRand(-60, 60).toFixed(0) + 'px', '--b': fxRand(-50, 50).toFixed(0) + 'px', '--c': fxRand(-60, 60).toFixed(0) + 'px', '--d': fxRand(-50, 50).toFixed(0) + 'px' }) + '"></i>';
+  if (key === 'nebula') { for (i = 0; i < 28; i++) h += '<i class="fx-star" style="' + st({ left: fxRand(0, 100).toFixed(1) + '%', top: fxRand(0, 100).toFixed(1) + '%', '--t': fxRand(2.5, 6).toFixed(1) + 's', '--dl': (-fxRand(0, 6)).toFixed(1) + 's' }) + '"></i>'; h += '<i class="fx-shoot" style="top:12%;left:92%;--dl:1s"></i><i class="fx-shoot" style="top:30%;left:70%;--dl:6.5s"></i>'; }
+  if (key === 'gold') for (i = 0; i < 12; i++) h += '<i class="fx-spark" style="' + st({ left: fxRand(0, 100).toFixed(1) + '%', top: fxRand(0, 100).toFixed(1) + '%', '--t': fxRand(2.4, 5).toFixed(1) + 's', '--dl': (-fxRand(0, 5)).toFixed(1) + 's' }) + '"></i>';
+  return h;
+}
+function applyFx(key) {
+  if (S.fxKey === key) return; S.fxKey = key;
+  var el = $('#ct-fx'); if (!el) { el = document.createElement('div'); el.id = 'ct-fx'; el.setAttribute('aria-hidden', 'true'); document.body.appendChild(el); }
+  el.innerHTML = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? '' : fxBuild(key);
+}
+/** จานเพาะเชื้อ: แตะพื้นที่ว่างแล้วมีโคโลนีงอกขึ้นมา */
+document.addEventListener('pointerdown', function (e) {
+  if (!document.documentElement.classList.contains('ct-petri') || document.documentElement.classList.contains('fe-halloween') || document.documentElement.classList.contains('fe-christmas')) return;
+  if (e.target.closest('a,button,input,select,textarea,label,.tile,.dish')) return;
+  var c = document.createElement('i'); c.className = 'fx-col'; var s = Math.round(fxRand(18, 40));
+  c.style.cssText = 'left:' + (e.clientX - s / 2) + 'px;top:' + (e.clientY - s / 2) + 'px;--s:' + s + 'px';
+  document.body.appendChild(c); setTimeout(function () { c.remove(); }, 1700);
+});
+/** เซลล์ในจานเดินไปมาช้า ๆ รอบตำแหน่งของตัวเอง แตะแล้วเด้ง */
+function startColonyMotion() {
+  var svg = $('#dish .colony'); if (!svg) return;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var cells = $$('.cl-mv', svg).map(function (m) { return { x: 0, y: 0, vx: fxRand(-.3, .3), vy: fxRand(-.3, .3), r: 0, vr: fxRand(-.15, .15), m: m.dataset.m, t: fxRand(0, 6), dir: Math.random() < .5 ? -1 : 1, sp: fxRand(.8, 1.2) }; });
+  var mv = $$('.cl-mv', svg), R = mv.length > 4 ? 14 : mv.length > 2 ? 22 : 28;
+  $$('.cl-cell', svg).forEach(function (g) { g.addEventListener('click', function () { g.classList.remove('poke'); void g.getBoundingClientRect(); g.classList.add('poke'); }); });
+  var step = function () {
+    if (!document.body.contains(svg)) return;
+    cells.forEach(function (c, i) {
+      var m = mv[i], cx = +m.dataset.cx, cy = +m.dataset.cy, sz = +m.dataset.sz, k = sz / 120, sx = 1, sy = 1;
+      if (c.m !== 'cell') {
+        c.t += 0.008 * c.sp;
+        if (c.m === 'walk') { c.x += c.dir * 0.2 * c.sp; if (Math.abs(c.x) > R * 1.3) c.dir *= -1; c.y = -Math.abs(Math.sin(c.t * 7)) * 5 * k; c.r = Math.sin(c.t * 7) * 6; sx = c.dir; }
+        else if (c.m === 'swing') { c.r = Math.sin(c.t * 2.2) * 14; c.x = Math.sin(c.t * 0.6) * R * 0.6; c.y = Math.cos(c.t * 1.1) * 3; }
+        else if (c.m === 'bounce') { var ph = (c.t * 1.6) % 1, up = Math.sin(ph * Math.PI); c.y = -up * 16 * k; sy = ph < 0.08 || ph > 0.92 ? 0.86 : 1; sx = sy < 1 ? 1.1 : 1; c.x = Math.sin(c.t * 0.4) * R * 0.5; c.r = Math.sin(c.t * 1.6) * 4; }
+        else if (c.m === 'roll') { c.x += c.dir * 0.16 * c.sp; if (Math.abs(c.x) > R * 1.2) c.dir *= -1; c.r = c.x * 360 / (Math.PI * sz) * 0.9; c.y = -Math.abs(Math.sin(c.t * 3)) * 2; }
+        else if (c.m === 'twirl') { c.r += 0.9 * c.sp; c.y = Math.sin(c.t * 1.8) * 9 * k; c.x = Math.cos(c.t * 0.7) * R * 0.5; }
+        m.setAttribute('transform', 'translate(' + c.x.toFixed(2) + ' ' + c.y.toFixed(2) + ') rotate(' + c.r.toFixed(2) + ' ' + cx + ' ' + cy + ') translate(' + cx + ' ' + cy + ') scale(' + sx + ' ' + sy + ') translate(' + (-cx) + ' ' + (-cy) + ')');
+        return;
+      }
+      c.vx += fxRand(-.05, .05) - c.x * .0008; c.vy += fxRand(-.05, .05) - c.y * .0008; c.vr += fxRand(-.02, .02) - c.r * .002;
+      var sp = Math.hypot(c.vx, c.vy); if (sp > .4) { c.vx *= .4 / sp; c.vy *= .4 / sp; }
+      c.vx *= .99; c.vy *= .99; c.vr *= .98; c.x += c.vx; c.y += c.vy; c.r += c.vr;
+      var d = Math.hypot(c.x, c.y); if (d > R) { c.x *= R / d; c.y *= R / d; c.vx *= -.5; c.vy *= -.5; }
+      mv[i].setAttribute('transform', 'translate(' + c.x.toFixed(2) + ' ' + c.y.toFixed(2) + ') rotate(' + c.r.toFixed(2) + ' ' + mv[i].dataset.cx + ' ' + mv[i].dataset.cy + ')');
+    });
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function applyCellTheme() {
+  var h = document.documentElement, th = cellsOn() && S.cells ? S.cells.theme : 'base', fe = festOn();
+  CELL_THEMES.forEach(function (t) { if (t.k !== 'base') h.classList.toggle('ct-' + t.k, t.k === th); });
+  Object.keys(FESTS).forEach(function (k) { h.classList.toggle('fe-' + k, k === fe); });
+  h.classList.toggle('v2ui', UI2());
+  applyFx(fe || th);
+}
+function loadCells(then) {
+  if (!cellsOn() || S.cellsBusy) return;
+  S.cellsBusy = true;
+  api('cells.status').then(function (c) {
+    S.cellsBusy = false; S.cells = c; applyCellTheme();
+    var ch = $('#cell-chip'); if (ch) ch.outerHTML = cellChip();
+    if (then) then(c);
+  }).catch(function () { S.cellsBusy = false; });
+}
+/** นับเวลาดูคลิปจริง: ทุก 5 วินาทีที่คลิปกำลังเล่นและหน้าจอเปิดอยู่ สะสมครบ 60 วินาทีส่ง study.ping 1 ครั้ง */
+function startStudyPing(lid) {
+  if (!cellsOn()) return;
+  clearInterval(S.studyT); var acc = 0;
+  S.studyT = setInterval(function () {
+    var pl = $('#player');
+    if (!pl || !pl.classList.contains('is-playing') || document.visibilityState !== 'visible') return;
+    acc += 5; if (acc < 60) return; acc = 0;
+    api('study.ping', { lesson_id: lid, pos: S.yt && S.yt.getCurrentTime ? Math.floor(S.yt.getCurrentTime() || 0) : 0 }).then(function (r) {
+      if (!r || r.ignored || r.off) return;
+      if (S.cells) { S.cells.today_min = r.today_min; var ch = $('#cell-chip'); if (ch) ch.outerHTML = cellChip(); }
+      if (r.credited) { toast(r.credited.gained.length > 1 ? 'เรียนครบวันนี้แล้ว +' + r.credited.gained.reduce(function (a, g) { return a + g.delta; }, 0) + ' เซลล์ (มีโบนัส)' : 'เรียนครบวันนี้แล้ว +1 เซลล์ ติดกัน ' + r.credited.streak + ' วัน'); S.cells = null; loadCells(); }
+    }).catch(function () {});
+  }, 5000);
+}
+function viewCells() {
+  if (!cellsOn()) return go('/my');
+  loading('cells', 'list');
+  Promise.all([api('cells.status'), api('my.courses').catch(function () { return []; }), api('my.submissions').catch(function () { return { reviews: [], grades: [], cells: { review: 5, grades: 5, proof: 5 } }; })]).then(function (res) {
+    var c = res[0], mineC = res[1], sub = res[2];
+    var prevN = S.cellsPrevN || 0; S.cells = c; applyCellTheme();
+    var n = cellN(c.streak), pct = Math.min(100, Math.round(c.today_min / c.need * 100)), toCost = Math.min(c.points, c.cost);
+    var nextMs = [3, 7, 15, 30, 60, 100, 200, 365].filter(function (d) { return d > c.streak; })[0];
+    var capTxt = c.streak === 0 ? 'เซลล์กำลังพักตัว · เรียนวันนี้ 15 นาทีเพื่อเริ่มแบ่งตัว' : n + ' เซลล์ · เรียนติดกัน ' + c.streak + ' วัน' + (nextMs ? ' · อีก ' + (nextMs - c.streak) + ' วันถึง ' + nextMs : '');
+    var cal = '', dayMap = {}; c.days.forEach(function (x) { dayMap[x.day] = x; });
+    for (var i = 27; i >= 0; i--) {
+      var dt = new Date(Date.parse(c.today + 'T00:00:00Z') - i * 864e5), key = dt.toISOString().slice(0, 10), x = dayMap[key];
+      cal += '<span class="' + (x && x.credited ? 'on' : x ? 'half' : '') + (i === 0 ? ' today' : '') + '" title="' + key + (x ? ' · ' + x.minutes + ' นาที' : '') + '">' + dt.getUTCDate() + '</span>';
+    }
+    var road = [[1, '1 เซลล์', 'ตื่นมาเรียนวันแรก'], [3, '2 เซลล์', 'แบ่งตัวครั้งแรก'], [7, '4 เซลล์', 'โบนัส +5 · บัตรพักตัว'], [15, '8 เซลล์', 'ธีมจานเพาะเชื้อ'], [30, 'เยื่อหุ้มเรืองแสง', 'ธีมย้อมสี H&E'], [100, 'ประกายรอบเซลล์', 'ธีมป่าดิบชื้น'], [365, 'วงแหวนทอง', 'ธีมเกลียวทองคำ']];
+    page('cells', '<div class="page-h"><span class="mono">สวัสดี ' + esc(S.user.nickname) + '</span><h1>เซลล์แบ่งตัว</h1><p class="ink2" style="max-width:62ch">ดูคลิปเรียนจริงวันละ 15 นาที เซลล์ของน้องจะแบ่งตัวตามจำนวนวันที่เรียนติดกัน ได้วันละ 1 เซลล์ สะสมครบ ' + c.cost + ' เซลล์แลกโค้ดลด ' + baht(c.value) + '</p></div>' +
+      '<div class="cl-lab"><div class="dish" id="dish">' + colonySvg(c.streak, c.best, prevN) + '<div class="cap">' + esc(capTxt) + '</div></div>' +
+      '<div class="cl-panel"><div class="cl-stats"><div><b>' + c.streak + '</b><span>วันติดกันตอนนี้</span></div><div><b>' + c.best + '</b><span>สถิติสูงสุด</span></div><div><b>' + c.points + '</b><span>เซลล์สะสม</span></div><div><b>' + c.freezes + '</b><span>บัตรพักตัว</span></div></div>' +
+      '<div class="cl-box"><div class="spread"><b>วันนี้</b><span class="sm ink2">' + (c.today_done ? 'เรียนครบแล้ว' : 'ดูคลิปแล้ว ' + c.today_min + ' / ' + c.need + ' นาที') + '</span></div><div class="cl-bar"><i style="width:' + pct + '%"></i></div>' +
+      (c.today_done ? '<p class="sm ink2">พรุ่งนี้กลับมาเรียนต่อ เซลล์จะได้แบ่งตัวต่อ</p>' : '<a class="pill s" href="#/my" style="justify-self:start">ไปเรียนต่อ</a>') + '</div>' +
+      '<div class="cl-box dash"><div class="spread"><b>แลกโค้ดลด ' + baht(c.value) + '</b><span class="sm ink2">' + toCost + ' / ' + c.cost + ' เซลล์</span></div><div class="cl-bar"><i style="width:' + Math.round(toCost / c.cost * 100) + '%"></i></div>' +
+      '<div class="rowx"><button class="pill s" id="cl-redeem"' + (c.can_redeem ? '' : ' disabled') + '>แลก ' + c.cost + ' เซลล์</button><span class="sm ink2">' + (c.next_redeem_at ? 'แลกครั้งถัดไปได้ ' + thDate(c.next_redeem_at) : 'ใช้กับคอร์สใหม่ 1 ครั้ง อายุ 60 วัน') + '</span></div>' +
+      (c.codes.length ? '<div class="stack" style="gap:6px">' + c.codes.map(function (x) { return '<div class="spread"><span class="mono-n"><b>' + esc(x.code) + '</b></span><span class="sm ink2">' + (x.used ? 'ใช้แล้ว' : 'ลด ' + baht(x.value) + ' · ถึง ' + thDate(x.ends_at)) + '</span>' + (x.used ? '' : '<button class="pill quiet s" data-copy="' + esc(x.code) + '">คัดลอก</button>') + '</div>'; }).join('') + '</div>' : '') + '</div>' +
+      (festActive() ? '<div class="cl-box"><div class="spread"><b>ธีมเทศกาล' + esc(FESTS[festActive()].name) + '</b><button class="pill ghost s" data-fest="toggle">' + (festOn() ? 'ใช้ธีมของฉันแทน' : 'ใช้ธีมเทศกาล') + '</button></div><p class="sm ink2">ช่วงเทศกาลเว็บจะเปลี่ยนเป็นธีมพิเศษให้ทุกคน ถ้าชอบธีมที่ปลดล็อกไว้มากกว่า กดใช้ธีมของตัวเองได้</p></div>' : '') +
+      (DEMO ? '<div class="cl-demo"><b>เดโม: ลองธีมเทศกาล</b><div class="rowx"><button class="pill ghost s" data-fest="halloween">ฮาโลวีน</button><button class="pill ghost s" data-fest="christmas">คริสต์มาส</button><button class="pill ghost s" data-fest="none">ไม่มีเทศกาล</button></div></div>' : '') +
+      (DEMO ? '<div class="cl-demo"><b>เดโม: จำลองการเรียน</b><p class="sm ink2">ของจริงนับจากเวลาที่คลิปเล่นจริงในห้องเรียน ปุ่มนี้มีเฉพาะในเดโม</p><div class="rowx"><button class="pill s" id="cl-sim-study"' + (c.today_done ? ' disabled' : '') + '>เรียนวันนี้ 15 นาที</button><button class="pill ghost s" id="cl-sim-day">ข้ามไปวันถัดไป</button><button class="pill ghost s" id="cl-sim-skip">ขาดเรียน 2 วัน</button></div></div>' : '') +
+      '</div></div>' +
+      missionsHtml(mineC, sub) +
+      '<section class="blk"><div class="sec-h"><div><small>28 วันล่าสุด</small><h2>ปฏิทินการเรียน</h2></div></div><div class="cl-cal">' + cal + '</div><p class="sm ink2" style="margin-top:8px">สีเข้ม = เรียนครบ 15 นาที · สีอ่อน = เรียนแต่ยังไม่ครบ</p></section>' +
+      '<section class="blk"><div class="sec-h"><div><small>เส้นทาง</small><h2>เซลล์โตตามวันที่เรียนติดกัน</h2></div></div><div class="cl-road">' + road.map(function (r) { return '<div class="' + (c.best >= r[0] ? 'done' : '') + '"><span class="d">' + r[0] + ' วัน</span><b>' + r[1] + '</b><span class="sm">' + r[2] + '</span></div>'; }).join('') + '</div></section>' +
+      '<section class="blk"><div class="sec-h"><div><small>ปลดล็อกตามสถิติสูงสุด เก็บไว้ถาวร</small><h2>ธีมเว็บ</h2></div></div><div class="cl-themes">' + CELL_THEMES.map(function (t) {
+        var locked = c.best < t.d, on = c.theme === t.k;
+        return '<div class="cl-th' + (on ? ' on' : '') + '"><div class="cl-mock" style="--m-bg:' + t.m[0] + ';--m-ink:' + t.m[1] + ';--m-acc:' + t.m[2] + ';--m-card:' + t.m[3] + ';--m-pat:' + t.m[4] + '"><div class="hd"><span>INeed<em>Bio</em></span><em>' + (t.d || '') + '</em></div><div class="tl"><i></i><b>ชีววิทยา สอวน. ค่าย 1</b><s>฿790</s></div>' + (locked ? '<div class="lk">ปลดล็อกที่ ' + t.d + ' วัน</div>' : '') + '</div>' +
+          '<div class="cp"><span class="d">' + (t.d ? t.d + ' วัน' : 'เริ่มต้น') + '</span><b>' + esc(t.name) + '</b><p>' + esc(t.desc) + '</p>' + (locked ? '' : '<button class="pill ' + (on ? 'quiet' : 'ghost') + ' s" data-cth="' + t.k + '" style="justify-self:start"' + (on ? ' disabled' : '') + '>' + (on ? 'ใช้อยู่' : 'ใช้ธีมนี้') + '</button>') + '</div></div>';
+      }).join('') + '</div></section>' +
+      '<section class="blk"><div class="sec-h"><div><small>กติกา</small><h2>นับจากการเรียนจริงเท่านั้น</h2></div></div><div class="cl-rules">' +
+      '<div><b>วันที่นับ</b><p>คลิปต้องเล่นจริงรวม 15 นาทีในวันนั้น (ตัดวันตามเวลาไทย) กดติ๊กดูจบอย่างเดียวไม่นับ</p></div>' +
+      '<div><b>บัตรพักตัว</b><p>เรียนติดกันทุก 7 วันได้บัตร 1 ใบ เก็บได้ 2 ใบ ขาดเรียนระบบใช้บัตรแทน สตรีคไม่ขาด</p></div>' +
+      '<div><b>ถ้าสตรีคขาด</b><p>เซลล์กลับไปพักตัวและเริ่มนับใหม่ แต่เซลล์สะสม สถิติสูงสุด และธีมที่ปลดล็อกแล้วยังอยู่ครบ</p></div>' +
+      '<div><b>โค้ดส่วนลด</b><p>โค้ดส่วนตัว ใช้ได้ 1 ครั้งกับคอร์สใหม่ อายุ 60 วัน แลกได้เดือนละ 1 ครั้ง</p></div></div></section>');
+    S.cellsPrevN = n; startColonyMotion();
+    $$('[data-fest]').forEach(function (b) { b.onclick = function () { var v = b.dataset.fest; if (v === 'toggle') { var f = festActive(); store('ib_fest_off', store('ib_fest_off') === f ? null : f); } else S.festPreview = v === 'none' ? '' : v; applyCellTheme(); viewCells(); }; });
+    var ch = $('#cell-chip'); if (ch) ch.outerHTML = cellChip();
+    $$('[data-rv]').forEach(function (b) { b.onclick = function () { reviewModal(b.dataset.rv, b.dataset.rvt); }; });
+    var gro = $('#gr-open'); if (gro) gro.onclick = gradesModal;
+    var rd = $('#cl-redeem'); if (rd) rd.onclick = function () { busy(rd, true); api('cells.redeem').then(function (r) { toast('ได้โค้ด ' + r.code + ' ลด ' + baht(r.value)); viewCells(); }).catch(function (e) { busy(rd, false); toast(e.message, true); }); };
+    $$('[data-cth]').forEach(function (b) { b.onclick = function () { busy(b, true); api('cells.theme', { theme: b.dataset.cth }).then(function () { S.cells.theme = b.dataset.cth; applyCellTheme(); viewCells(); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
+    if (DEMO) {
+      var sim = function (fn) { return function () { var r = fn(); if (r && r.credited && r.credited.unlocked && r.credited.unlocked.length) toast('ปลดล็อกธีมใหม่!'); viewCells(); }; };
+      var s1 = $('#cl-sim-study'); if (s1) s1.onclick = sim(function () { return window.__DEMO.cellsStudy(S.token, S.user.user_id); });
+      $('#cl-sim-day').onclick = sim(function () { window.__DEMO.cellsShift(1); });
+      $('#cl-sim-skip').onclick = sim(function () { window.__DEMO.cellsShift(3); });
+    }
+  }).catch(function (e) { failed('cells', e); });
+}
+function stars(n) { var h = ''; for (var i = 1; i <= 5; i++) h += '<span style="color:' + (i <= n ? 'var(--acc)' : 'var(--line)') + '">★</span>'; return '<span class="stars" aria-label="' + n + ' ดาว">' + h + '</span>'; }
+function missionsHtml(mine, sub) {
+  var cs = mine.filter(function (x) { return x.enrollment === 'approved'; });
+  var yr = new Date().getFullYear() + 543;
+  return '<section class="blk"><div class="sec-h"><div><small>ภารกิจรับเซลล์เพิ่ม</small><h2>ช่วยเล่าให้เราฟังหน่อย</h2></div></div><div class="cl-rules">' +
+    '<div><b>รีวิวคอร์สที่เรียน · +' + sub.cells.review + ' เซลล์ต่อคอร์ส</b><p>เล่าให้รุ่นน้องฟังว่าเรียนแล้วเป็นยังไง</p>' +
+    (cs.length ? '<div class="stack" style="gap:8px;margin-top:6px">' + cs.map(function (c) {
+      var done = sub.reviews.indexOf(c.course_id) >= 0;
+      return '<div class="spread"><span class="sm">' + esc(c.title) + '</span>' + (done ? '<span class="sm muted">ส่งแล้ว ✓</span>' : '<button class="pill ghost s" data-rv="' + esc(c.course_id) + '" data-rvt="' + esc(c.title) + '">รีวิว</button>') + '</div>'; }).join('') + '</div>' : '<p class="sm muted">ยังไม่มีคอร์สที่เรียนอยู่</p>') + '</div>' +
+    '<div><b>ส่งผลการเรียนเทอมนี้ · +' + sub.cells.grades + ' เซลล์</b><p>บอกเกรดแต่ละวิชาเทอมนี้ แนบรูปใบเกรดด้วยรับเพิ่มอีก ' + sub.cells.proof + ' เซลล์</p>' +
+    (sub.grades.length ? '<p class="sm muted">ส่งแล้ว: ' + sub.grades.map(function (g) { var p = g.split('/'); return 'ปี ' + p[0] + ' เทอม ' + (p[1] === 'summer' ? 'ฤดูร้อน' : p[1]); }).map(esc).join(' · ') + '</p>' : '') +
+    '<button class="pill s" id="gr-open" style="justify-self:start;margin-top:6px">กรอกผลการเรียน</button></div></div></section>';
+}
+function reviewModal(cid, title) {
+  openModal(mhead('รีวิวคอร์ส', esc(title)) + '<form class="form" id="rvf">' +
+    '<div class="f">ให้คะแนนคอร์สนี้<div class="rowx" role="radiogroup" aria-label="คะแนน">' + [5, 4, 3, 2, 1].map(function (n) { return '<label class="chk-l"><input type="radio" name="rating" value="' + n + '"' + (n === 5 ? ' checked' : '') + '> ' + n + ' ดาว</label>'; }).join('') + '</div></div>' +
+    field('text', 'เรียนแล้วเป็นยังไงบ้าง', '', { area: true, ph: 'เช่น เนื้อหาตรงไหนช่วยได้มาก เรียนแล้วสอบเป็นยังไง อยากบอกอะไรคนที่กำลังจะเรียน (อย่างน้อย 20 ตัวอักษร)' }) +
+    '<p class="err" id="rvf-err" hidden></p><button class="pill" style="justify-self:start">ส่งรีวิว</button></form>', true);
+  submitForm('#rvf', 'review.submit', '#rvf-err', function (r) { closeModal(); showNotice('ขอบคุณสำหรับรีวิว', 'รับ ' + r.cells + ' เซลล์ เซลล์จะเข้าบัญชีภายใน 1–2 วัน'); viewCells(); }, function () { return { course_id: cid, rating: Number(($('#rvf [name=rating]:checked') || {}).value || 0) }; });
+}
+var GR_SUBJ = ['ชีววิทยา', 'เคมี', 'ฟิสิกส์', 'คณิตศาสตร์', 'ภาษาอังกฤษ', 'ภาษาไทย'];
+var GR_OPT = [['', '–'], ['4', '4'], ['3.5', '3.5'], ['3', '3'], ['2.5', '2.5'], ['2', '2'], ['1.5', '1.5'], ['1', '1'], ['0', '0']];
+function gradesModal() {
+  var yr = String(new Date().getFullYear() + 543), proof = null;
+  openModal(mhead('ส่งผลการเรียน', 'ใส่เฉพาะวิชาที่อยากบอก ไม่ต้องครบทุกวิชา') + '<form class="form" id="grf">' +
+    '<div class="row2">' + field('year', 'ปีการศึกษา', yr, { mode: 'numeric' }) + field('term', 'ภาคเรียน', '1', { options: [['1', 'เทอม 1'], ['2', 'เทอม 2'], ['summer', 'ภาคฤดูร้อน']] }) + '</div>' +
+    '<div class="f">เกรดแต่ละวิชา<div class="stack" style="gap:6px">' + GR_SUBJ.concat(['']).map(function (sj, i) {
+      return '<div class="row2" style="gap:8px"><input class="i" name="gs' + i + '" value="' + esc(sj) + '" placeholder="วิชาอื่น" aria-label="วิชา"><select class="i" name="gg' + i + '" aria-label="เกรด">' + GR_OPT.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('') + '</select></div>'; }).join('') + '</div></div>' +
+    '<div class="row2">' + field('gpa', 'เกรดเฉลี่ยเทอมนี้ (ไม่ใส่ก็ได้)', '', { ph: 'เช่น 3.75' }) + field('exam', 'ผลสอบหรือรางวัลอื่น (ไม่ใส่ก็ได้)', '', { ph: 'เช่น ติดค่าย 1 สอวน. ชีวะ' }) + '</div>' +
+    field('message', 'เรียนกับ INeedBio แล้วช่วยยังไงบ้าง (ไม่ใส่ก็ได้)', '', { area: true }) +
+    '<label class="f" for="gr-file">รูปใบเกรด (ไม่ใส่ก็ได้ ใส่แล้วรับเพิ่ม 5 เซลล์)<input class="i" type="file" id="gr-file" accept="image/*"></label><p class="sm muted" id="gr-fn"></p>' +
+    '<label class="chk-l"><input type="checkbox" name="consent_publish"> ยินยอมให้ INeedBio นำผลการเรียนและข้อความไปโพสต์ได้ โดยแสดงแค่ชื่อเล่น</label>' +
+    '<p class="err" id="grf-err" hidden></p><button class="pill" style="justify-self:start">ส่งผลการเรียน</button></form>', true);
+  $('#gr-file').onchange = function () {
+    var f = this.files[0]; if (!f) return; $('#gr-fn').textContent = 'กำลังย่อรูป...';
+    var img = new Image(), url = URL.createObjectURL(f);
+    img.onload = function () { var k = Math.min(1, 1400 / Math.max(img.width, img.height)), cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      proof = { mime: 'image/jpeg', base64: cv.toDataURL('image/jpeg', 0.8).split(',')[1] }; URL.revokeObjectURL(url); $('#gr-fn').textContent = 'แนบแล้ว: ' + f.name; };
+    img.onerror = function () { $('#gr-fn').textContent = 'เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น'; };
+    img.src = url;
+  };
+  submitForm('#grf', 'grades.submit', '#grf-err', function (r) { closeModal(); showNotice('ขอบคุณที่เล่าให้ฟัง', 'รับ ' + r.cells + ' เซลล์ เซลล์จะเข้าบัญชีภายใน 1–2 วัน'); viewCells(); }, function () {
+    var gs = []; for (var i = 0; i <= GR_SUBJ.length; i++) { var sj = $('#grf [name=gs' + i + ']').value.trim(), g = $('#grf [name=gg' + i + ']').value; if (sj && g) gs.push({ subject: sj, grade: g }); }
+    return { grades: gs, proof: proof, consent_publish: $('#grf [name=consent_publish]').checked };
+  });
+}
+function aFeedback(shell) {
+  var st = S.fbTab || 'pending';
+  api('admin.feedback', { status: st }).then(function (r) {
+    S.fbQ = r.counts.reviews + r.counts.grades;
+    var who = function (u) { return '<b>' + esc(u.nickname || '') + '</b> <span class="sm muted">' + esc(u.name || '') + (u.grade ? ' · ' + esc(u.grade) : '') + (u.school ? ' · ' + esc(u.school) : '') + '</span>'; };
+    var btns = function (kind, x) { return x.status === 'pending' ? '<div class="rowx"><button class="pill s" data-fb="approve" data-k="' + kind + '" data-id="' + esc(x.id) + '">อนุมัติ · ให้เซลล์</button><button class="pill ghost s" data-fb="hide" data-k="' + kind + '" data-id="' + esc(x.id) + '">ไม่เผยแพร่</button></div>' : '<span class="badge ' + (x.status === 'approved' ? 'b-ok' : 'b-soft') + '">' + (x.status === 'approved' ? 'อนุมัติแล้ว' : 'ไม่เผยแพร่') + '</span>'; };
+    shell('<h1>รีวิวและผลการเรียน</h1><p class="ink2 sm">นักเรียนไม่เห็นสถานะการตรวจ เห็นแค่ว่าส่งแล้ว เซลล์เข้าบัญชีเมื่อกดอนุมัติ รีวิวที่อนุมัติจะขึ้นในหน้าคอร์ส</p>' +
+      '<div class="seg" role="group">' + [['pending', 'รอตรวจ (' + (r.counts.reviews + r.counts.grades) + ')'], ['done', 'ตรวจแล้ว']].map(function (t) { return '<button data-fbt="' + t[0] + '" aria-pressed="' + (st === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      (st === 'pending' && r.trial && r.trial.summary.length ? '<h3 style="font-size:17px">คนที่ลองดูตอนฟรี เข้าใจแค่ไหน</h3><div class="tbl"><table style="min-width:520px"><thead><tr><th>คอร์ส</th><th class="num">ตอบ</th><th class="num">เข้าใจ</th><th class="num">บางส่วน</th><th class="num">ยังไม่เข้าใจ</th></tr></thead><tbody>' +
+        r.trial.summary.map(function (x) { var pc = function (v) { return Math.round((v || 0) / x.n * 100) + '%'; }; return '<tr><td>' + esc(x.course) + '</td><td class="num">' + x.n + '</td><td class="num">' + pc(x.clear) + '</td><td class="num">' + pc(x.partly) + '</td><td class="num">' + pc(x.lost) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+        (r.trial.comments.length ? '<div class="stack" style="gap:8px;margin-bottom:10px">' + r.trial.comments.slice(0, 20).map(function (x) { return '<div class="card stack" style="gap:4px;padding:14px 16px"><span class="sm muted">' + esc(x.course) + ' · ' + esc(x.lesson || '') + ' · ' + ({ clear: 'เข้าใจ', partly: 'เข้าใจบางส่วน', lost: 'ยังไม่เข้าใจ' }[x.level] || '') + (x.member ? ' · สมาชิก' : ' · ไม่ได้ล็อกอิน') + ' · ' + thDate(x.created_at) + '</span><p>' + esc(x.text) + '</p></div>'; }).join('') + '</div>' : '') : '') +
+      '<h3 style="font-size:17px">รีวิวคอร์ส</h3>' + (r.reviews.length ? '<div class="stack" style="gap:10px">' + r.reviews.map(function (x) {
+        return '<div class="card stack" style="gap:6px">' + '<div class="spread"><span>' + who(x.user) + '</span><span class="sm muted">' + thDate(x.created_at) + '</span></div><div class="sm">' + esc(x.course) + ' · ' + stars(x.rating) + '</div><p>' + esc(x.text) + '</p>' + btns('reviews', x) + '</div>'; }).join('') + '</div>' : '<p class="ink2 sm">ไม่มีรายการ</p>') +
+      '<h3 style="font-size:17px;margin-top:10px">ผลการเรียน</h3>' + (r.grades.length ? '<div class="stack" style="gap:10px">' + r.grades.map(function (x) {
+        return '<div class="card stack" style="gap:6px"><div class="spread"><span>' + who(x.user) + '</span><span class="sm muted">ปี ' + esc(x.year) + ' เทอม ' + esc(x.term === 'summer' ? 'ฤดูร้อน' : x.term) + ' · ' + thDate(x.created_at) + '</span></div>' +
+          '<div class="rowx">' + x.grades.map(function (g) { return '<span class="badge b-soft">' + esc(g.subject) + ' ' + esc(g.grade) + '</span>'; }).join('') + (x.gpa ? '<span class="badge b-ok">GPA ' + esc(x.gpa) + '</span>' : '') + '</div>' +
+          (x.exam ? '<div class="sm">ผลสอบ/รางวัล: ' + esc(x.exam) + '</div>' : '') + (x.message ? '<p>' + esc(x.message) + '</p>' : '') +
+          '<div class="rowx sm"><span class="' + (x.consent_publish ? '' : 'muted') + '">' + (x.consent_publish ? 'ยินยอมให้โพสต์ (ชื่อเล่น)' : 'ไม่ยินยอมให้โพสต์') + '</span>' + (x.has_proof ? '<button class="link sm" data-proof="' + esc(x.id) + '">ดูใบเกรด</button>' : '<span class="muted">ไม่แนบใบเกรด</span>') + '</div>' + btns('grades', x) + '</div>'; }).join('') + '</div>' : '<p class="ink2 sm">ไม่มีรายการ</p>'));
+    $$('[data-fbt]').forEach(function (b) { b.onclick = function () { S.fbTab = b.dataset.fbt; aFeedback(shell); }; });
+    $$('[data-fb]').forEach(function (b) { b.onclick = function () { busy(b, true); api('admin.feedback.decide', { kind: b.dataset.k, id: b.dataset.id, decision: b.dataset.fb }).then(function () { toast(b.dataset.fb === 'approve' ? 'อนุมัติแล้ว เซลล์เข้าบัญชีนักเรียน' : 'ซ่อนแล้ว'); aFeedback(shell); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
+    $$('[data-proof]').forEach(function (b) { b.onclick = function () { api('admin.grades.proof', { id: b.dataset.proof }).then(function (ph) { openModal(mhead('ใบเกรด') + '<img src="data:' + esc(ph.mime) + ';base64,' + ph.base64 + '" alt="ใบเกรด" style="width:100%;border-radius:12px">', true); }).catch(function (e) { toast(e.message, true); }); }; });
+  }).catch(function (e) { shell('<p class="err">' + esc(e.message) + '</p>'); });
+}
+function aCells(shell) {
+  api('admin.cells').then(function (r) {
+    shell('<h1>เซลล์สะสม</h1><p class="ink2 sm">ข้อมูลจากสมุดเซลล์หลังบ้าน นับเฉพาะวันที่คลิปเล่นจริงครบ 15 นาที กดชื่อเพื่อดูประวัติรายวัน</p>' +
+      '<div class="kpis"><div class="kpi k1"><span>เรียนครบวันนี้</span><b>' + r.active_today + '</b><span>คน</span></div><div class="kpi k2"><span>มีสตรีคอยู่</span><b>' + r.rows.filter(function (x) { return x.streak > 0; }).length + '</b><span>คน</span></div><div class="kpi k3"><span>แลกโค้ดแล้ว</span><b>' + r.redeemed + '</b><span>ครั้ง</span></div></div>' +
+      (r.rows.length ? '<div class="tbl"><table style="min-width:560px"><thead><tr><th>นักเรียน</th><th class="num">ติดกัน</th><th class="num">สูงสุด</th><th class="num">เซลล์</th><th>เรียนล่าสุด</th></tr></thead><tbody>' + r.rows.map(function (x) {
+        return '<tr><td><button class="link" data-cu="' + esc(x.user_id) + '">' + esc(x.name) + '</button> <span class="sm muted">(' + esc(x.nickname || '') + ')</span></td><td class="num">' + x.streak + '</td><td class="num">' + x.best + '</td><td class="num">' + x.points + '</td><td>' + esc(x.last_day || '–') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty"><p>ยังไม่มีใครเริ่มสะสมเซลล์</p></div>'));
+    $$('[data-cu]').forEach(function (b) { b.onclick = function () { api('admin.cells', { user_id: b.dataset.cu }).then(function (d) {
+      openModal(mhead(esc(d.user.name) + ' · สมุดเซลล์') + '<div class="cl-led">' + (d.ledger.map(function (x) { return '<div><span>' + esc(CELL_REASON[x.reason] || x.reason) + (x.ref ? ' · ' + esc(x.ref) : '') + ' <span class="sm muted">' + esc(x.day || '') + '</span></span><b class="' + (x.delta > 0 ? 'plus' : 'minus') + '">' + (x.delta > 0 ? '+' : '') + x.delta + '</b></div>'; }).join('') || '<p class="ink2">ไม่มีรายการ</p>') + '</div>' +
+        '<h3 style="font-size:16px;margin-top:14px">นาทีที่ดูคลิปรายวัน</h3><div class="cl-led">' + d.days.map(function (x) { return '<div><span>' + esc(x.day) + '</span><b>' + x.minutes + ' นาที' + (x.credited ? ' ✓' : '') + '</b></div>'; }).join('') + '</div>', true);
+    }).catch(function (e) { toast(e.message, true); }); }; });
+  }).catch(function (e) { shell('<p class="err">' + esc(e.message) + '</p>'); });
+}
+
 /* ─── LEARN ─── */
 function fileTag(f) { if (f.url) return 'LINK'; var m = String(f.name || '').match(/\.([a-z0-9]{2,4})$/i); return m ? m[1].toUpperCase() : /pdf/.test(f.mime) ? 'PDF' : /image/.test(f.mime) ? 'IMG' : 'FILE'; }
 function fmtSize(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
@@ -4765,7 +5913,7 @@ function viewLearn(cid, lid) {
     var chap = c.chapters.filter(function (ch) { return ch.lessons.indexOf(cur) >= 0; })[0];
     setSubj(c.subject);
     document.body.classList.remove('has-mnav');
-    $('#app').innerHTML = (DEMO ? '<div class="demo-bar">เดโม: ข้อมูลทั้งหมดเป็นตัวอย่าง</div>' : '') +
+    var lsTop = $('.lside') ? $('.lside').scrollTop : null; glideSnap(); $('#app').innerHTML = (DEMO ? '<div class="demo-bar">เดโม: ข้อมูลทั้งหมดเป็นตัวอย่าง</div>' : '') +
       '<div class="gut" style="border-bottom:1px solid var(--line)"><div class="w lhdr"><a class="back" href="#/my">← ออกจากห้องเรียน</a><span class="t">' + esc(c.title) + '</span><span class="mono" style="text-transform:none">' + pct + '%</span></div></div>' +
       (c.preview ? '<div class="gut" style="background:var(--wait-soft);color:var(--wait)"><div class="w" style="padding:8px 0;font-size:14px">กำลังดูแบบนักเรียน (พรีวิวของทีมงาน) ความคืบหน้าจะไม่ถูกบันทึก · <a href="#/admin/course/' + encodeURIComponent(cid) + '" style="color:inherit">กลับหลังบ้าน</a></div></div>' : '') +
       '<main class="gut' + (S.fresh ? ' pg-enter' : '') + '"><div class="w learn"><div class="stage">' +
@@ -4774,6 +5922,9 @@ function viewLearn(cid, lid) {
       '<button class="pill ' + (cur.done ? 'ghost' : '') + '" id="done-btn">' + (cur.done ? '✓ ดูจบแล้ว' : 'ทำเครื่องหมายว่าดูจบ') + '</button></div>' +
       ((cur.files && cur.files.length) || cur.attachment_url ? '<div class="files">' + (cur.files || []).map(function (f) { return '<button type="button" class="file" data-lf="' + esc(f.fid) + '"><b>' + esc(fileTag(f)) + '</b><span>' + esc(f.name) + (f.size ? ' <span class="sub" style="display:inline">· ' + fmtSize(f.size) + '</span>' : '') + '</span></button>'; }).join('') +
         (cur.attachment_url ? '<a class="file" href="' + esc(cur.attachment_url) + '" target="_blank" rel="noopener"><b>PDF</b>ไฟล์ประกอบตอนนี้</a>' : '') + '</div>' : '') +
+      (feat('reviews') && !c.preview && !c.reviewed ? '<div class="lrv" id="lrv"><div class="spread"><b>เรียนคอร์สนี้แล้วเป็นยังไงบ้าง?</b>' + (cellsOn() ? '<span class="sm muted">รีวิวรับ ' + (c.review_cells || 5) + ' เซลล์</span>' : '') + '</div>' +
+        '<div class="lrv-st" role="radiogroup" aria-label="ให้คะแนนคอร์ส">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" data-st="' + n + '" aria-label="' + n + ' ดาว">★</button>'; }).join('') + '</div>' +
+        '<div id="lrv-more" hidden class="stack" style="gap:8px"><textarea class="i" id="lrv-t" rows="3" maxlength="1000" placeholder="เล่าให้รุ่นน้องฟังหน่อย เช่น ตรงไหนช่วยได้มาก เรียนแล้วสอบเป็นยังไง (อย่างน้อย 20 ตัวอักษร)"></textarea><p class="err" id="lrv-err" hidden></p><button class="pill s" id="lrv-go" style="justify-self:start">ส่งรีวิว</button></div></div>' : '') +
       '<div class="spread" style="border-top:1px solid var(--line);padding-top:16px">' +
       (all[i - 1] ? '<a class="pill quiet s" href="#/learn/' + encodeURIComponent(cid) + '/' + all[i - 1].lesson_id + '">← ตอนก่อนหน้า</a>' : '<span></span>') +
       (all[i + 1] ? '<a class="pill s" href="#/learn/' + encodeURIComponent(cid) + '/' + all[i + 1].lesson_id + '">ตอนถัดไป →</a>' : '<span class="sm muted">ตอนสุดท้ายของคอร์ส</span>') + '</div>' +
@@ -4787,6 +5938,12 @@ function viewLearn(cid, lid) {
         }).join('');
       }).join(''); })() + '</aside></div></main>';
     S.fresh = false;
+    if (UI2()) {
+      var ls = $('.lside'); if (ls && lsTop !== null) ls.scrollTop = lsTop;
+      glideAll();
+      var on = $('.lside .ep.on');
+      if (ls && on) { var lr = ls.getBoundingClientRect(), orr = on.getBoundingClientRect(); if (orr.top < lr.top + 40 || orr.bottom > lr.bottom - 40) ls.scrollTo({ top: ls.scrollTop + (orr.top - lr.top) - lr.height / 3, behavior: 'smooth' }); }
+    }
     $$('[data-lf]').forEach(function (b) { b.onclick = function () { openLessonFile(cur.lesson_id, b.dataset.lf, b); }; });
     $('#done-btn').onclick = function () {
       if (c.preview) return toast('โหมดพรีวิว ไม่บันทึกความคืบหน้า');
@@ -4807,6 +5964,16 @@ function viewLearn(cid, lid) {
         var ep = $('.ep.on'); if (ep) { ep.classList.add('done'); $('.ck', ep).textContent = '✓'; }
       }).catch(function () {});
     } });
+    if (!DEMO && !c.preview) startStudyPing(cur.lesson_id);
+    if ($('#lrv')) {
+      var rsv = 0, paint = function (n) { $$('[data-st]').forEach(function (b) { b.classList.toggle('on', Number(b.dataset.st) <= n); }); };
+      $$('[data-st]').forEach(function (b) { b.onclick = function () { rsv = Number(b.dataset.st); paint(rsv); $('#lrv-more').hidden = false; }; b.onmouseenter = function () { paint(Number(b.dataset.st)); }; b.onmouseleave = function () { paint(rsv); }; });
+      $('#lrv-go').onclick = function () {
+        var bt = this, er = $('#lrv-err'); er.hidden = true; busy(bt, true);
+        api('review.submit', { course_id: cid, rating: rsv, text: $('#lrv-t').value }).then(function (r) { c.reviewed = true; $('#lrv').innerHTML = '<b>ขอบคุณสำหรับรีวิว</b>' + (cellsOn() ? '<p class="sm ink2">รับ ' + r.cells + ' เซลล์ เซลล์จะเข้าบัญชีภายใน 1–2 วัน</p>' : ''); })
+          .catch(function (e) { busy(bt, false); er.textContent = e.message; er.hidden = false; });
+      };
+    }
     S.timer = setInterval(function () { var w = $('#wm'); if (!w) return; w.style.top = (8 + Math.random() * 78) + '%'; w.style.left = (4 + Math.random() * 60) + '%'; }, 9000);
   };
   if (S.learn && S.learn.course_id === cid && !S.learn.preview) return draw(S.learn);
@@ -4924,11 +6091,12 @@ function demoLogins() {
 
 /* ─── ADMIN ─── */
 function viewAdmin(tab, arg) {
-  var groups = isAdm() ? [['งานประจำวัน', [['dash', 'ภาพรวม'], ['orders', 'คำสั่งซื้อ'], ['requests', 'สิทธิ์เข้าเรียน'], ['legacy', 'นักเรียนรุ่นเก่า']]],
+  var groups = isAdm() ? [['งานประจำวัน', [['dash', 'ภาพรวม'], ['orders', 'คำสั่งซื้อ'], ['feedback', 'รีวิวและผลการเรียน'], ['requests', 'สิทธิ์เข้าเรียน'], ['legacy', 'นักเรียนรุ่นเก่า']]],
     ['เนื้อหา', [['courses', 'คอร์สและบทเรียน'], ['results', 'ผลงานนักเรียน']]],
     ['การเงินและการขาย', [['finance', 'รายรับรายจ่าย'], ['bundles', 'แพ็กเกจ'], ['coupons', 'โค้ดส่วนลด'], ['accounts', 'บัญชีรับเงิน']]],
-    ['ระบบ', [['users', 'ผู้ใช้และยศ'], ['log', 'บันทึกการแก้ไข'], ['settings', 'ตั้งค่า']]]]
+    ['ระบบ', [['users', 'ผู้ใช้และยศ'], ['cells', 'เซลล์สะสม'], ['log', 'บันทึกการแก้ไข'], ['settings', 'ตั้งค่า']]]]
     : [['ผู้สอน · ' + mySubj().map(function (k) { return S.cfg.subjects[k]; }).join(' · '), [['dash', 'ภาพรวม'], ['courses', 'คอร์สของฉัน'], ['orders', 'คำสั่งซื้อ (ดูอย่างเดียว)'], ['finance', 'รายรับรายจ่าย']]]];
+  groups.forEach(function (g) { g[1] = g[1].filter(function (t) { return (t[0] !== 'cells' || feat('cells')) && (t[0] !== 'feedback' || feat('reviews')); }); });
   var allowed = [].concat.apply([], groups.map(function (g) { return g[1].map(function (t) { return t[0]; }); })).concat(['course']);
   if (allowed.indexOf(tab) < 0) tab = 'dash';
   var shell = function (body, skel) {
@@ -4938,7 +6106,7 @@ function viewAdmin(tab, arg) {
   };
   clearTimeout(S.skT); S.skT = setTimeout(function () { shell(skeleton('admin'), true); }, 350);
   var fn = { dash: aDash, orders: aOrders, coupons: aCoupons, bundles: aBundles, accounts: aAccounts, requests: aRequests, courses: aCourses, course: aCourse, results: aResults, users: aUsers, settings: aSettings,
-    finance: aFinance, legacy: aLegacy, log: aLog }[tab] || aDash;
+    finance: aFinance, legacy: aLegacy, log: aLog, cells: aCells, feedback: aFeedback }[tab] || aDash;
   fn(shell, arg);
 }
 function refreshPending() { return api('admin.stats').then(function (s) { S.pendingLegacy = s.pending_legacy || 0; S.pending = s.teacher ? s.reviewing : s.pending - S.pendingLegacy; S.legacyQ = s.legacy_pending || 0; S.expQ = s.expense_pending || 0; return s; }); }
@@ -5386,6 +6554,8 @@ function aSettings(shell) {
     shell('<h1>ตั้งค่า</h1><form class="card form" id="sf" style="max-width:640px">' +
       '<h3 style="font-size:16px">หน้าแรก</h3>' + field('hero_eyebrow', 'ข้อความเล็กเหนือหัวข้อ', s.hero_eyebrow) + field('hero_title', 'หัวข้อใหญ่ (ใส่ | เพื่อขึ้นบรรทัดใหม่ บรรทัดที่ 2 จะเป็นสีเขียว)', s.hero_title) + field('hero_subtitle', 'ข้อความใต้หัวข้อ', s.hero_subtitle) +
       '<h3 style="font-size:16px;margin-top:6px">ทั่วไป</h3>' + field('announcement', 'ประกาศบนหัวเว็บ (เว้นว่างเพื่อซ่อน)', s.announcement, { ph: 'เช่น เปิดรับสมัครคอร์สชีววิทยา สอวน. รอบ 2027 แล้ว' }) +
+      (feat('cells') ? field('cells_enabled', 'ระบบเซลล์แบ่งตัว (สะสมวันเรียนต่อเนื่อง แลกโค้ดลด)', s.cells_enabled || '1', { options: [['1', 'เปิด'], ['0', 'ปิด']] }) : '') +
+      (feat('fest') ? field('event_mode', 'ธีมเทศกาล (ทับธีมของทุกคนชั่วคราว น้องกดกลับไปใช้ธีมตัวเองได้)', s.event_mode || 'auto', { options: [['auto', 'อัตโนมัติตามปฏิทิน · ฮาโลวีน 1–31 ต.ค. · คริสต์มาส 1–31 ธ.ค.'], ['off', 'ปิด'], ['halloween', 'ฮาโลวีน ตั้งแต่ตอนนี้'], ['christmas', 'คริสต์มาส ตั้งแต่ตอนนี้']] }) : '') +
       '<h3 style="font-size:16px;margin-top:6px">การชำระเงิน</h3><p class="hint">บัญชีแยกตามวิชาตั้งได้ที่เมนู <a href="#/admin/accounts">บัญชีรับเงิน</a> ส่วนนี้คือบัญชีหลัก ใช้กับวิชาที่ยังไม่ได้ผูกบัญชี</p>' +
       '<div class="row2">' + field('promptpay_id', 'บัญชีหลัก: เบอร์หรือเลขบัตรพร้อมเพย์', s.promptpay_id, { mode: 'numeric' }) + field('promptpay_name', 'บัญชีหลัก: ชื่อบัญชี', s.promptpay_name) + '</div>' +
       field('order_expire_hours', 'ต้องส่งหลักฐานภายในกี่ชั่วโมงหลังสั่งซื้อ (เลยแล้วบิลยกเลิกเอง)', s.order_expire_hours || '48', { mode: 'numeric' }) +
@@ -5836,10 +7006,10 @@ function accountModal(a) {
   a = a || { method: 'promptpay', status: 'active', subjects: [], sort_order: 0 };
   openModal(mhead(a.account_id ? 'แก้ไขบัญชีรับเงิน' : 'เพิ่มบัญชีรับเงิน', 'นักเรียนเห็นเลขบัญชี ชื่อบัญชี QR และหมายเหตุ ส่วนชื่อเรียกเห็นเฉพาะแอดมิน') + '<form class="form" id="af2">' +
     '<div class="row2">' + field('label', 'ชื่อเรียก (เห็นเฉพาะแอดมิน)', a.label, { ph: 'เช่น บัญชีพี่หมอซัน' }) + field('method', 'ช่องทางรับเงิน', a.method, { options: [['promptpay', 'พร้อมเพย์ (สร้าง QR ใส่ยอดให้)'], ['bank', 'เลขบัญชีธนาคาร']] }) + '</div>' +
-    '<div class="m-pp">' + field('promptpay_id', 'เบอร์มือถือหรือเลขบัตรประชาชนที่ผูกพร้อมเพย์', a.promptpay_id, { mode: 'numeric', ph: '08x-xxx-xxxx' }) + '</div>' +
-    '<div class="row2 m-bank">' + field('bank', 'ธนาคาร', a.bank, { options: [['', '— เลือก —']].concat((S.cfg.banks || []).filter(function (x) { return !/Wallet|อื่นๆ/.test(x); }).map(function (x) { return [x, x]; })) }) + field('account_no', 'เลขบัญชี', a.account_no, { mode: 'numeric', ph: 'xxx-x-xxxxx-x' }) + '</div>' +
-    field('account_name', 'ชื่อบัญชี (ต้องตรงกับที่ขึ้นในแอปธนาคาร)', a.account_name) +
-    field('qr_url', 'รูป QR รับเงินของตัวเอง (ไม่ใส่ก็ได้)', a.qr_url, { upload: true, ph: 'https://...', hint: 'ถ้าใส่ จะแสดงรูปนี้แทน QR ที่ระบบสร้าง' }) +
+    '<div class="m-pp">' + field('promptpay_id', 'เบอร์มือถือหรือเลขบัตรประชาชนที่ผูกพร้อมเพย์ (ไม่มีก็เว้นว่าง)', a.promptpay_id, { mode: 'numeric', ph: '08x-xxx-xxxx', hint: 'เว้นว่างได้ถ้าใส่รูป QR ด้านล่าง ช่องที่ว่างจะไม่แสดงให้น้องเห็น' }) + '</div>' +
+    '<div class="row2 m-bank">' + field('bank', 'ธนาคาร', a.bank, { options: [['', '— เลือก —']].concat((S.cfg.banks || []).filter(function (x) { return !/Wallet|อื่นๆ/.test(x); }).map(function (x) { return [x, x]; })) }) + field('account_no', 'เลขบัญชี (ไม่มีก็เว้นว่าง)', a.account_no, { mode: 'numeric', ph: 'xxx-x-xxxxx-x' }) + '</div>' +
+    field('account_name', 'ชื่อบัญชี (ต้องตรงกับที่ขึ้นในแอปธนาคาร · ไม่ใส่ก็ได้)', a.account_name) +
+    field('qr_url', 'รูป QR รับเงินของตัวเอง', a.qr_url, { upload: true, ph: 'https://...', hint: 'ถ้าใส่ จะแสดงรูปนี้แทน QR ที่ระบบสร้าง · ต้องมีเลขพร้อมเพย์/เลขบัญชี หรือรูป QR อย่างน้อย 1 อย่าง' }) +
     '<div class="row2">' + field('ig', 'IG ที่ให้น้องแจ้งโอน (ไม่ใส่ = IG หลัก)', a.ig, { ph: S.cfg.contact_ig || 'ineedbiochem' }) + field('sort_order', 'ลำดับ', a.sort_order, { mode: 'numeric' }) + '</div>' +
     field('note', 'หมายเหตุที่นักเรียนเห็น', a.note, { ph: 'เช่น โอนแล้วรออนุมัติไม่เกิน 12 ชม.' }) +
     '<div class="f">ใช้กับวิชา<div class="rowx">' + Object.keys(subs).map(function (k) { return '<label class="chk-l"><input type="checkbox" name="subj_' + k + '"' + (a.subjects.indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(subs[k]) + '</label>'; }).join('') + '</div><span class="hint">ถ้าเลือกวิชาเดียวกันหลายบัญชี ระบบใช้บัญชีที่ลำดับน้อยกว่า อยากให้บางคอร์สใช้บัญชีนี้ ตั้งได้ในหน้าแก้ไขคอร์ส</span></div>' +
@@ -5858,7 +7028,7 @@ function accountModal(a) {
   };
 }
 
-function cpLabel(c) { return c.kind === 'percent' ? 'ลด ' + c.value + '%' + (Number(c.max_discount) ? ' สูงสุด ' + baht(c.max_discount) : '') : 'ลด ' + baht(c.value); }
+function cpLabel(c) { return c.kind === 'each' ? 'ลดคอร์สละ ' + baht(c.value) : c.kind === 'percent' ? 'ลด ' + c.value + '%' + (Number(c.max_discount) ? ' สูงสุด ' + baht(c.max_discount) : '') : 'ลด ' + baht(c.value); }
 function toLocalInput(iso) { if (!iso) return ''; var d = new Date(iso); if (isNaN(d)) return ''; return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
 function aCoupons(shell) {
   Promise.all([api('admin.coupons'), api('admin.courses')]).then(function (r) {
@@ -5884,7 +7054,7 @@ function couponModal(c, cs) {
   c = c || { kind: 'percent', scope: 'all', targets: [], status: 'active' };
   openModal(mhead(c.code ? 'แก้ไขโค้ด ' + esc(c.code) : 'สร้างโค้ดส่วนลด') + '<form class="form" id="cpf2">' +
     '<div class="row2">' + field('code', 'โค้ด (A-Z 0-9 - _)', c.code, { ph: 'เช่น BIO2569' }) + field('status', 'สถานะ', c.status, { options: [['active', 'ใช้ได้'], ['inactive', 'ปิด']] }) + '</div>' +
-    '<div class="row2">' + field('kind', 'แบบส่วนลด', c.kind, { options: [['percent', 'ลดเป็นเปอร์เซ็นต์'], ['fixed', 'ลดเป็นบาท']] }) + field('value', 'มูลค่า', c.value, { mode: 'numeric', ph: 'เช่น 10 หรือ 300' }) + '</div>' +
+    '<div class="row2">' + field('kind', 'แบบส่วนลด', c.kind, { options: [['percent', 'ลดเป็นเปอร์เซ็นต์'], ['fixed', 'ลดเป็นบาท (ต่อบิล)'], ['each', 'ลดคอร์สละ (บาท)']] }) + field('value', 'มูลค่า', c.value, { mode: 'numeric', ph: 'เช่น 10 หรือ 300' }) + '</div>' +
     '<div class="m-pct">' + field('max_discount', 'ลดสูงสุด (บาท, ไม่ใส่ = ไม่จำกัด)', c.max_discount, { mode: 'numeric' }) + '</div>' +
     field('scope', 'ใช้กับ', c.scope, { options: [['all', 'ทุกคอร์ส'], ['subject', 'เฉพาะวิชา'], ['course', 'เฉพาะคอร์สที่เลือก']] }) +
     '<div class="f m-subject"><div class="rowx">' + Object.keys(subs).map(function (k) { return '<label class="chk-l"><input type="checkbox" name="t_' + k + '"' + (c.scope === 'subject' && c.targets.indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(subs[k]) + '</label>'; }).join('') + '</div></div>' +
@@ -5969,8 +7139,9 @@ document.addEventListener('click', function (e) {
   if (igb && S.bills && S.bills[igb.dataset.igm]) { igModal(S.bills[igb.dataset.igm]); return; }
   var bc = t.closest('[data-bill-cancel]');
   if (bc) { var bid = bc.dataset.billCancel; confirmBox('ยกเลิกบิล ' + bid + '?', 'ถ้าโอนเงินไปแล้ว อย่ายกเลิก ให้แนบสลิปแทน คอร์สในบิลนี้จะกลับมาซื้อใหม่ได้', 'ยกเลิกบิล', true).then(function (y) { if (!y) return; api('bill.cancel', { bill_id: bid }).then(function () { toast('ยกเลิกบิลแล้ว'); route(); }).catch(function (e) { toast(e.message, true); }); }); return; }
+  if (t.closest('[data-uisw]')) { store('ib_ui', UI2() ? '1' : null); S.fresh = true; route(); return; }
   var pv = t.closest('[data-preview]');
-  if (pv) { previewVideo(pv.dataset.preview, pv.dataset.title); return; }
+  if (pv) { previewVideo(pv.dataset.preview, pv.dataset.title, pv.dataset.cid); return; }
   var dm = t.closest('[data-demo]');
   if (dm && window.__DEMO) { var r = window.__DEMO.login(dm.dataset.demo); setSession(r); closeModal(); toast('สวัสดี ' + r.user.nickname); if (dm.dataset.demo !== 'student') go('/admin'); else route(); }
 });
@@ -5990,10 +7161,10 @@ if (!DEMO && /PASTE_YOUR/.test(API_URL)) {
   document.getElementById('app').innerHTML = '<div class="gut"><div class="w empty" style="margin-top:60px"><h2>ยังไม่ได้ตั้งค่า API_URL</h2><p>เปิดไฟล์ index.html แล้ววาง URL ของ Apps Script Web App ในบรรทัด <code>var API_URL = ...</code></p></div></div>';
   return;
 }
+document.body.insertAdjacentHTML('beforeend', CELL_DEFS + FEST_DEFS);
 api('config').then(function (c) { S.cfg = c; }).catch(function () {})
   .then(function () { return S.token ? api('me').then(function (u) { S.user = u; }).catch(function () {}) : null; })
   .then(route)
   .then(function () { var sp = document.getElementById('splash'); if (!sp) return; setTimeout(function () { sp.classList.add('out'); setTimeout(function () { sp.remove(); }, 500); }, Math.max(0, 700 - (Date.now() - BOOT))); });
 })();
 </script>
-</body></html>
