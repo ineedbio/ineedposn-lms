@@ -1,5 +1,8 @@
 // Back-office additions for public/ineedbio/app.js, which must stay byte-identical to the zip (CHECKSUMS.txt).
 //  - Sidebar: each menu group (งานประจำวัน / เนื้อหา / การเงินและการขาย / ระบบ) sits on its own light tint.
+//  - นักเรียนรุ่นเก่า: tabs per subject (ทั้งหมด / ชีววิทยา / เคมี / ฟิสิกส์ / คณิตศาสตร์) in the subject colours. The
+//    tab is sent with app.js's own admin.legacy request, so search, the status switch, the KPIs and the
+//    review queue all follow it; a name with courses in two subjects shows in both tabs.
 //  - รายรับรายจ่าย → รายรับ (admins): edit amount / note, or delete an income row; rows that look like the
 //    same purchase recorded twice are flagged. Everything reads the same Payment rows, so an edit shows up
 //    on ภาพรวม, the per-subject totals and teacher shares at once.
@@ -28,16 +31,70 @@
 
   /* ── finance: income rows ── */
   var fin = null; // last fin.summary reply (admin)
+  var LG = { bio: 'ชีววิทยา', chem: 'เคมี', phys: 'ฟิสิกส์', math: 'คณิตศาสตร์' }, lg = null, csub = {};
+  function ss(k, v) { try { if (v === undefined) return sessionStorage.getItem(k) || ''; sessionStorage.setItem(k, v); } catch (e) { return ''; } }
   var fetch0 = window.fetch;
   window.fetch = function (url, opt) {
-    var p = fetch0.apply(this, arguments), action = '';
-    try { if (opt && typeof opt.body === 'string' && opt.body.charAt(0) === '{') action = JSON.parse(opt.body).action || ''; } catch (e) { action = ''; }
-    if (action !== 'fin.summary') return p;
+    var body = null;
+    try { if (opt && typeof opt.body === 'string' && opt.body.charAt(0) === '{') body = JSON.parse(opt.body); } catch (e) { body = null; }
+    var action = body && body.action || '';
+    if (action === 'admin.legacy') { // the subject tab rides along with app.js's own request
+      body.data = body.data || {}; body.data.subject = ss('ib_lg_subj');
+      opt = Object.assign({}, opt, { body: JSON.stringify(body) });
+    }
+    if (action === 'admin.legacy.import') { // show the new names: jump to their subject's tab
+      var ks = {}; ((body.data && body.data.course_ids) || []).forEach(function (id) { if (csub[id]) ks[csub[id]] = 1; });
+      var cur = ss('ib_lg_subj'); if (cur && !ks[cur]) ss('ib_lg_subj', Object.keys(ks).length === 1 ? Object.keys(ks)[0] : '');
+    }
+    var p = fetch0.call(this, url, opt);
+    if (action !== 'fin.summary' && action !== 'admin.legacy' && action !== 'admin.courses') return p;
     return p.then(function (res) {
-      res.clone().json().then(function (j) { if (j && j.ok) { fin = j.data; schedule(); } }).catch(function () {});
+      res.clone().json().then(function (j) {
+        if (!j || !j.ok) return;
+        if (action === 'fin.summary') fin = j.data;
+        else if (action === 'admin.legacy') lg = j.data;
+        else (j.data || []).forEach(function (c) { csub[c.course_id] = c.subject; });
+        schedule();
+      }).catch(function () {});
       return res;
     });
   };
+
+  /* ── นักเรียนรุ่นเก่า: subject tabs ── */
+  function legacyTabs() {
+    if (!/^#\/admin\/legacy/.test(location.hash) || !lg || !lg.by_subject) return;
+    var amain = document.getElementById('amain'); if (!amain || amain.querySelector('.lg-tabs')) return;
+    var h1 = amain.querySelector('h1'); if (!h1 || !/นักเรียนรุ่นเก่า/.test(h1.textContent)) return;
+    var cur = ss('ib_lg_subj'), n = lg.by_subject;
+    var tab = function (k, label) {
+      return '<button type="button" role="tab" class="lg-tab' + (k ? ' s-' + k : '') + '" data-lgt="' + k + '" aria-selected="' + (cur === k) + '"' + (k && !n[k] ? ' data-empty="1"' : '') + '>' +
+        (k ? '<i></i>' : '') + label + '<span class="lg-n">' + (n[k || 'all'] || 0) + '</span></button>';
+    };
+    var bar = document.createElement('div');
+    bar.className = 'lg-tabs'; bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', 'แยกตามวิชา');
+    bar.innerHTML = tab('', 'ทั้งหมด') + Object.keys(LG).map(function (k) { return tab(k, LG[k]); }).join('');
+    var head = h1.closest('.spread') || h1;
+    head.parentNode.insertBefore(bar, head.nextSibling);
+    if (cur && lg.claims_total > lg.claims.length) {
+      var note = document.createElement('p'); note.className = 'hint';
+      note.textContent = 'คิวรอยืนยันแสดงเฉพาะวิชา' + LG[cur] + ' · ทุกวิชามี ' + lg.claims_total + ' คำขอ';
+      bar.parentNode.insertBefore(note, bar.nextSibling);
+    }
+    // subject dots next to each name's courses
+    var t = amain.querySelector('table'), rows = t && t.tBodies[0] ? t.tBodies[0].rows : [];
+    if (rows.length === (lg.list || []).length) Array.prototype.forEach.call(rows, function (tr, i) {
+      var subs = lg.list[i].subjects || []; if (!subs.length || !tr.cells[1]) return;
+      var d = document.createElement('div'); d.className = 'lg-subs';
+      d.innerHTML = subs.map(function (k) { return '<span class="lg-sj s-' + k + '">' + LG[k] + '</span>'; }).join('');
+      tr.cells[1].appendChild(d);
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-lgt]'); if (!b) return;
+    ss('ib_lg_subj', b.dataset.lgt);
+    var again = document.querySelector('#amain [data-lgs][aria-pressed="true"]') || document.querySelector('#amain [data-lgs]');
+    if (again) again.click(); // app.js redraws the page (and asks admin.legacy again, now with this subject)
+  });
   function call(action, data) {
     return fetch0(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: action, data: data, token: ls('ib_token'), device_id: ls('ib_device') }) })
       .then(function (r) { return r.json(); })
@@ -118,11 +175,18 @@
     '.aside .agrp{display:flex;flex-direction:column;gap:2px;border-radius:16px;padding:8px 6px;margin:0 0 10px}' +
     '.aside .agrp.g1{background:var(--ag1)} .aside .agrp.g2{background:var(--ag2)} .aside .agrp.g3{background:var(--ag3)} .aside .agrp.g4{background:var(--ag4)}' +
     '.aside .agrp .agh{padding:8px 10px 6px} .aside .agrp a.on{background:var(--bg)}' +
-    '@media (max-width:780px){.aside .agrp{flex-direction:row;margin:0 8px 0 0;padding:4px;flex:none}}';
+    '@media (max-width:780px){.aside .agrp{flex-direction:row;margin:0 8px 0 0;padding:4px;flex:none}}' +
+    '.lg-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin:4px 0 2px;scrollbar-width:none} .lg-tabs::-webkit-scrollbar{display:none}' +
+    '.lg-tab{flex:none;display:inline-flex;align-items:center;gap:8px;border:0;background:none;padding:10px 14px 11px;margin-bottom:-1px;border-bottom:3px solid transparent;font:inherit;font-size:15px;color:var(--ink2);cursor:pointer;white-space:nowrap}' +
+    '.lg-tab i{width:9px;height:9px;border-radius:50%;background:var(--acc)} .lg-tab:hover{color:var(--ink)}' +
+    '.lg-tab[aria-selected="true"]{color:var(--acc);font-weight:600;border-bottom-color:var(--acc)} .lg-tab:not(.s-bio):not(.s-chem):not(.s-phys):not(.s-math)[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}' +
+    '.lg-n{font-family:var(--mono);font-size:12px;line-height:20px;padding:0 7px;border-radius:99px;background:var(--bg2);color:var(--ink2)} .lg-tab[aria-selected="true"] .lg-n{background:var(--acc-soft);color:var(--acc)}' +
+    '.lg-tab[data-empty] {opacity:.55}' +
+    '.lg-subs{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px} .lg-sj{font-size:11.5px;font-weight:600;color:var(--acc);background:var(--acc-soft);border-radius:99px;padding:1px 8px}';
   document.head.appendChild(css);
 
   var t = 0;
-  function schedule() { clearTimeout(t); t = setTimeout(function () { groupMenu(); decorateIncome(); }, 20); }
+  function schedule() { clearTimeout(t); t = setTimeout(function () { groupMenu(); decorateIncome(); legacyTabs(); }, 20); }
   function start() { new MutationObserver(schedule).observe(document.getElementById('app') || document.body, { childList: true, subtree: true }); schedule(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

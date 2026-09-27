@@ -612,9 +612,19 @@ export async function legacyClaim(_d: Data, { p }: Ctx) {
 export async function adminLegacy(d: Data) {
   const [recs, courses, claimsRaw] = await Promise.all([
     prisma.legacyStudent.findMany({ where: { status: { not: "deleted" } } }),
-    prisma.course.findMany({ select: { slug: true, title: true } }),
+    prisma.course.findMany({ select: { slug: true, title: true, subject: true } }),
     prisma.legacyClaim.findMany({ where: { status: "pending" }, orderBy: { createdAt: "asc" } }),
   ]);
+  // Subject tabs: a name belongs to every subject of the courses it was imported with.
+  const subjOfSlug: Record<string, string> = {};
+  for (const c of courses) subjOfSlug[c.slug] = subjectKey(c.subject);
+  const subjectsOf_ = (ids: string) => Array.from(new Set(csv(ids).map((id) => subjOfSlug[id]).filter((k) => !!k && !!APP.SUBJECTS[k])));
+  const by_subject: Record<string, number> = { all: recs.length };
+  for (const k of Object.keys(APP.SUBJECTS)) by_subject[k] = 0;
+  for (const r of recs) for (const k of subjectsOf_(r.courseIds)) by_subject[k]++;
+  const sj = APP.SUBJECTS[String(d.subject || "")] ? String(d.subject) : "";
+  const inTab = (r: (typeof recs)[number]) => !sj || subjectsOf_(r.courseIds).includes(sj);
+  const allRecs = recs;
   const uids = new Set<string>([...recs.map((r) => r.userId || ""), ...claimsRaw.map((c) => c.userId)].filter(Boolean));
   const users = await prisma.user.findMany({ where: { id: { in: Array.from(uids) } } });
   const uinfo = (id: string | null) => {
@@ -625,20 +635,22 @@ export async function adminLegacy(d: Data) {
   const q = normName(d.q || ""), st = String(d.status || "claimed");
   const when = (r: (typeof recs)[number]) => iso(r.claimedAt || r.createdAt);
   const list = recs
-    .filter((r) => (st === "all" || r.status === st) && (!q || (r.norm + normName(r.nickname)).includes(q)))
+    .filter((r) => inTab(r) && (st === "all" || r.status === st) && (!q || (r.norm + normName(r.nickname)).includes(q)))
     .sort((a, b) => (when(a) < when(b) ? 1 : -1))
     .slice(0, 300)
-    .map((r) => ({ legacy_id: r.id, name: r.firstName + " " + r.lastName, nickname: r.nickname, courses: ctitle(r.courseIds), batch: r.batch, status: r.status, match: r.match, claimed_at: iso(r.claimedAt), user: uinfo(r.userId) }));
-  const claims = claimsRaw.map((c) => ({
+    .map((r) => ({ legacy_id: r.id, name: r.firstName + " " + r.lastName, nickname: r.nickname, courses: ctitle(r.courseIds), subjects: subjectsOf_(r.courseIds), batch: r.batch, status: r.status, match: r.match, claimed_at: iso(r.claimedAt), user: uinfo(r.userId) }));
+  const inTabClaim = (c: (typeof claimsRaw)[number]) => !sj || csv(c.legacyIds).some((id) => { const r = allRecs.find((x) => x.id === id); return !!r && inTab(r); });
+  const claims = claimsRaw.filter(inTabClaim).map((c) => ({
     claim_id: c.id, reason: c.reason, created_at: iso(c.createdAt), user: uinfo(c.userId),
     candidates: csv(c.legacyIds).map((id) => recs.find((x) => x.id === id)).filter(<T,>(x: T | undefined): x is T => !!x)
       .map((r) => ({ legacy_id: r.id, name: r.firstName + " " + r.lastName, nickname: r.nickname, batch: r.batch, courses: ctitle(r.courseIds), status: r.status, user: uinfo(r.userId) })),
   }));
   const batches: Record<string, { batch: string; total: number; claimed: number }> = {};
-  for (const r of recs) { const b = r.batch || "—"; batches[b] = batches[b] || { batch: b, total: 0, claimed: 0 }; batches[b].total++; if (r.status === "claimed") batches[b].claimed++; }
+  const tab = recs.filter(inTab); // KPIs and batches follow the selected subject tab
+  for (const r of tab) { const b = r.batch || "—"; batches[b] = batches[b] || { batch: b, total: 0, claimed: 0 }; batches[b].total++; if (r.status === "claimed") batches[b].claimed++; }
   return {
-    total: recs.length, claimed: recs.filter((r) => r.status === "claimed").length, open: recs.filter((r) => r.status === "open").length,
-    batches: Object.values(batches), claims, list,
+    total: tab.length, claimed: tab.filter((r) => r.status === "claimed").length, open: tab.filter((r) => r.status === "open").length,
+    batches: Object.values(batches), claims, list, subject: sj, by_subject, claims_total: claimsRaw.length,
   };
 }
 export async function adminLegacyImport(d: Data, _c: Ctx, me: User) {
