@@ -558,7 +558,7 @@ function viewHome2() {
     var ic = function (d) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; };
     html += '<div class="prm"><div>' + ic('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>') + '<b>ดูได้ตลอดชีพ</b><span>ซื้อครั้งเดียว ไม่มีการลบคลิป</span></div>' +
       '<div>' + ic('<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>') + '<b>ชีทประกอบทุกบท</b><span>เปิดข้างคลิป จดตามได้ทันที</span></div>' +
-      '<div>' + ic('<circle cx="9" cy="10" r="5"/><circle cx="16" cy="15" r="4"/>') + '<b>เรียนทุกวัน เซลล์แบ่งตัว</b><span>สะสมครบ 100 แลกส่วนลด 100 บาท</span></div></div>' +
+      (cellsPromoOn() ? '<div>' + ic('<circle cx="9" cy="10" r="5"/><circle cx="16" cy="15" r="4"/>') + '<b>เรียนทุกวัน เซลล์แบ่งตัว</b><span>สะสมครบ 100 แลกส่วนลด 100 บาท</span></div>' : '<div>' + ic('<rect x="3" y="4" width="13" height="10" rx="2"/><rect x="15" y="9" width="6" height="11" rx="1.5"/><path d="M7 18h5"/>') + '<b>เรียนได้ทุกจอ</b><span>มือถือ แท็บเล็ต คอม ดูต่อจากที่ค้างไว้</span></div>') + '</div>' +
       '<div class="ask"><div><b>ยังไม่แน่ใจว่าจะเริ่มคอร์สไหน?</b><p>ทักพี่ทาง IG บอกระดับชั้นกับสนามสอบ เดี๋ยวพี่แนะนำให้</p></div><a class="pill" href="https://www.instagram.com/' + esc(ig) + '" target="_blank" rel="noopener">ทัก IG @' + esc(ig) + '</a></div></div>';
     page('home', html);
     startBillboard();
@@ -1211,6 +1211,7 @@ var FEST_KINDS = { halloween: [['fs-pumpkin', 'roll'], ['fs-candy', 'twirl']], c
 function festKind(i) { var f = festOn(), ks = f && FEST_KINDS[f]; return ks ? ks[i % ks.length] : null; }
 /** สวิตช์ฟีเจอร์ใหม่ต่อเว็บ: window.INEEDBIO_FEATURES = { cells, reviews, fest } ไม่ตั้ง = เปิดทั้งหมด (เดโม) */
 function feat(k) { var f = window.INEEDBIO_FEATURES; return !f || f[k] !== false; }
+function cellsPromoOn() { return feat('cells') && S.cfg.cells_enabled === '1'; }
 function cellsOn() { return feat('cells') && !!S.user && S.cfg.cells_enabled === '1'; }
 function cellN(streak) { return streak >= 15 ? 8 : streak >= 7 ? 4 : streak >= 3 ? 2 : 1; }
 function colonySvg(streak, best, prevN) {

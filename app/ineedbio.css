@@ -1099,6 +1099,7 @@ details[open]::details-content{block-size:auto}
 /* ห้องเรียน: รายการตอนลอยขึ้นเมื่อชี้ ป้ายตอนที่ดูอยู่เลื่อนตามตอนที่กด เนื้อหาค่อย ๆ จางเข้า */
 .v2ui .lside.has-glide{position:sticky}
 @media (max-width:900px){.v2ui .lside.has-glide{position:relative}}
+@media (max-width:900px){.v2ui .aside,.v2ui .aside.has-glide{top:0}}
 .v2ui .lside .glide{border-radius:12px}
 .v2ui .ep{transition:transform .3s cubic-bezier(.25,.9,.3,1),box-shadow .3s,background .3s,color .45s ease .1s}
 .v2ui .ep:not(.on):hover{transform:translateY(-2px);background:var(--bg3);box-shadow:0 12px 22px -16px rgba(0,0,0,.7)}
