@@ -213,9 +213,6 @@
     // link (the glide shows through underneath)
     '.v2ui .aside .agrp.g1{background:rgba(110,150,255,.13)} .v2ui .aside .agrp.g2{background:rgba(63,207,133,.11)} .v2ui .aside .agrp.g3{background:rgba(237,161,92,.13)} .v2ui .aside .agrp.g4{background:rgba(255,255,255,.05)}' +
     '.v2ui .aside .agrp a.on{background:transparent!important} .v2ui .aside .agrp .agh{color:rgba(255,255,255,.5)}' +
-    // UI v2 on phones/tablets (≤900px): the sidebar keeps the desktop sticky offset (top:76px) while it is
-    // position:relative there, so it slid 76 px down over the page title and buttons. Put it back in place.
-    '@media (max-width:900px){.v2ui .aside{top:0!important}}' +
     '.lg-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin:4px 0 2px;scrollbar-width:none} .lg-tabs::-webkit-scrollbar{display:none}' +
     '.lg-tab{flex:none;display:inline-flex;align-items:center;gap:8px;border:0;background:none;padding:10px 14px 11px;margin-bottom:-1px;border-bottom:3px solid transparent;font:inherit;font-size:15px;color:var(--ink2);cursor:pointer;white-space:nowrap}' +
     '.lg-tab i{width:9px;height:9px;border-radius:50%;background:var(--acc)} .lg-tab:hover{color:var(--ink)}' +

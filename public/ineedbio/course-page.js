@@ -76,9 +76,6 @@
     all(root, '.results-h h2').forEach(function (el) { if (/^\d+ คอร์ส$/.test(norm(el.textContent))) el.textContent = 'ผลการค้นหา'; });
     all(root, '.facts > span').forEach(function (el) { if (RE_FACT.test(norm(el.textContent))) el.remove(); });
     all(root, '.bbd-f > span').forEach(function (el) { if (isSeg(norm(el.textContent))) el.remove(); }); // UI v2 home billboard: "100 ตอน" / "82 ชม. 47 นาที"
-    // UI v2 home: the "เซลล์แบ่งตัว" perk is advertised even while that feature is switched off — hide it until it opens
-    var F = window.INEEDBIO_FEATURES;
-    if (F && F.cells === false) all(root, '.prm > div').forEach(function (el) { if (/เซลล์แบ่งตัว/.test(el.textContent)) { var box = el.parentNode; el.remove(); box.classList.add('prm-n' + box.children.length); } });
     all(root, 'span, small').forEach(function (el) { if (!el.children.length && RE_PAIR.test(norm(el.textContent))) el.remove(); });
     var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null), t, list = [];
     while ((t = w.nextNode())) list.push(t);
@@ -271,7 +268,6 @@
     '.cover .upd,.nc-cv .upd{position:absolute;right:12px;top:12px;z-index:1;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
     '.feat .cover .upd{right:14px;top:14px} .ci .cover .upd{display:none}' +
     '.nc-cv .upd{right:10px;top:10px;font-size:12px} .nc-cv .nc-off ~ .upd{top:40px}' + // UI v2 cards: under "ลด ฿…" when both show
-    '@media (min-width:761px){.prm.prm-n2{grid-template-columns:repeat(2,minmax(0,1fr))}}' +
     // Phones: the section bar (ภาพรวม · เนื้อหา · ผู้สอน · รีวิว · คำถาม) is wider than the screen on courses that
     // have every section, and as a grid item it pushed the whole page wider than the phone (sideways scroll,
     // and "fullscreen" video wider than the screen). Let the columns shrink and the bar scroll instead.
