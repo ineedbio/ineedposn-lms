@@ -30,7 +30,8 @@ type Handler = (d: Data, ctx: Ctx) => Promise<unknown>;
 
 // ───────────────────────── Settings ─────────────────────────
 const PUBLIC_SETTINGS = ["terms_text", "privacy_text", "hero_eyebrow", "hero_title", "hero_subtitle", "announcement", "promptpay_id", "promptpay_name", "contact_ig",
-  "pay_terms_text", "order_expire_hours", "proof_paid_at", "proof_amount", "proof_from_bank", "proof_payer_name", "proof_extra"];
+  "pay_terms_text", "order_expire_hours", "proof_paid_at", "proof_amount", "proof_from_bank", "proof_payer_name", "proof_extra",
+  "home_billboard"];
 const DEFAULT_SETTINGS: Record<string, string> = {
   hero_eyebrow: "INeedBio Online",
   hero_title: "ติวเข้ม ม.ปลาย|กับ INeedBio",
@@ -39,6 +40,8 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   promptpay_id: process.env.PROMPTPAY_ID || "0910256171",
   promptpay_name: "INeedBio",
   contact_ig: "ineedbiochem",
+  // Home billboard: course ids in order, comma-separated ("" = the first 5 courses)
+  home_billboard: "",
   admin_emails: process.env.ADMIN_NOTIFICATION_EMAIL || "",
   terms_text: "",
   privacy_text: "",
