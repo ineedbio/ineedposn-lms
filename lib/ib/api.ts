@@ -14,6 +14,7 @@ import { subjectKey } from "./subjects";
 import * as shop from "./shop";
 import * as staff from "./staff";
 import * as sheets from "./sheets";
+import * as team from "./team";
 import { notifyAdmins, remainingQuota, sendDecisionEmail, sendOtpEmail } from "./mail";
 import {
   APP, ApiError, bkkDate, checkImageUrl, checkPassword, clip, err, iso, isRepeat, lines, normEmail, otpCode, parseFaq,
@@ -111,7 +112,12 @@ function publicUser(u: User) {
     is_repeat: isRepeat(u.gradeLevel), terms_version: u.termsVersion || "",
     birthday: u.birthday || "", facebook: u.facebook || "", instagram: u.instagram || "", line_id: u.lineId || "",
     has_photo: !!u.photoBlobId, data_consent: !!u.dataConsentAt, subjects: u.role === "INSTRUCTOR" ? subjectsOf(u) : [],
+    profile_todo: [] as string[],
   };
+}
+/** publicUser + what a teacher still has to fill in (name / photo / bank): the site keeps them on the profile page until done. */
+async function publicUserFull(u: User) {
+  return { ...publicUser(u), profile_todo: await team.profileTodo(u) };
 }
 const hashPw = (pw: string) => bcrypt.hash(pw, 10);
 /** Admin = everything · teacher (INSTRUCTOR) = the subjects in User.subjects. */
@@ -202,7 +208,7 @@ async function newSession(u: User, p: Payload) {
   }
   return token;
 }
-async function endSessions(userId: string, reason: string) {
+export async function endSessions(userId: string, reason: string) {
   await prisma.ibSession.updateMany({ where: { userId, endedAt: null }, data: { endedAt: new Date(), endReason: reason } });
 }
 
@@ -296,7 +302,7 @@ async function registerVerify(d: Data, { p }: Ctx) {
   await checkOtp(u.id, "EMAIL_VERIFY", d.otp);
   let v = await prisma.user.update({ where: { id: u.id }, data: { emailVerified: true, lastLoginAt: new Date() } });
   v = await promoteIfBootstrap(v);
-  const out: Record<string, unknown> = { token: await newSession(v, p), user: publicUser(v) };
+  const out: Record<string, unknown> = { token: await newSession(v, p), user: await publicUserFull(v) };
   try { out.legacy = await staff.legacyMatchUser(v, false); } catch (e) { console.error(e); }
   return out;
 }
@@ -309,7 +315,7 @@ async function login(d: Data, { p }: Ctx) {
   if (!u.emailVerified) throw err("EMAIL_NOT_VERIFIED", "อีเมลนี้ยังไม่ได้ยืนยัน กด “ลืมรหัสผ่าน” เพื่อรับรหัสทางอีเมลและตั้งรหัสผ่านใหม่");
   if (u.isBanned) throw err("BANNED", "บัญชีนี้ถูกระงับ ติดต่อแอดมินทาง IG");
   u = await promoteIfBootstrap(await prisma.user.update({ where: { id: u.id }, data: { lastLoginAt: new Date() } }));
-  return { token: await newSession(u, p), user: publicUser(u) };
+  return { token: await newSession(u, p), user: await publicUserFull(u) };
 }
 
 async function logout(_d: Data, { p }: Ctx) {
@@ -338,7 +344,7 @@ async function passwordReset(d: Data, { p }: Ctx) {
   // Entering the emailed code also proves the address, so this verifies older unverified accounts.
   let v = await prisma.user.update({ where: { id: u.id }, data: { password: await hashPw(String(d.password)), emailVerified: true, lastLoginAt: new Date() } });
   v = await promoteIfBootstrap(v);
-  return { token: await newSession(v, p), user: publicUser(v) };
+  return { token: await newSession(v, p), user: await publicUserFull(v) };
 }
 
 async function passwordChange(d: Data, { p }: Ctx) {
@@ -365,7 +371,7 @@ async function profileUpdate(d: Data, { p }: Ctx) {
   }
   const v = await prisma.user.update({ where: { id: u.id }, data });
   if (oldPhoto) await prisma.fileBlob.delete({ where: { id: oldPhoto } }).catch(() => {});
-  return publicUser(v);
+  return publicUserFull(v);
 }
 async function myPhoto(_d: Data, { p }: Ctx) {
   return photoOut((await auth(p)).photoBlobId);
@@ -390,6 +396,8 @@ export function courseCard(c: CourseRow) {
     description: c.description || "", cover_url: c.coverImage || "", price: c.price, full_price: c.fullPrice || 0,
     level: c.level || "", status: c.isPublished ? "published" : "draft", updated_month: c.updatedMonth || "",
     lesson_count: c.lessons.length, total_min: c.lessons.reduce((a, l) => a + lessonMin(l), 0),
+    teachers: team.instructorsOf(c).map((t) => ({ name: t.name, photo: t.photo })),
+    accent: /^#[0-9a-f]{6}$/i.test(c.accent || "") ? c.accent.toLowerCase() : "",
   };
 }
 export function chapters<T>(lessons: LessonRow[], map: (l: LessonRow) => T) {
@@ -446,7 +454,7 @@ async function courseDetail(d: Data, { p }: Ctx) {
   out.trailer_id = x.trailerYoutube || "";
   out.highlights = lines(x.highlights, 12, 200);
   out.audience = lines(x.audience, 10, 200);
-  out.instructors = shop.instructors(x);
+  out.instructors = team.instructorsOf(x);
   out.instructor = (out.instructors as unknown[])[0] || null;
   out.faq = parseFaq(x.faq);
   out.bundles = (await shop.publicBundles()).filter((b) => b.course_ids.includes(x.slug));
@@ -738,6 +746,7 @@ async function adminCourses(_d: Data, _c: Ctx, me: User) {
     instructor_photo: x.instructorPhoto || "", faq: x.faq || "", students: x._count.enrollments, pay_account_id: x.payAccountId || "",
     instructor2_name: x.instructor2Name || "", instructor2_title: x.instructor2Title || "", instructor2_bio: x.instructor2Bio || "", instructor2_photo: x.instructor2Photo || "",
     playlists: Array.isArray(x.playlists) ? x.playlists : [], can_edit_sales: isAdminUser(me),
+    teacher_ids: x.teacherIds || "", pending_change: x.pendingChange || "",
   }));
 }
 
@@ -786,7 +795,29 @@ async function adminCourseSave(d: Data, _c: Ctx, admin: User) {
     if (um && !/^20\d\d-(0[1-9]|1[0-2])$/.test(um)) throw err("BAD_INPUT", "เลือกเดือนและปีที่อัปเดตล่าสุด");
     patch.updatedMonth = um || null;
   }
-  if (locked) Object.assign(patch, { price: locked.price, fullPrice: locked.fullPrice, isPublished: locked.isPublished, sortOrder: locked.sortOrder, payAccountId: locked.payAccountId });
+  // Who teaches the course (up to 3 teacher / admin profiles): admins only.
+  if (!locked && d.teacher_ids != null) {
+    const staffIds = (await prisma.user.findMany({ where: { role: { in: ["ADMIN", "INSTRUCTOR"] } }, select: { id: true } })).map((u) => u.id);
+    const tids = (Array.isArray(d.teacher_ids) ? d.teacher_ids : String(d.teacher_ids).split(",")).map((x: unknown) => String(x).trim())
+      .filter((id: string, i: number, a: string[]) => staffIds.includes(id) && a.indexOf(id) === i);
+    if (tids.length > 3) throw err("BAD_INPUT", "เลือกผู้สอนได้สูงสุด 3 คน");
+    patch.teacherIds = tids.join(",");
+  }
+  // Course colour: teachers may set it too.
+  if (d.accent !== undefined) {
+    const ac = String(d.accent || "").trim();
+    if (ac && !/^#[0-9a-f]{6}$/i.test(ac)) throw err("BAD_INPUT", "เลือกสีประจำคอร์สใหม่");
+    patch.accent = ac.toLowerCase();
+  }
+  if (locked) {
+    Object.assign(patch, { price: locked.price, fullPrice: locked.fullPrice, isPublished: locked.isPublished, sortOrder: locked.sortOrder, payAccountId: locked.payAccountId });
+    // A teacher's new price / "was" price / status is a request for an admin, not a change.
+    const want: Record<string, string> = {}, curFull = locked.fullPrice == null ? "" : String(locked.fullPrice), curStatus = locked.isPublished ? "published" : "draft";
+    if (d.req_price != null && String(d.req_price) !== "" && Number(d.req_price) >= 0 && String(Number(d.req_price)) !== String(locked.price)) want.price = String(Number(d.req_price));
+    if (d.req_full_price != null && String(d.req_full_price) !== curFull) want.full_price = d.req_full_price === "" ? "" : String(Math.max(0, Number(d.req_full_price) || 0));
+    if ((d.req_status === "published" || d.req_status === "draft") && d.req_status !== curStatus) want.status = d.req_status;
+    if (Object.keys(want).length) patch.pendingChange = JSON.stringify({ ...want, by: admin.id, at: new Date().toISOString() });
+  }
   checkImageUrl(String(patch.coverImage || ""));
   checkImageUrl(String(patch.instructorPhoto || ""));
   checkImageUrl(String(patch.instructor2Photo || ""));
@@ -908,6 +939,8 @@ async function adminUserUpdate(d: Data, _c: Ctx, admin: User) {
   await prisma.user.update({ where: { id: u.id }, data: patch });
   if (patch.isBanned || (patch.role && patch.role !== u.role)) await endSessions(u.id, patch.isBanned ? "banned" : "admin");
   await log(admin, "user.update", u.email + " " + JSON.stringify({ role: d.role, subjects: d.subjects, status: d.status }));
+  // Became a teacher for the first time: email them to fill in the teacher profile.
+  if (patch.role === "INSTRUCTOR" && u.role !== "INSTRUCTOR") await team.inviteNewTeacher(u, String(patch.subjects || "").split(",")[0]);
   return true;
 }
 
@@ -996,7 +1029,7 @@ const ROUTES: Record<string, Handler> = {
   "bundles.list": () => shop.publicBundles(),
   "bundle.detail": (d) => shop.bundleDetail(d),
   "cart.quote": (d, c) => shop.cartQuote(d, c),
-  me: async (_d, { p }) => publicUser(await auth(p)),
+  me: async (_d, { p }) => publicUserFull(await auth(p)),
   logout,
   "profile.update": profileUpdate,
   "password.change": passwordChange,
@@ -1064,6 +1097,17 @@ const ROUTES: Record<string, Handler> = {
   "fin.close": adminOnly(staff.finClose),
   "fin.reopen": adminOnly(staff.finReopen),
   "fin.payout.paid": adminOnly(staff.finPayoutPaid),
+  "fin.payout.pay": adminOnly(staff.finPayoutPay),
+  "fin.payout.slip": staffOnly(staff.finPayoutSlip),
+  "fin.payouts.mine": staffOnly(staff.finPayoutsMine),
+  "fin.splits": adminOnly(() => staff.finSplits()),
+  "fin.splits.save": adminOnly(staff.finSplitsSave),
+  "teacher.profile": staffOnly(team.teacherProfile),
+  "teacher.profile.save": staffOnly(team.teacherProfileSave),
+  "admin.teachers": adminOnly(() => team.adminTeachers()),
+  "admin.team.add": adminOnly(team.adminTeamAdd),
+  "admin.team.remove": adminOnly(team.adminTeamRemove),
+  "admin.course.request": adminOnly(team.adminCourseRequest),
   "admin.log": adminOnly((d) => staff.adminLog(d)),
   // ชีทสรุป — back office only; nothing public until sheets.SHEETS_ON_SALE
   "admin.sheets": adminOnly(() => sheets.adminSheets()),
@@ -1099,6 +1143,8 @@ export async function handle(p: Payload) {
   try {
     const fn = ROUTES[String(p.action || "")];
     if (!fn) throw err("BAD_ACTION", "ไม่รู้จักคำสั่งนี้");
+    // Course cards and pages show their teachers' profiles: load them once for this request.
+    if (/course|bundle|learn|cart|order|bill/.test(String(p.action))) await team.loadProfiles();
     const data = await fn(p.data || {}, { p });
     // Order numbers are for admins only (they reveal how much a subject sold): whatever a student-facing
     // action returns, they never leave the server. Admin/staff actions filter them per viewer themselves.

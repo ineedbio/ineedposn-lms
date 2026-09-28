@@ -7,7 +7,8 @@
     "vercel-build": "prisma generate && (prisma migrate resolve --rolled-back 10_instructor_roles_and_expenses || true) && (prisma migrate resolve --rolled-back 11_shop || true) && prisma migrate deploy && next build",
     "start": "next start",
     "postinstall": "prisma generate",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "test:roles": "node tests/run.mjs"
   },
   "dependencies": {
     "next": "14.2.35",

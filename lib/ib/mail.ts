@@ -26,12 +26,18 @@ export async function remainingQuota() {
   return Math.max(0, DAILY_QUOTA - (hit?.count ?? 0));
 }
 
-async function send(to: string | string[], subject: string, html: string) {
+type Attachment = { filename: string; content: Buffer; contentType: string };
+async function send(to: string | string[], subject: string, html: string, attachments: Attachment[] = []) {
+  // Local tests only: keep a copy of every email in a file (never in production).
+  if (process.env.MAIL_OUTBOX_FILE && process.env.NODE_ENV !== "production") {
+    const fs = await import("fs");
+    fs.appendFileSync(process.env.MAIL_OUTBOX_FILE, JSON.stringify({ to, subject, html, attachments: attachments.map((a) => a.filename) }) + "\n");
+  }
   if (smtp) {
-    await smtp.sendMail({ from: FROM, to, subject, html });
+    await smtp.sendMail({ from: FROM, to, subject, html, attachments });
   } else if (process.env.RESEND_API_KEY) {
     const { Resend } = await import("resend");
-    const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send({ from: FROM, to, subject, html });
+    const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send({ from: FROM, to, subject, html, attachments: attachments.map((a) => ({ filename: a.filename, content: a.content })) });
     if (error) throw new Error(`Resend: ${error.name} — ${error.message}`);
   } else if (process.env.NODE_ENV !== "production") {
     // Local development without a mail transport: print instead of sending.
@@ -262,4 +268,36 @@ export async function sendNotice(to: string[], subject: string, title: string, b
   } catch (e) {
     console.error("[mail] notice send failed", e);
   }
+}
+
+/** Code.gs sendPayoutEmail_: a teacher's share has been transferred — period, subject, amounts, account, time, slip attached. */
+export async function sendPayoutEmail(
+  to: string, name: string, x: { label: string; subject: string; share: number; held: number; amount: number; account: string; paidAt: Date; note: string },
+  slip: { mime: string; data: Buffer; name: string }, ig: string
+) {
+  if (!to || (await remainingQuota()) < 1) return;
+  const baht = (n: number) => "฿" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const rows: [string, string][] = [
+    ["งวด", x.label], ["วิชา", x.subject], ["ส่วนแบ่ง", baht(x.share)], ["หักเงินที่เข้าบัญชีคุณโดยตรง", baht(x.held)], ["ยอดที่โอน", baht(x.amount)],
+    ["โอนเข้า", x.account || "—"], ["เวลาโอน", thDateTxt(x.paidAt)], ...(x.note ? [["หมายเหตุ", x.note] as [string, string]] : []),
+  ];
+  const inner =
+    '<tr><td style="padding:0 32px 8px;"><p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc(name) + "<br>INeedBio โอนส่วนแบ่งวิชา" + esc(x.subject) + " งวด " + esc(x.label) + " ให้แล้ว แนบสลิปมากับอีเมลนี้</p>" +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;">' +
+    rows.map((r) => '<tr><td style="padding:7px 0;color:#8a8a8a;border-bottom:1px solid #efefed;">' + esc(r[0]) + '</td><td align="right" style="padding:7px 0;color:#0c0c0c;border-bottom:1px solid #efefed;">' + esc(r[1]) + "</td></tr>").join("") +
+    "</table></td></tr>" +
+    '<tr><td style="padding:14px 32px 26px;font-size:13px;color:#8a8a8a;">ดูรายละเอียดและสลิปย้อนหลังได้ที่หลังบ้าน เมนู "ส่วนแบ่งของฉัน"</td></tr>';
+  await send(to, "โอนส่วนแบ่งแล้ว " + baht(x.amount) + " · " + x.subject + " " + x.label, shell("โอนส่วนแบ่งแล้ว", inner, ig), [{ filename: slip.name, content: slip.data, contentType: slip.mime }]);
+}
+
+/** Code.gs sendTeacherInvite_: someone became a teacher — sign in and fill in the teacher profile first. */
+export async function sendTeacherInvite(to: string, name: string, subject: string, site: string, ig: string) {
+  if (!to || (await remainingQuota()) < 1) return;
+  const href = site.replace(/\/+$/, "") + "/#/admin/tprofile";
+  const inner =
+    '<tr><td style="padding:0 32px 26px;"><p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc(name) + "<br>" +
+    'คุณได้รับบทบาท <b style="color:#0c0c0c;">ผู้สอนวิชา' + esc(subject) + "</b> บน INeedBio แล้ว</p>" +
+    '<p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#525252;">ก่อนเริ่มใช้งาน กรุณาเข้าสู่ระบบแล้วกรอกโปรไฟล์ผู้สอนให้ครบ: รูปโปรไฟล์ ชื่อที่แสดง ประวัติ และบัญชีรับส่วนแบ่ง (ชื่อบัญชี ธนาคาร เลขที่บัญชี) รูปและประวัติจะขึ้นในทุกคอร์สที่คุณสอน</p>' +
+    '<p style="margin:0;"><a href="' + esc(href) + '" style="display:inline-block;background:#0c0c0c;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-size:14px;">กรอกโปรไฟล์ผู้สอน</a></p></td></tr>';
+  await send(to, "ยินดีต้อนรับผู้สอนวิชา" + subject + " · กรอกโปรไฟล์ให้ครบก่อนเริ่ม", shell("คุณเป็นผู้สอนแล้ว", inner, ig));
 }

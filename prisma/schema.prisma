@@ -165,6 +165,9 @@ model Course {
   instructor2Photo String?
   playlists        Json    @default("[]") // YouTube playlists synced into the lessons: [{id, chapter, strip, title, last_sync, last_count}]
   teacherSplit     Json    @default("[]") // revenue split between teachers: [{user_id, pct}] (empty = equal split among the subject's teachers)
+  teacherIds       String  @default("") // up to 3 staff user ids (comma-separated) whose TeacherProfile shows on the course; "" = the instructor fields above
+  accent           String  @default("") // course colour "#rrggbb" (lower case), "" = the subject colour
+  pendingChange    String  @default("") // a teacher's price/status request waiting for an admin: JSON {price?, full_price?, status?, by, at}
 
   subjectId  String
   subject    Subject  @relation(fields: [subjectId], references: [id])
@@ -187,18 +190,18 @@ enum LessonType {
 }
 
 model Lesson {
-  id         String     @id @default(cuid())
-  title      String
-  order      Int
-  type       LessonType
-  youtubeUrl String? // pasted YouTube link (unlisted) — no file upload needed
-  content    String?
-  duration   Int? // seconds
-  isPreview  Boolean    @default(false) // free "ทดลองเรียน" lesson, viewable without enrollment
-  chapter    String? // groups lessons into chapters ("บทที่ 1 เซลล์") in the syllabus and admin list
-  hidden         Boolean @default(false) // removed from its YouTube playlist: hidden from students, kept for the record
+  id             String     @id @default(cuid())
+  title          String
+  order          Int
+  type           LessonType
+  youtubeUrl     String? // pasted YouTube link (unlisted) — no file upload needed
+  content        String?
+  duration       Int? // seconds
+  isPreview      Boolean    @default(false) // free "ทดลองเรียน" lesson, viewable without enrollment
+  chapter        String? // groups lessons into chapters ("บทที่ 1 เซลล์") in the syllabus and admin list
+  hidden         Boolean    @default(false) // removed from its YouTube playlist: hidden from students, kept for the record
   sourcePlaylist String? // playlist id when the lesson came from a playlist sync
-  files          Json    @default("[]") // lesson files: [{fid, name, mime, size, blob_id} | {fid, name, url}]
+  files          Json       @default("[]") // lesson files: [{fid, name, mime, size, blob_id} | {fid, name, url}]
 
   courseId String
   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -514,23 +517,23 @@ model Bill {
 // ============= FINANCIALS & EXPENSES =============
 
 model Expense {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   title        String
   amount       Float
   category     String?
-  date         DateTime @default(now())
+  date         DateTime  @default(now())
   note         String?
   slipImageUrl String? // "blob:<id>" stored in FileBlob
   subjectKey   String? // "bio" | "chem" | "phys" | "math"
   courseId     String?
-  course       Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  course       Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
   recordedById String
-  recordedBy   User     @relation("RecordedExpenses", fields: [recordedById], references: [id])
-  status       String   @default("approved") // pending (a teacher's, waiting for the admin) | approved | rejected
+  recordedBy   User      @relation("RecordedExpenses", fields: [recordedById], references: [id])
+  status       String    @default("approved") // pending (a teacher's, waiting for the admin) | approved | rejected
   decidedById  String?
   decidedAt    DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([subjectKey])
   @@index([date])
@@ -540,27 +543,44 @@ model Expense {
 
 // ============= Finance (web app v4): closed months and teacher payouts =============
 model FinPeriod {
-  period   String   @id // "YYYY-MM" (Thai time)
+  period   String   @id // "YYYY-MM-1" (1st–15th) / "YYYY-MM-2" (16th–end), Thai time · older closings are whole months "YYYY-MM"
   closedAt DateTime @default(now())
   closedBy String
   snapshot Json // {by_subject, teachers, totals} at closing
 }
 
 model FinPayout {
-  id        String    @id // "PO…"
-  period    String
-  userId    String
-  subjects  String    @default("")
-  share     Float     @default(0)
-  held      Float     @default(0)
-  amount    Float     @default(0)
-  status    String    @default("pending") // pending | paid
-  paidAt    DateTime?
-  paidBy    String?
-  note      String    @default("")
-  createdAt DateTime  @default(now())
+  id         String    @id // "PO…"
+  period     String
+  userId     String
+  subjects   String    @default("")
+  share      Float     @default(0)
+  held       Float     @default(0)
+  amount     Float     @default(0)
+  status     String    @default("pending") // pending | paid
+  paidAt     DateTime?
+  paidBy     String?
+  note       String    @default("")
+  createdAt  DateTime  @default(now())
+  subject    String    @default("") // one payout per (subject, person) since half-month periods; "" on older rows
+  slipBlobId String? // transfer slip (private FileBlob), required when marking paid
+  account    String    @default("") // bank · account no · name at the time of the transfer
 
   @@index([period])
+}
+
+/// A teacher's (or admin's) public profile: shown on the courses whose teacherIds include them, and the bank
+/// account their share is sent to (the account number goes only to admins and the teacher).
+model TeacherProfile {
+  userId      String   @id
+  displayName String   @default("")
+  title       String   @default("")
+  bio         Json     @default("[]") // lines
+  photoUrl    String   @default("")
+  bankName    String   @default("")
+  accountName String   @default("")
+  accountNo   String   @default("")
+  updatedAt   DateTime @default(now()) @updatedAt
 }
 
 // ============= Students from before the website (web app v4) =============
@@ -603,14 +623,14 @@ model OrderCounter {
 model Sheet {
   id           String   @id @default(cuid())
   title        String
-  coverTitle   String?  // short title printed on the cover
-  subject      String   // bio | chem | phys | math
+  coverTitle   String? // short title printed on the cover
+  subject      String // bio | chem | phys | math
   price        Int      @default(0)
   fullPrice    Int?
   pages        Int?
   samplePages  Int?
   description  String?
-  updatedMonth String?  // YYYY-MM
+  updatedMonth String? // YYYY-MM
   sortOrder    Int      @default(0)
   fileParts    String   @default("") // FileBlob ids of the full PDF, in order
   fileSize     Int      @default(0)
