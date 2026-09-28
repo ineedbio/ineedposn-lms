@@ -28,24 +28,37 @@
   function isAdminShell() { return !!document.querySelector('nav.aside a[href="#/admin/users"]'); }
   function here() { return /^#\/admin\/sheets\b/.test(location.hash); }
 
-  /* ── menu item ── */
+  /* ── menu item ──
+     A <span role="link">, styled like the sidebar's <a> links, not an <a>: app.js keeps the sidebar box across
+     admin pages (so the black glide keeps sliding and the scroll stays) only when the <a> links in it are the
+     same set as the page it draws next, and it does not know this item. An extra <a> made every page change
+     rebuild the whole sidebar. app.js draws #/admin/sheets as its dashboard (ภาพรวม marked on), so on this page
+     its glide is hidden and the item shows its own highlight in the glide's colour. */
+  function go() { document.body.classList.add('shx-on'); location.hash = '#/admin/sheets'; }
   function menu() {
     var nav = document.querySelector('nav.aside'); if (!nav || !isAdminShell()) return;
-    var a = nav.querySelector('a[href="#/admin/sheets"]');
+    var a = nav.querySelector('.shx-a');
     if (!a) {
       var after = nav.querySelector('a[href="#/admin/courses"]'); if (!after) return;
-      a = document.createElement('a'); a.href = '#/admin/sheets';
+      a = document.createElement('span'); a.className = 'shx-a'; a.setAttribute('role', 'link'); a.tabIndex = 0;
       a.innerHTML = '<span>ชีทสรุป</span><span class="shx-soon">ยังไม่เปิดขาย</span>';
+      a.onclick = go;
+      a.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
       after.parentNode.insertBefore(a, after.nextSibling);
     }
     var on = here();
-    if (on) Array.prototype.forEach.call(nav.querySelectorAll('a.on'), function (x) { if (x !== a) x.classList.remove('on'); });
+    if (on) Array.prototype.forEach.call(nav.querySelectorAll('a.on'), function (x) { x.classList.remove('on'); });
     a.classList.toggle('on', on);
+    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
 
   /* ── page ── */
   function page() {
-    document.body.classList.toggle('shx-on', here() && isAdminShell());
+    var was = document.body.classList.contains('shx-on'), now = here() && isAdminShell();
+    // leaving this page: put app.js's (hidden) glide straight onto the new page's link before showing it again
+    // (app.js moves it instantly on resize) instead of sliding it in from ภาพรวม
+    if (was && !now) window.dispatchEvent(new Event('resize'));
+    document.body.classList.toggle('shx-on', now);
     if (!here()) return;
     var amain = document.getElementById('amain');
     if (!amain || !isAdminShell()) return;
@@ -242,8 +255,15 @@
   var css = document.createElement('style');
   css.textContent =
     'body.shx-on #amain > :not(#shx){display:none!important}' + // app.js draws its dashboard behind this page; hide it
-    '.aside a .shx-soon{font-size:10.5px;font-weight:600;color:var(--muted);background:var(--bg2);border-radius:99px;padding:1px 7px;white-space:nowrap}' +
-    '.v2ui .aside a .shx-soon{color:rgba(255,255,255,.6);background:rgba(255,255,255,.1)}' +
+    // the menu item: the same look as ineedbio.css gives '.aside a' (+ its UI v2 dark-sidebar colours)
+    '.aside .shx-a{text-decoration:none;padding:11px 14px;border-radius:12px;color:var(--ink2);white-space:nowrap;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:15.5px;cursor:pointer;transition:background-color .22s ease,color .22s ease}' +
+    '.aside .shx-a.on{background:var(--acc-soft);color:var(--acc);font-weight:600}' +
+    '.aside .agrp .shx-a.on{background:var(--bg)}' + // admin-ui.js's tinted menu groups
+    '.v2ui .aside .shx-a{position:relative;z-index:1;color:rgba(255,255,255,.72)} .v2ui .aside .shx-a:hover{background:rgba(255,255,255,.08);color:#fff}' +
+    '.v2ui .aside .shx-a.on{background:rgba(255,255,255,.14);color:#fff}' +
+    'body.shx-on .aside .glide{opacity:0!important}' +
+    '.aside .shx-a .shx-soon{font-size:10.5px;font-weight:600;color:var(--muted);background:var(--bg2);border-radius:99px;padding:1px 7px;white-space:nowrap}' +
+    '.v2ui .aside .shx-a .shx-soon{color:rgba(255,255,255,.6);background:rgba(255,255,255,.1)}' +
     '#shx{display:grid;gap:16px} .shx-flag{font-size:14px}' +
     '#shx td .lg-sj{margin-right:2px} .shx-f{white-space:nowrap} .shx-f + .shx-f{margin-top:3px}' +
     '.shx-b .shx-bp{display:grid;justify-items:end;gap:2px} .shx-b .shx-bp b{font-size:20px;color:var(--c-bio)}' +
