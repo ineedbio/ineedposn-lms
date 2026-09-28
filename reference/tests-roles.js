@@ -1,0 +1,346 @@
+// ทดสอบ: ยศผู้สอน · การเงิน · นักเรียนรุ่นเก่า · ดึงคลิปจากเพลย์ลิสต์
+const fs = require('fs'), vm = require('vm'), assert = require('assert');
+const ctx = vm.createContext({ console, Date, Math, JSON, String, Number, Object, Array, Error, parseInt, unescape, encodeURIComponent, isNaN });
+vm.runInContext(fs.readFileSync(__dirname + '/gas-mock.js', 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(__dirname + '/../backend/Code.gs', 'utf8'), ctx);
+const M = ctx.__mock, run = (js) => vm.runInContext(js, ctx);
+const call = (action, data, token, device_id = 'dev') => M.call({ action, data, token, device_id, device_info: 'Test' });
+const ok = r => { if (!r.ok) throw new Error(r.error + ': ' + r.message); return r.data; };
+const no = (r, code) => { assert.equal(r.ok, false, 'ควรถูกปฏิเสธ'); if (code) assert.equal(r.error, code, r.message); return r; };
+const lastOtp = () => M.outbox[M.outbox.length - 1].subject.slice(0, 6);
+let n = 0; const t = (name, fn) => { fn(); n++; console.log('✓', name); };
+const PH = { mime: 'image/jpeg', base64: Buffer.from('x').toString('base64') };
+const base = { photo: PH, accept_data: true, accept_terms: true, password: 'secret123', school: 'โรงเรียนตัวอย่าง', grade: 'ม.5', phone: '0800000000',
+  dream_faculty: 'แพทยศาสตร์', dream_university: 'มหิดล', birthday: '2009-01-01', line_id: 'x' };
+const reg = (email, first, last, nick, dev) => { ok(call('register.start', { ...base, email, first_name: first, last_name: last, nickname: nick || first })); return ok(call('register.verify', { email, otp: lastOtp() }, null, dev || email)); };
+
+ctx.setup();
+const A = reg('admin@x.com', 'แอด', 'มิน', 'แอดมิน'); run("makeAdmin('admin@x.com')");
+const adm = A.token;
+run("setupCourses('https://x/', false)");
+const courses = ok(call('admin.courses', {}, adm));
+const BIO = courses.find(c => c.subject === 'bio').course_id, CHEM = courses.find(c => c.subject === 'chem').course_id, PHYS = courses.find(c => c.subject === 'phys').course_id;
+run("read_('Courses').forEach(function(c){ update_('Courses', c._row, { status: 'published', price: c.subject === 'math' ? '490' : '1000' }); }); cache_().remove('pub_courses'); cache_().remove('pub_bundles');");
+const chemT = reg('chem@x.com', 'ครู', 'เคมี', 'พี่เคมี'), physT = reg('phys@x.com', 'ครู', 'ฟิสิกส์', 'พี่ฟิสิกส์');
+const mathA = reg('ma@x.com', 'ครู', 'คณิตเอ', 'พี่เอ'), mathB = reg('mb@x.com', 'ครู', 'คณิตบี', 'พี่บี');
+let chem, phys, ma, mb;
+const login = (e, d) => ok(call('login', { email: e, password: 'secret123' }, null, d || e)).token;
+
+t('admin sets teacher roles', () => {
+  no(call('admin.user.update', { user_id: chemT.user.user_id, role: 'teacher', subjects: [] }, adm), 'BAD_INPUT');
+  ok(call('admin.user.update', { user_id: chemT.user.user_id, role: 'teacher', subjects: ['chem'] }, adm));
+  ok(call('admin.user.update', { user_id: physT.user.user_id, role: 'teacher', subjects: 'phys' }, adm));
+  ok(call('admin.user.update', { user_id: mathA.user.user_id, role: 'teacher', subjects: ['math'] }, adm));
+  ok(call('admin.user.update', { user_id: mathB.user.user_id, role: 'teacher', subjects: ['math'] }, adm));
+  no(call('admin.courses', {}, chemT.token), 'AUTH'); // เปลี่ยนยศแล้วต้องเข้าสู่ระบบใหม่
+  chem = login('chem@x.com'); phys = login('phys@x.com'); ma = login('ma@x.com'); mb = login('mb@x.com');
+  assert.deepEqual(ok(call('me', {}, chem, 'chem@x.com')).subjects, ['chem']);
+});
+
+const C = (a, d, tok, dev) => call(a, d, tok, dev);
+t('teacher sees only own subject', () => {
+  const list = ok(C('admin.courses', {}, chem, 'chem@x.com'));
+  assert(list.length >= 1 && list.every(c => c.subject === 'chem'));
+  no(C('admin.lessons', { course_id: BIO }, chem, 'chem@x.com'), 'FORBIDDEN');
+  ok(C('admin.lessons', { course_id: CHEM }, chem, 'chem@x.com'));
+  const st = ok(C('admin.stats', {}, chem, 'chem@x.com'));
+  assert.equal(st.teacher, true); assert.equal(st.users_total, undefined); assert.deepEqual(st.subjects, ['chem']);
+});
+t('teacher blocked from admin-only areas', () => {
+  const d = 'chem@x.com';
+  ['admin.users', 'admin.accounts', 'admin.coupons', 'admin.settings', 'admin.log', 'admin.legacy', 'fin.rules', 'admin.enrollments'].forEach(a => no(C(a, {}, chem, d), 'FORBIDDEN'));
+  no(C('admin.account.save', { label: 'x', account_name: 'x', promptpay_id: '0800000000' }, chem, d), 'FORBIDDEN');
+  no(C('admin.bill.decide', { bill_id: 'x', decision: 'approve' }, chem, d), 'FORBIDDEN');
+  no(C('admin.bundle.save', { title: 'x' }, chem, d), 'FORBIDDEN');
+  no(C('admin.user.update', { user_id: chemT.user.user_id, role: 'admin' }, chem, d), 'FORBIDDEN');
+  no(C('fin.close', { period: '2026-01' }, chem, d), 'FORBIDDEN');
+  const stu = reg('s0@x.com', 'นักเรียน', 'ศูนย์');
+  no(C('admin.courses', {}, stu.token, 's0@x.com'), 'FORBIDDEN');
+});
+t('teacher edits content but not price/status/subject', () => {
+  const d = 'chem@x.com';
+  const c = ok(C('admin.courses', {}, chem, d)).find(x => x.course_id === CHEM);
+  ok(C('admin.course.save', { ...c, course_id: CHEM, title: 'เคมีใหม่', price: 1, status: 'draft', subject: 'bio', pay_account_id: 'HACK', sort_order: -9 }, chem, d));
+  const after = ok(call('admin.courses', {}, adm)).find(x => x.course_id === CHEM);
+  assert.equal(after.title, 'เคมีใหม่'); assert.equal(after.price, 1000); assert.equal(after.status, 'published'); assert.equal(after.subject, 'chem'); assert.equal(after.pay_account_id, '');
+  no(C('admin.course.save', { ...c, course_id: BIO, title: 'x' }, chem, d), 'FORBIDDEN');
+  no(C('admin.course.save', { subject: 'chem', title: 'ใหม่', price: 10 }, chem, d), 'FORBIDDEN');
+  const L = ok(C('admin.lesson.save', { course_id: CHEM, chapter: 'บท 1', title: 'ตอน 1', youtube: 'abcdefghijk' }, chem, d));
+  no(C('admin.lesson.save', { course_id: BIO, chapter: 'x', title: 'x', youtube: 'abcdefghijk' }, chem, d), 'FORBIDDEN');
+  const bioL = ok(call('admin.lesson.save', { course_id: BIO, chapter: 'x', title: 'x', youtube: 'bbbbbbbbbbb' }, adm));
+  no(C('admin.lesson.save', { lesson_id: bioL.lesson_id, chapter: 'x', title: 'แก้', youtube: 'bbbbbbbbbbb' }, chem, d), 'FORBIDDEN');
+  no(C('admin.lesson.delete', { lesson_id: bioL.lesson_id }, chem, d), 'FORBIDDEN');
+  no(C('admin.lessons.bulk', { course_id: BIO, items: [{ chapter: 'x', title: 'y', youtube: 'ccccccccccc' }] }, chem, d), 'FORBIDDEN');
+  ok(C('admin.lesson.delete', { lesson_id: L.lesson_id }, chem, d));
+  const log = ok(call('admin.log', { teachers_only: true }, adm));
+  assert(log.some(r => r.action === 'course.edit' && r.who === 'พี่เคมี'));
+});
+
+let s1;
+t('grants: free, test, expiry, revoke, preview', () => {
+  s1 = reg('s1@x.com', 'สมชาย', 'เรียนดี');
+  const d = 'chem@x.com';
+  no(C('admin.grant', { course_id: BIO, emails: 's1@x.com' }, chem, d), 'FORBIDDEN');
+  const g = ok(C('admin.grant', { course_id: CHEM, emails: 's1@x.com, nobody@x.com', amount: 999, note: 'ทุนเรียน' }, chem, d));
+  assert.deepEqual(g.added, ['s1@x.com']); assert.equal(g.skipped[0].why, 'ยังไม่ได้สมัครสมาชิก');
+  let list = ok(C('staff.course.students', { course_id: CHEM }, chem, d));
+  const row = list.find(r => r.user_id === s1.user.user_id);
+  assert.equal(row.source, 'grant'); assert.equal(row.amount, null); assert.equal(row.email, ''); assert.equal(row.reason, 'ทุนเรียน');
+  assert(ok(call('learn.get', { course_id: CHEM }, s1.token, 's1@x.com')));
+  // ครูไม่ได้เพิ่มรายได้ (amount ถูกบังคับเป็น 0)
+  const e = run(`read_('Enrollments').filter(function(e){return e.user_id==='${s1.user.user_id}'})[0]`);
+  assert.equal(e.amount, '0');
+  ok(C('staff.revoke', { enroll_id: row.enroll_id }, chem, d));
+  no(call('learn.get', { course_id: CHEM }, s1.token, 's1@x.com'), 'NO_ACCESS');
+  // หมดอายุ
+  ok(call('admin.grant', { course_id: BIO, email: 's1@x.com', expires_at: '2020-01-01' }, adm));
+  no(call('learn.get', { course_id: BIO }, s1.token, 's1@x.com'), 'NO_ACCESS');
+  assert.equal(ok(call('my.courses', {}, s1.token, 's1@x.com')).length, 0);
+  assert.equal(ok(call('cart.quote', { course_ids: [BIO] }, s1.token, 's1@x.com')).items[0].blocked, '');
+  // ดูแบบนักเรียน: ครูเข้าห้องเรียนวิชาตัวเองได้ ไม่บันทึกความคืบหน้า
+  const pv = ok(C('learn.get', { course_id: CHEM }, chem, d)); assert.equal(pv.preview, true);
+  no(C('learn.get', { course_id: BIO }, chem, d), 'NO_ACCESS');
+  // ให้ตัวเองเพื่อทดสอบ → source test ไม่นับเงิน
+  ok(C('admin.grant', { course_id: CHEM, emails: 'chem@x.com' }, chem, d));
+  assert.equal(ok(C('staff.course.students', { course_id: CHEM }, chem, d)).find(r => r.user_id === chemT.user.user_id).source, 'test');
+  assert.equal(ok(C('learn.get', { course_id: CHEM }, chem, d)).preview, false);
+});
+
+t('teacher sees own-subject bills without contact data, cannot decide', () => {
+  const b = reg('buyer@x.com', 'ผู้ซื้อ', 'ทดลอง');
+  ok(call('order.create', { course_ids: [CHEM, BIO], accept_pay_terms: true }, b.token, 'buyer@x.com'));
+  const bills = ok(C('admin.bills', { status: 'all' }, chem, 'chem@x.com'));
+  assert.equal(bills.length, 1); assert(bills[0].items.every(i => i.subject === 'chem')); assert.equal(bills[0].phone, ''); assert.equal(bills[0].can_decide, false);
+  assert.equal(ok(C('admin.bills', { status: 'all' }, phys, 'phys@x.com')).length, 0);
+});
+
+// ── การเงิน ──
+const P = (() => { const d = new Date(Date.now() + 7 * 36e5).toISOString(); return d.slice(0, 7) + (Number(d.slice(8, 10)) <= 15 ? '-1' : '-2'); })();
+const today = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10);
+const adminId = () => A.user.user_id;
+t('finance: half-month periods, no platform fee, subject splits with date, held money', () => {
+  const acc = ok(call('admin.account.save', { label: 'บัญชีครูฟิสิกส์', method: 'promptpay', promptpay_id: '0811111111', account_name: 'ครู', subjects: 'phys', owner_id: physT.user.user_id }, adm));
+  no(call('admin.account.save', { label: 'x', method: 'promptpay', promptpay_id: '0811111111', account_name: 'x', owner_id: s1.user.user_id }, adm), 'BAD_INPUT');
+  no(call('fin.rules.save', { splits: [{ course_id: 'MATH-M6-T1', split: [{ user_id: mathA.user.user_id, pct: 60 }, { user_id: mathB.user.user_id, pct: 30 }] }] }, adm), 'BAD_INPUT');
+  ok(call('fin.rules.save', { splits: [{ course_id: 'MATH-M4-T1', split: [{ user_id: mathA.user.user_id, pct: 100 }] }, { course_id: 'MATH-M6-T1', split: [{ user_id: mathA.user.user_id, pct: 60 }, { user_id: mathB.user.user_id, pct: 40 }] }] }, adm));
+  const buy = (email, ids) => { const u = reg(email, 'ผู้ซื้อ' + email[0], 'นามสกุล' + email[0]); ok(call('order.create', { course_ids: ids, accept_pay_terms: true }, u.token, email)); return ok(call('my.orders', {}, u.token, email))[0].bills; };
+  const bs = [].concat(buy('p1@x.com', [PHYS]), buy('c1@x.com', [CHEM]), buy('m1@x.com', ['MATH-M4-T1']), buy('m6@x.com', ['MATH-M6-T1']));
+  bs.forEach(b => ok(call('admin.bill.decide', { bill_id: b.bill_id, decision: 'approve' }, adm)));
+  no(C('fin.expense.save', { date: today, subject: 'bio', amount: 50 }, chem, 'chem@x.com'), 'FORBIDDEN');
+  const ex = ok(C('fin.expense.save', { date: today, subject: 'chem', category: 'โฆษณา', amount: 200, note: 'ยิงแอด' }, chem, 'chem@x.com'));
+  ok(call('fin.expense.save', { date: today, subject: '', category: 'ซอฟต์แวร์/โดเมน', amount: 100 }, adm));
+  let s = ok(call('fin.summary', { period: P }, adm));
+  assert.equal(s.period, P); assert(/^(1–15|16–\d\d) /.test(s.label));
+  assert.equal(s.by_subject.find(x => x.subject === 'chem').expense, 0);
+  no(call('fin.close', { period: P }, adm), 'BAD_INPUT');
+  ok(call('fin.expense.decide', { expense_id: ex.expense_id, decision: 'approve' }, adm));
+  s = ok(call('fin.summary', { period: P }, adm));
+  const byS = k => s.by_subject.find(x => x.subject === k), pay = (k, id) => s.pays.find(x => x.subject === k && x.user_id === id);
+  assert.equal(byS('chem').pool, 800); assert.equal(byS('chem').platform, 0); // ไม่มีค่าแพลตฟอร์ม หักรายจ่ายวิชา
+  assert.equal(pay('chem', chemT.user.user_id).settle, 800);
+  assert.equal(pay('phys', physT.user.user_id).held, 1000); assert.equal(pay('phys', physT.user.user_id).settle, 0);
+  assert.equal(pay('math', mathA.user.user_id).share, 490 + 294); assert.equal(pay('math', mathB.user.user_id).share, 196);
+  assert.equal(s.totals.income, 2980); assert.equal(s.totals.shared, 100);
+  // เจ้าของตั้งสัดส่วนเคมีเอง มีผลตั้งแต่วันนี้: ครูเคมี 70 เจ้าของ 30
+  no(call('fin.splits.save', { subject: 'chem', from: today, parts: [{ user_id: chemT.user.user_id, pct: 70 }] }, adm), 'BAD_INPUT');
+  no(C('fin.splits.save', { subject: 'chem', from: today, parts: [] }, chem, 'chem@x.com'), 'FORBIDDEN');
+  ok(call('fin.splits.save', { subject: 'chem', from: today, parts: [{ user_id: chemT.user.user_id, pct: 70 }, { user_id: adminId(), pct: 30 }] }, adm));
+  // สัดส่วนที่เริ่มพรุ่งนี้ ไม่กระทบยอดวันนี้
+  const tmr = new Date(Date.now() + 31 * 36e5).toISOString().slice(0, 10);
+  ok(call('fin.splits.save', { subject: 'chem', from: tmr, parts: [{ user_id: chemT.user.user_id, pct: 100 }] }, adm));
+  s = ok(call('fin.summary', { period: P }, adm));
+  assert.equal(pay('chem', chemT.user.user_id).share, 560); assert.equal(pay('chem', adminId()).share, 240);
+  // ครูเห็นเฉพาะของตัวเอง
+  const cs = ok(C('fin.summary', { period: P }, chem, 'chem@x.com'));
+  assert(cs.income.every(x => x.subject === 'chem')); assert.equal(cs.pays.length, 1); assert.equal(cs.totals.income, 1000);
+  assert.equal(cs.profiles[chemT.user.user_id].name, 'พี่เคมี');
+  // ปิดงวด → รายการโอนแยกวิชา × คน
+  const closed = ok(call('fin.close', { period: P }, adm));
+  assert.equal(closed.closed, true); assert.equal(closed.payouts.length, 5);
+  no(call('fin.expense.save', { date: today, subject: 'chem', amount: 10 }, adm), 'LOCKED');
+  const po = closed.payouts.find(x => x.user_id === chemT.user.user_id);
+  assert.equal(po.subject, 'chem'); assert.equal(po.amount, 560);
+  no(call('fin.payout.pay', { payout_id: po.payout_id }, adm), 'BAD_INPUT');
+  const before = M.outbox.length;
+  ok(call('fin.payout.pay', { payout_id: po.payout_id, slip: PH, note: 'KBank 1234' }, adm));
+  const mail = M.outbox[M.outbox.length - 1]; assert.equal(M.outbox.length, before + 1); assert.equal(mail.to, 'chem@x.com'); assert.equal(mail.attachments.length, 1); assert(/560/.test(mail.subject));
+  no(call('fin.payout.pay', { payout_id: po.payout_id, slip: PH }, adm), 'ALREADY');
+  no(call('fin.reopen', { period: P }, adm), 'LOCKED');
+  const mine = ok(C('fin.summary', { period: P }, chem, 'chem@x.com'));
+  assert.equal(mine.payouts.length, 1); assert.equal(mine.payouts[0].has_slip, true);
+  ok(C('fin.payout.slip', { payout_id: po.payout_id }, chem, 'chem@x.com'));
+  no(C('fin.payout.slip', { payout_id: po.payout_id }, phys, 'phys@x.com'), 'FORBIDDEN');
+});
+
+t('teacher profiles: auto from role, edit, used on course pages', () => {
+  let pr = ok(C('teacher.profile', {}, chem, 'chem@x.com'));
+  assert.equal(pr.display_name, 'พี่เคมี'); assert.equal(pr.auto, true);
+  no(C('teacher.profile.save', { display_name: 'พี่เคมี', photo_url: 'javascript:x' }, chem, 'chem@x.com'), 'BAD_INPUT');
+  pr = ok(C('teacher.profile.save', { display_name: 'พี่หมีลี่', title: 'สหเวช จุฬาฯ', bio: ['A-Level เคมี 87.5', '', 'TBAT 730'], photo_url: 'https://x/meely.jpg', bank_name: 'กสิกรไทย', account_name: 'วรานนท์', account_no: '012-3-45678-9' }, chem, 'chem@x.com'));
+  assert.deepEqual(pr.bio, ['A-Level เคมี 87.5', 'TBAT 730']);
+  // ครูแก้โปรไฟล์คนอื่นไม่ได้ (ได้ของตัวเองเสมอ)
+  const other = ok(C('teacher.profile', { user_id: physT.user.user_id }, chem, 'chem@x.com'));
+  assert.equal(other.user_id, chemT.user.user_id);
+  const list = ok(call('admin.teachers', {}, adm));
+  assert(list.find(x => x.user_id === chemT.user.user_id).has_bank);
+  no(C('admin.teachers', {}, chem, 'chem@x.com'), 'FORBIDDEN');
+  // ผูกคอร์สกับโปรไฟล์ → หน้าคอร์สและการ์ดใช้ชื่อและรูปจากโปรไฟล์
+  const c = ok(call('admin.courses', {}, adm)).find(x => x.course_id === CHEM);
+  ok(call('admin.course.save', Object.assign({}, c, { teacher_ids: [chemT.user.user_id, 'nope'] }), adm));
+  const d = ok(call('course.detail', { course_id: CHEM }));
+  assert.equal(d.instructors.length, 1); assert.equal(d.instructors[0].name, 'พี่หมีลี่'); assert.equal(d.instructors[0].photo, 'https://x/meely.jpg'); assert(/TBAT/.test(d.instructors[0].bio));
+  assert.equal(ok(call('courses.list', {})).find(x => x.course_id === CHEM).teachers[0].photo, 'https://x/meely.jpg');
+  // ครูเปลี่ยนผู้สอนของคอร์สเองไม่ได้
+  ok(C('admin.course.save', Object.assign({}, c, { teacher_ids: [] }), chem, 'chem@x.com'));
+  assert.equal(ok(call('course.detail', { course_id: CHEM })).instructors[0].name, 'พี่หมีลี่');
+});
+
+t('team: add/remove teacher auto-rebalances %, invite email, forced profile, course color and price requests', () => {
+  const NX = new Date(Date.now() + (7 + 17 * 24) * 36e5).toISOString().slice(0, 10);
+  const nt = reg('newt@x.com', 'ครู', 'ใหม่', 'พี่ใหม่');
+  const before = M.outbox.length;
+  no(call('admin.team.add', { email: 'nobody@x.com', subject: 'phys', from: NX }, adm), 'NOT_FOUND');
+  const r = ok(call('admin.team.add', { email: 'newt@x.com', subject: 'phys', from: NX }, adm));
+  assert.equal(r.parts.length, 2); assert.equal(r.parts.reduce((a, x) => a + x.pct, 0), 100); assert.equal(r.parts[0].pct, 50);
+  assert.equal(M.outbox.length, before + 1); assert(/tprofile/.test(M.outbox[M.outbox.length - 1].htmlBody));
+  no(call('admin.team.add', { email: 'newt@x.com', subject: 'phys', from: NX }, adm), 'ALREADY');
+  no(C('admin.team.add', { email: 'newt@x.com', subject: 'chem', from: NX }, chem, 'chem@x.com'), 'FORBIDDEN');
+  // ต้องล็อกอินใหม่ แล้วต้องกรอกโปรไฟล์ให้ครบ
+  const nts = login('newt@x.com');
+  assert.deepEqual(ok(call('me', {}, nts, 'newt@x.com')).profile_todo, ['name', 'photo', 'bank']);
+  ok(call('teacher.profile.save', { display_name: 'พี่ใหม่', photo_url: 'https://x/a.jpg', bank_name: 'กสิกร', account_name: 'ครู ใหม่', account_no: '1234567890' }, nts, 'newt@x.com'));
+  assert.deepEqual(ok(call('me', {}, nts, 'newt@x.com')).profile_todo, []);
+  // เพิ่มคนที่ 3 → แบ่งเท่ากัน
+  const t3 = reg('t3@x.com', 'ครู', 'สาม', 'พี่สาม');
+  const r3 = ok(call('admin.team.add', { email: 't3@x.com', subject: 'phys', from: NX }, adm));
+  assert.equal(r3.parts.length, 3); assert.equal(r3.parts.reduce((a, x) => a + x.pct, 0), 100);
+  // นำออก → คนที่เหลือได้ตามสัดส่วน · ถ้าไม่เหลือวิชาก็กลับเป็นนักเรียน
+  const rr = ok(call('admin.team.remove', { user_id: t3.user.user_id, subject: 'phys', from: NX }, adm));
+  assert.equal(rr.parts.length, 2); assert.equal(rr.parts[0].pct, 50);
+  assert.equal(ok(call('login', { email: 't3@x.com', password: 'secret123' }, null, 't3b')).user.role, 'student');
+  // สีประจำคอร์สและคำขอเปลี่ยนราคา
+  const c = ok(call('admin.courses', {}, adm)).find(x => x.course_id === CHEM);
+  no(C('admin.course.save', Object.assign({}, c, { accent: 'red' }), chem, 'chem@x.com'), 'BAD_INPUT');
+  ok(C('admin.course.save', Object.assign({}, c, { accent: '#E91E63', req_price: 590, req_status: c.status }), chem, 'chem@x.com'));
+  let c2 = ok(call('admin.courses', {}, adm)).find(x => x.course_id === CHEM);
+  assert.equal(c2.accent, '#e91e63'); assert.equal(String(c2.price), String(c.price)); assert.equal(JSON.parse(c2.pending_change).price, '590');
+  assert.equal(ok(call('courses.list', {})).find(x => x.course_id === CHEM).accent, '#e91e63');
+  no(C('admin.course.request', { course_id: CHEM, decision: 'approve' }, chem, 'chem@x.com'), 'FORBIDDEN');
+  ok(call('admin.course.request', { course_id: CHEM, decision: 'approve' }, adm));
+  c2 = ok(call('admin.courses', {}, adm)).find(x => x.course_id === CHEM);
+  assert.equal(String(c2.price), '590'); assert.equal(c2.pending_change, '');
+});
+
+// ── นักเรียนรุ่นเก่า ──
+t('legacy: import, auto match by name, duplicates go to queue, release', () => {
+  const early = reg('early@x.com', 'มานี', 'มีนา'); // สมัครก่อนนำเข้า
+  const r = ok(call('admin.legacy.import', { batch: 'ชีวะ รุ่น 68', course_ids: [BIO], rows: [
+    { first_name: 'นางสาวมานี', last_name: 'มีนา' }, { first_name: 'ปิติ', last_name: 'ยินดี' }, { first_name: 'ชูใจ', last_name: 'ใจดี' }, { first_name: 'ชูใจ', last_name: 'ใจดี' }, { first_name: 'x', last_name: '' }] }, adm));
+  assert.equal(r.added, 3); assert.equal(r.duplicate, 1); assert.deepEqual(r.invalid_rows, [5]); assert.equal(r.matched_existing, 1);
+  assert(ok(call('learn.get', { course_id: BIO }, early.token, 'early@x.com')));
+  ok(call('admin.legacy.import', { batch: 'ชีวะ รุ่น 67', course_ids: [BIO], rows: [{ first_name: 'ชูใจ', last_name: 'ใจดี' }] }, adm));
+  // สมัครใหม่ด้วยชื่อตรง (มีคำนำหน้า/ช่องว่าง) → ได้สิทธิ์ทันที
+  const piti = reg('piti@x.com', 'ด.ช. ปิติ', 'ยิน ดี');
+  assert.equal(piti.legacy.matched, true);
+  assert(ok(call('learn.get', { course_id: BIO }, piti.token, 'piti@x.com')));
+  assert.equal(ok(call('cart.quote', { course_ids: [BIO] }, piti.token, 'piti@x.com')).items[0].blocked, 'owned');
+  // ชื่อซ้ำ 2 รายการ → เข้าคิว
+  const chu = reg('chu@x.com', 'ชูใจ', 'ใจดี');
+  assert.equal(chu.legacy.queued, true);
+  no(call('learn.get', { course_id: BIO }, chu.token, 'chu@x.com'), 'NO_ACCESS');
+  // สวมรอย: ชื่อที่ถูกใช้แล้ว → เข้าคิว
+  const fake = reg('fake@x.com', 'ปิติ', 'ยินดี');
+  assert.equal(fake.legacy.queued, true);
+  // สะกดใกล้เคียง + กดแจ้งเอง
+  const near = reg('near@x.com', 'ปิติ', 'ยินดีย์');
+  assert.equal(near.legacy.matched, false); assert.equal(near.legacy.queued, undefined);
+  // (ชื่อใกล้เคียงกับรายชื่อที่ถูกใช้ไปแล้ว → ไม่มีตัวเลือกที่ว่าง จึงไม่เข้าคิว)
+  const L = ok(call('admin.legacy', { status: 'all' }, adm));
+  assert.equal(L.total, 4); assert.equal(L.claimed, 2); assert.equal(L.claims.length, 2);
+  const cq = L.claims.find(c => c.user.email === 'chu@x.com');
+  assert.equal(cq.candidates.length, 2);
+  ok(call('admin.legacy.decide', { claim_id: cq.claim_id, decision: 'approve', legacy_id: cq.candidates[0].legacy_id }, adm));
+  assert(ok(call('learn.get', { course_id: BIO }, chu.token, 'chu@x.com')));
+  // ตัวจริงของปิติถูกยืนยัน: ย้ายสิทธิ์จากบัญชีแรกไปบัญชีนี้
+  const fq = ok(call('admin.legacy', {}, adm)).claims.find(c => c.user.email === 'fake@x.com');
+  ok(call('admin.legacy.decide', { claim_id: fq.claim_id, decision: 'approve', legacy_id: fq.candidates[0].legacy_id }, adm));
+  assert(ok(call('learn.get', { course_id: BIO }, fake.token, 'fake@x.com')));
+  no(call('learn.get', { course_id: BIO }, piti.token, 'piti@x.com'), 'NO_ACCESS');
+  // ไม่นับเป็นรายรับ
+  const s = ok(call('fin.summary', { period: P }, adm));
+  assert(s.income.every(x => x.source !== 'legacy')); assert(s.free.legacy >= 3);
+  // ปล่อยรายชื่อ
+  const rec = ok(call('admin.legacy', { status: 'claimed' }, adm)).list.find(x => x.user && x.user.email === 'early@x.com');
+  ok(call('admin.legacy.release', { legacy_id: rec.legacy_id }, adm));
+  no(call('learn.get', { course_id: BIO }, early.token, 'early@x.com'), 'NO_ACCESS');
+  const again = ok(call('legacy.claim', {}, early.token, 'early@x.com'));
+  assert.equal(again.matched, true);
+  // คนเดียวอยู่ทั้งรายชื่อชีวะและเคมี + มีวงเล็บหมายเหตุ + นามสกุลหลายคำ → รับทั้งสองคอร์สอัตโนมัติ
+  ok(call('admin.legacy.import', { batch: 'bio-x', course_ids: [BIO], rows: [{ first_name: 'สุภัสสร', last_name: 'งอนรถ ณ อยุธยา(นร.เก่า)' }] }, adm));
+  ok(call('admin.legacy.import', { batch: 'chem-x', course_ids: [CHEM], rows: [{ first_name: 'สุภัสสร', last_name: 'งอนรถ ณ อยุธยา' }] }, adm));
+  const sp = reg('sp@x.com', 'น.ส.สุภัสสร', 'งอนรถ ณ อยุธยา');
+  assert.equal(sp.legacy.matched, true); assert.deepEqual(sp.legacy.courses.sort(), [BIO, CHEM].sort());
+  const nobody = reg('none@x.com', 'ไม่มี', 'ในรายชื่อ');
+  assert.match(ok(call('legacy.claim', {}, nobody.token, 'none@x.com')).message, /ไม่พบ/);
+});
+
+// ── เพลย์ลิสต์ ──
+t('playlist sync: add new clips, hide removed, restore, teacher scope', () => {
+  const PL = 'PL30fRiKuDivTESTTEST01';
+  ctx.__yt.titles[PL] = 'คอร์สเนื้อหา สอวน.เคมี';
+  ctx.__yt.playlists[PL] = [{ id: 'aaaaaaaaaa1', title: 'สอวน.เคมี Ep.1 ปรับพื้นฐาน', dur: 190 }, { id: 'aaaaaaaaaa2', title: 'สอวน.เคมี Ep.2 อะตอม', dur: 60 }, { id: 'aaaaaaaaaa3', title: 'Private video', dur: 0, priv: 'private' }];
+  const d = 'chem@x.com';
+  no(C('staff.playlists.save', { course_id: BIO, playlists: [{ url: PL }] }, chem, d), 'FORBIDDEN');
+  no(C('staff.playlists.save', { course_id: CHEM, playlists: [{ url: 'https://youtu.be/xx' }] }, chem, d), 'BAD_INPUT');
+  ok(C('staff.playlists.save', { course_id: CHEM, playlists: [{ url: 'https://www.youtube.com/watch?v=E4gjhNzuLdU&list=' + PL + '&pp=x', chapter: 'เนื้อหา', strip: 'สอวน.เคมี' }] }, chem, d));
+  const before = ok(C('admin.lessons', { course_id: CHEM }, chem, d)).length;
+  let r = ok(C('staff.course.sync', { course_id: CHEM }, chem, d));
+  assert.equal(r.added, 2); assert.deepEqual(r.titles, ['Ep.1 ปรับพื้นฐาน', 'Ep.2 อะตอม']);
+  let ls = ok(C('admin.lessons', { course_id: CHEM }, chem, d));
+  assert.equal(ls.length, before + 2); assert.equal(ls[ls.length - 2].duration_min, 190); assert.equal(ls[ls.length - 1].chapter, 'เนื้อหา');
+  r = ok(C('staff.course.sync', { course_id: CHEM }, chem, d)); assert.equal(r.added, 0);
+  // เพิ่มตอนใหม่ + เอาตอนเก่าออก
+  ctx.__yt.playlists[PL] = [{ id: 'aaaaaaaaaa2', title: 'Ep.2', dur: 60 }, { id: 'aaaaaaaaaa4', title: 'สอวน.เคมี Ep.3 ตารางธาตุ', dur: 75 }];
+  M.outbox.length = 0;
+  run('syncPlaylists()');
+  ls = ok(C('admin.lessons', { course_id: CHEM }, chem, d));
+  assert.equal(ls.find(l => l.youtube_id === 'aaaaaaaaaa1').hidden, true);
+  assert(ls.find(l => l.youtube_id === 'aaaaaaaaaa4'));
+  assert.equal(M.outbox[0].to, 'chem@x.com');
+  const pub = ok(call('course.detail', { course_id: CHEM }));
+  assert(!pub.chapters.some(ch => ch.lessons.some(l => l.title.indexOf('ปรับพื้นฐาน') >= 0)));
+  ctx.__yt.playlists[PL].unshift({ id: 'aaaaaaaaaa1', title: 'x', dur: 190 });
+  r = ok(C('staff.course.sync', { course_id: CHEM }, chem, d)); assert.equal(r.restored, 1);
+  // ตอนเดิมที่ใส่เองก่อนหน้า (youtube id เดียวกัน) ไม่ซ้ำ
+  const PL2 = 'PL30fRiKuDivTESTTEST02'; ctx.__yt.playlists[PL2] = [{ id: 'aaaaaaaaaa2', title: 'ซ้ำ', dur: 1 }];
+  ok(C('staff.playlists.save', { course_id: CHEM, playlists: [{ url: PL, chapter: 'เนื้อหา' }, { url: PL2, chapter: 'ตะลุยโจทย์' }] }, chem, d));
+  assert.equal(ok(C('staff.course.sync', { course_id: CHEM }, chem, d)).added, 0);
+});
+
+t('lesson files: only enrolled can open, teacher scope; chapter rename', () => {
+  const d = 'chem@x.com';
+  const L = ok(C('admin.lesson.save', { course_id: CHEM, chapter: 'บทเก่า', title: 'EP.1', youtube: 'zzzzzzzzzz1', is_preview: true }, chem, d));
+  no(C('staff.lesson.file.add', { lesson_id: L.lesson_id, name: 'x.pdf', mime: 'application/pdf', base64: 'eA==' }, phys, 'phys@x.com'), 'FORBIDDEN');
+  const fs1 = ok(C('staff.lesson.file.add', { lesson_id: L.lesson_id, name: 'ชีทบทที่ 1.pdf', mime: 'application/pdf', base64: Buffer.from('PDFDATA').toString('base64') }, chem, d));
+  assert.equal(fs1.length, 1); assert.equal(fs1[0].drive_id, undefined);
+  ok(C('staff.lesson.file.add', { lesson_id: L.lesson_id, name: 'ลิงก์', url: 'https://drive.google.com/x' }, chem, d));
+  // สาธารณะ (ตอนดูฟรี) ไม่เห็นไฟล์
+  const pub = ok(call('course.detail', { course_id: CHEM }));
+  assert(!JSON.stringify(pub).includes('ชีทบทที่ 1'));
+  const outsider = reg('out@x.com', 'คนนอก', 'ไม่ได้ซื้อ');
+  no(call('learn.file', { lesson_id: L.lesson_id, fid: fs1[0].fid }, outsider.token, 'out@x.com'), 'NO_ACCESS');
+  ok(call('admin.grant', { course_id: CHEM, email: 'out@x.com' }, adm));
+  const f = ok(call('learn.file', { lesson_id: L.lesson_id, fid: fs1[0].fid }, outsider.token, 'out@x.com'));
+  assert.equal(Buffer.from(f.base64, 'base64').toString(), 'PDFDATA');
+  const lg = ok(call('learn.get', { course_id: CHEM }, outsider.token, 'out@x.com'));
+  assert.equal(lg.chapters.flatMap(c => c.lessons).find(x => x.lesson_id === L.lesson_id).files.length, 2);
+  ok(C('staff.lesson.file.delete', { lesson_id: L.lesson_id, fid: fs1[0].fid }, chem, d));
+  no(call('learn.file', { lesson_id: L.lesson_id, fid: fs1[0].fid }, outsider.token, 'out@x.com'), 'NOT_FOUND');
+  // เปลี่ยนชื่อบท
+  no(C('staff.chapter.rename', { course_id: BIO, from: 'x', to: 'y' }, chem, d), 'FORBIDDEN');
+  const r = ok(C('staff.chapter.rename', { course_id: CHEM, from: 'บทเก่า', to: 'ปูพื้นฐาน›บทใหม่' }, chem, d));
+  assert.equal(r.chapter, 'ปูพื้นฐาน › บทใหม่');
+  assert(ok(C('admin.lessons', { course_id: CHEM }, chem, d)).some(l => l.chapter === 'ปูพื้นฐาน › บทใหม่'));
+});
+
+console.log(`\n${n} tests passed`);
