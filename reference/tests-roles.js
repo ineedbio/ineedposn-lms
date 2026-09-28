@@ -195,29 +195,74 @@ t('teacher profiles: auto from role, edit, used on course pages', () => {
   assert.equal(ok(call('course.detail', { course_id: CHEM })).instructors[0].name, 'พี่หมีลี่');
 });
 
-t('team: add/remove teacher auto-rebalances %, invite email, forced profile, course color and price requests', () => {
+t('team: multi-role, per-course ticks, other parts (not teachers), invite email with status', () => {
   const NX = new Date(Date.now() + (7 + 17 * 24) * 36e5).toISOString().slice(0, 10);
   const nt = reg('newt@x.com', 'ครู', 'ใหม่', 'พี่ใหม่');
   const before = M.outbox.length;
   no(call('admin.team.add', { email: 'nobody@x.com', subject: 'phys', from: NX }, adm), 'NOT_FOUND');
   const r = ok(call('admin.team.add', { email: 'newt@x.com', subject: 'phys', from: NX }, adm));
-  assert.equal(r.parts.length, 2); assert.equal(r.parts.reduce((a, x) => a + x.pct, 0), 100); assert.equal(r.parts[0].pct, 50);
-  assert.equal(M.outbox.length, before + 1); assert(/tprofile/.test(M.outbox[M.outbox.length - 1].htmlBody));
+  assert.equal(r.invite.ok, true); assert.equal(M.outbox.length, before + 1);
+  const mail = M.outbox[M.outbox.length - 1];
+  assert(/tprofile/.test(mail.htmlBody)); assert(/ยังขาด/.test(mail.htmlBody)); assert(/ฟิสิกส์/.test(mail.subject));
   no(call('admin.team.add', { email: 'newt@x.com', subject: 'phys', from: NX }, adm), 'ALREADY');
   no(C('admin.team.add', { email: 'newt@x.com', subject: 'chem', from: NX }, chem, 'chem@x.com'), 'FORBIDDEN');
   // ต้องล็อกอินใหม่ แล้วต้องกรอกโปรไฟล์ให้ครบ
   const nts = login('newt@x.com');
   assert.deepEqual(ok(call('me', {}, nts, 'newt@x.com')).profile_todo, ['name', 'photo', 'bank']);
+  // ดูตัวอย่างอีเมล (ไม่ส่งจริง) · ส่งอีกครั้ง · ส่งไม่สำเร็จต้องบอกและบันทึกไว้
+  const n0 = M.outbox.length;
+  const pv = ok(call('admin.teacher.invite', { user_id: nt.user.user_id, preview: true }, adm));
+  assert(/กรอกโปรไฟล์ผู้สอน/.test(pv.html)); assert.equal(pv.to, 'newt@x.com'); assert.equal(M.outbox.length, n0);
+  assert.equal(ok(call('admin.teacher.invite', { user_id: nt.user.user_id }, adm)).ok, true); assert.equal(M.outbox.length, n0 + 1);
+  run('var __q = MailApp.getRemainingDailyQuota; MailApp.getRemainingDailyQuota = function () { return 0; };');
+  const bad = ok(call('admin.teacher.invite', { user_id: nt.user.user_id }, adm));
+  assert.equal(bad.ok, false); assert(bad.error);
+  assert(ok(call('admin.teachers', {}, adm)).find(x => x.user_id === nt.user.user_id).invite_error);
+  run('MailApp.getRemainingDailyQuota = __q;');
+  ok(call('admin.teacher.invite', { user_id: nt.user.user_id }, adm));
+  const tl = ok(call('admin.teachers', {}, adm)).find(x => x.user_id === nt.user.user_id);
+  assert.equal(tl.invite_error, ''); assert(tl.invited_at); assert.deepEqual(tl.profile_todo, ['name', 'photo', 'bank']);
   ok(call('teacher.profile.save', { display_name: 'พี่ใหม่', photo_url: 'https://x/a.jpg', bank_name: 'กสิกร', account_name: 'ครู ใหม่', account_no: '1234567890' }, nts, 'newt@x.com'));
   assert.deepEqual(ok(call('me', {}, nts, 'newt@x.com')).profile_todo, []);
-  // เพิ่มคนที่ 3 → แบ่งเท่ากัน
-  const t3 = reg('t3@x.com', 'ครู', 'สาม', 'พี่สาม');
-  const r3 = ok(call('admin.team.add', { email: 't3@x.com', subject: 'phys', from: NX }, adm));
-  assert.equal(r3.parts.length, 3); assert.equal(r3.parts.reduce((a, x) => a + x.pct, 0), 100);
-  // นำออก → คนที่เหลือได้ตามสัดส่วน · ถ้าไม่เหลือวิชาก็กลับเป็นนักเรียน
-  const rr = ok(call('admin.team.remove', { user_id: t3.user.user_id, subject: 'phys', from: NX }, adm));
-  assert.equal(rr.parts.length, 2); assert.equal(rr.parts[0].pct, 50);
-  assert.equal(ok(call('login', { email: 't3@x.com', password: 'secret123' }, null, 't3b')).user.role, 'student');
+  // ยศหลายยศพร้อมกัน: แอดมิน + ผู้สอนชีวะ
+  const both = reg('both@x.com', 'ทั้ง', 'สอง', 'พี่สอง');
+  const ru = ok(call('admin.user.update', { user_id: both.user.user_id, roles: ['admin', 'teacher'], subjects: ['bio'] }, adm));
+  assert.equal(ru.invite.ok, true);
+  let bs = login('both@x.com'), me = ok(call('me', {}, bs, 'both@x.com'));
+  assert.deepEqual(me.roles, ['admin', 'teacher']); assert.equal(me.role, 'admin'); assert.deepEqual(me.subjects, ['bio']);
+  ok(call('admin.users', { q: '' }, bs, 'both@x.com'));
+  assert(ok(call('admin.teachers', {}, adm)).find(x => x.user_id === both.user.user_id).subjects.indexOf('bio') >= 0);
+  ok(call('admin.user.update', { user_id: both.user.user_id, roles: ['admin'] }, adm));
+  bs = login('both@x.com'); me = ok(call('me', {}, bs, 'both@x.com'));
+  assert.deepEqual(me.roles, ['admin']); assert.deepEqual(me.subjects, []); assert.deepEqual(me.profile_todo, []);
+  ok(call('admin.user.update', { user_id: both.user.user_id, roles: [] }, adm));
+  assert.equal(ok(call('login', { email: 'both@x.com', password: 'secret123' }, null, 'both2')).user.role, 'student');
+  // ติ๊กแยกคอร์ส: ผู้สอนได้ 70% ที่เหลือ 30% เป็นค่าหลังบ้าน (ไม่ใช่ผู้สอน ไม่ต้องมียศ)
+  const MC = courses.filter(c => c.subject === 'math').map(c => c.course_id), A_ = mathA.user.user_id, B_ = mathB.user.user_id;
+  no(call('fin.splits.save', { subject: 'math', from: NX, others: [{ label: 'ค่าหลังบ้าน', pct: 30 }], courses: { [MC[0]]: [{ user_id: A_, pct: 80 }] } }, adm), 'BAD_INPUT');
+  no(call('fin.splits.save', { subject: 'math', from: NX, others: [{ label: '', pct: 30 }], courses: {} }, adm), 'BAD_INPUT');
+  no(call('fin.splits.save', { subject: 'math', from: NX, others: [], courses: { [MC[0]]: [{ user_id: nt.user.user_id === 'x' ? '' : 'U_STUDENT', pct: 100 }] } }, adm), 'BAD_INPUT');
+  const sv = ok(call('fin.splits.save', { subject: 'math', from: NX, others: [{ label: 'ค่าหลังบ้าน', pct: 30 }], courses: { [MC[0]]: [{ user_id: A_, pct: 70 }], [MC[1]]: [{ user_id: A_, pct: 35 }, { user_id: B_, pct: 35 }] } }, adm));
+  assert(sv.courses.length >= MC.length);
+  const sf = (cid) => JSON.parse(run(`JSON.stringify(splitFor_(findOne_('Courses', function (c) { return c.course_id === '${cid}'; }), '${NX}T12:00:00+07:00', teachersAll_()))`));
+  let s0 = sf(MC[0]); assert.deepEqual(s0.parts.map(x => [x.user_id, Math.round(x.w * 100)]), [[A_, 70], ['o:ค่าหลังบ้าน', 30]]);
+  assert.equal(sf(MC[2]).parts.length, 0); // ไม่ได้ติ๊ก = ยังไม่มีผู้รับ
+  // เพิ่มพี่บีเข้าคอร์สแรก → ผู้สอนในคอร์สนั้นแบ่ง 70% เท่ากัน ค่าหลังบ้านคงเดิม
+  ok(call('admin.team.add', { user_id: B_, subject: 'math', from: NX, course_ids: [MC[0]] }, adm));
+  let v = ok(call('fin.splits', {}, adm)).splits.math.find(x => x.from === NX);
+  assert.deepEqual(v.courses[MC[0]].map(x => x.pct), [35, 35]); assert.equal(v.others[0].pct, 30);
+  // เงินจริง: ขายคอร์สแรก ฿1000 → พี่เอ 350 พี่บี 350 ค่าหลังบ้าน 300 เข้าสถาบัน
+  run(`append_('Enrollments', { enroll_id: 'EMX1', user_id: '${nt.user.user_id}', course_id: '${MC[0]}', status: 'approved', amount: '1000', source: 'bill', created_at: '${NX}T05:00:00.000Z', decided_at: '${NX}T05:00:00.000Z' })`);
+  const f = JSON.parse(run(`JSON.stringify(finCompute_(periodOf_('${NX}T12:00:00+07:00')))`));
+  const bm = f.by_subject.find(x => x.subject === 'math');
+  assert.equal(bm.pool_all, 1000); assert.equal(bm.kept, 300); assert.equal(bm.pool, 700); assert.equal(bm.others[0].label, 'ค่าหลังบ้าน');
+  const pm = f.pays.filter(x => x.subject === 'math');
+  assert.deepEqual(pm.map(x => x.share).sort(), [350, 350]); assert(!pm.some(x => /^o:/.test(x.user_id)));
+  // นำพี่เอออก → ส่วนของพี่เอในแต่ละคอร์สไปที่ผู้สอนที่เหลือของคอร์สนั้น
+  ok(call('admin.team.remove', { user_id: A_, subject: 'math', from: NX }, adm));
+  v = ok(call('fin.splits', {}, adm)).splits.math.find(x => x.from === NX);
+  assert.deepEqual(v.courses[MC[0]], [{ user_id: B_, pct: 70 }]); assert.deepEqual(v.courses[MC[1]], [{ user_id: B_, pct: 70 }]);
+  run(`deleteRows_('Enrollments', read_('Enrollments').filter(function (e) { return e.enroll_id === 'EMX1'; }))`);
   // สีประจำคอร์สและคำขอเปลี่ยนราคา
   const c = ok(call('admin.courses', {}, adm)).find(x => x.course_id === CHEM);
   no(C('admin.course.save', Object.assign({}, c, { accent: 'red' }), chem, 'chem@x.com'), 'BAD_INPUT');
