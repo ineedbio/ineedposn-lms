@@ -1,3 +1,4 @@
+/* INeedBio UI v2 รอบ 2 (r2) */
 /* ═══════════ ตั้งค่า: วาง URL ของ Apps Script Web App ที่นี่ ═══════════ */
 var API_URL = window.INEEDBIO_API_URL || 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 /* ฟีเจอร์ที่ยังไม่เปิดบนเว็บจริง (ต้องมี route ฝั่ง backend ก่อน) — เปิดทีหลังได้ใน app/page.tsx โดยตั้ง window.INEEDBIO_FEATURES ก่อนโหลดไฟล์นี้ */
@@ -383,20 +384,74 @@ function page(active, body, noFooter, skel) {
   var fresh = S.fresh, anim = fresh && !skel ? 'pg-enter' : 'pg-fade';
   if (!skel) S.fresh = false;
   if (fresh) { freshScroll(); setSubj(S.wantSubj); }
-  glideSnap(); $('#app').innerHTML = (DEMO ? '<div class="demo-bar">เดโม: ข้อมูลทั้งหมดเป็นตัวอย่างและอยู่ในเบราว์เซอร์นี้เท่านั้น รีเฟรชแล้วจะเริ่มใหม่<button class="uisw" data-uisw="1">' + (UI2() ? 'ดูหน้าแรกแบบเดิม' : 'ดูหน้าแรกแบบใหม่') + '</button></div>' : '') + header(active) + '<main class="gut ' + anim + '"><div class="w">' + body + '</div></main>' + (noFooter ? '' : footer()) +
+  var asTop = active === 'admin' && $('.aside') ? $('.aside').scrollTop : 0; glideSnap();
+  var tmp = document.createElement('div'); tmp.innerHTML = (DEMO ? '<div class="demo-bar">เดโม: ข้อมูลทั้งหมดเป็นตัวอย่างและอยู่ในเบราว์เซอร์นี้เท่านั้น รีเฟรชแล้วจะเริ่มใหม่<button class="uisw" data-uisw="1">' + (UI2() ? 'ดูหน้าแรกแบบเดิม' : 'ดูหน้าแรกแบบใหม่') + '</button></div>' : '') + header(active) + '<main class="gut ' + anim + '"><div class="w">' + body + '</div></main>' + (noFooter ? '' : footer()) +
     '<div class="fab"><a class="ig" href="https://www.instagram.com/' + esc(S.cfg.contact_ig || 'ineedbiochem') + '" target="_blank" rel="noopener" title="ทักแอดมินทาง IG" aria-label="ทักแอดมินทาง IG"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></svg></a><button data-top="1" title="กลับขึ้นบน" aria-label="กลับขึ้นบน"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>';
+  var app = $('#app');
+  if (!(UI2() && keepGlideBoxes(app, tmp))) { app.textContent = ''; while (tmp.firstChild) app.appendChild(tmp.firstChild); }
   fadeImgs();
   if (UI2() && !skel) v2Post();
+  if (asTop && $('.aside')) $('.aside').scrollTop = asTop;
   glideAll();
+}
+/** เมนูที่มีป้ายเลื่อน (หัวเว็บ เมนูมือถือ เมนูหลังบ้าน): ถ้าหน้าใหม่ใช้ลิงก์ชุดเดิม ไม่ถอดกล่องเมนูเดิมออกจากหน้าเลย
+ *  (ถอดออกแล้วใส่ใหม่ = ป้ายที่กำลังเลื่อนจะหยุดกระตุก) แต่เปลี่ยนเฉพาะส่วนอื่นของหน้ารอบ ๆ มัน คืนค่า false ถ้าใช้วิธีนี้ไม่ได้ */
+function keepGlideBoxes(app, tmp) {
+  var liveN = [], newN = [], kept = [];
+  ['.hdr .nav', '.mnav', '.aside'].forEach(function (sel) {
+    var ob = $(sel), nb = tmp.querySelector(sel); if (!ob || !nb || !app.contains(ob)) return;
+    var ol = $$('a', ob), nl = [].slice.call(nb.querySelectorAll('a'));
+    if (ol.length !== nl.length) return;
+    var pair = nl.map(function (a) { return ol.filter(function (o) { return o.getAttribute('href') === a.getAttribute('href'); })[0]; });
+    if (pair.some(function (o) { return !o; })) return;
+    var lc = [], nc = [], x = ob, y = nb;
+    while (x !== app && y !== tmp && x && y) { if (x.tagName !== y.tagName) return; lc.push(x); nc.push(y); x = x.parentNode; y = y.parentNode; }
+    if (x !== app || y !== tmp) return;
+    nl.forEach(function (a, k) { var o = pair[k]; if (o.className !== a.className) o.className = a.className; if (o.innerHTML !== a.innerHTML) o.innerHTML = a.innerHTML; ['aria-current', 'aria-pressed'].forEach(function (at) { if (a.hasAttribute(at)) o.setAttribute(at, a.getAttribute(at)); else o.removeAttribute(at); }); });
+    lc.forEach(function (n, k) { if (liveN.indexOf(n) < 0) { liveN.push(n); newN.push(nc[k]); } });
+    kept.push(ob);
+  });
+  if (!kept.length) return false;
+  var sync = function (L, N) {
+    if (kept.indexOf(L) >= 0) { var hg = L.classList.contains('has-glide'); L.className = N.className; if (hg) L.classList.add('has-glide'); return; }
+    if (L !== app) {
+      [].slice.call(L.attributes).forEach(function (at) { if (!N.hasAttribute(at.name)) L.removeAttribute(at.name); });
+      [].slice.call(N.attributes).forEach(function (at) { if (L.getAttribute(at.name) !== at.value) L.setAttribute(at.name, at.value); });
+    }
+    [].slice.call(L.childNodes).forEach(function (c) { if (liveN.indexOf(c) < 0) L.removeChild(c); });
+    var kids = [].slice.call(N.childNodes), anchor = null;
+    for (var i = kids.length - 1; i >= 0; i--) {
+      var k = kids[i], m = liveN[newN.indexOf(k)];
+      if (newN.indexOf(k) >= 0) { sync(m, k); anchor = m; }
+      else { L.insertBefore(k, anchor); anchor = k; }
+    }
+  };
+  sync(app, tmp);
+  return true;
 }
 function v2Post() {
   var ph = $('main .page-h'), w = $('main > .w');
+  if (ph && !$('.sk', ph)) phPics(ph);
   if (ph && w && ph.parentNode !== w) { var top = ph; while (top.parentNode && top.parentNode !== w) top = top.parentNode; if (top.parentNode === w) w.insertBefore(ph, top); }
   var ch = $('.cd .chero'), cd = $('.cd');
   if (!ch || !cd) return;
   cd.parentNode.insertBefore(ch, cd); ch.classList.add('v2b');
   var im = $('img', ch) || $('.cd img');
   if (im && im.getAttribute('src')) { var bg = document.createElement('div'); bg.className = 'v2bg'; bg.style.setProperty('--img', 'url("' + im.getAttribute('src').replace(/"/g, '') + '")'); ch.insertBefore(bg, ch.firstChild); }
+}
+/** รูปน้องที่ติดค่าย วางบนแถบหัวหน้าสีเข้ม (สลับชุดตามหน้า) */
+function phPics(ph) {
+  var put = function (all) {
+    if (!ph.isConnected || $('.ph-pics', ph)) return;
+    var ps = all.filter(function (r) { return r.photo_url; });
+    if (ps.length < 3) return;
+    var seed = (location.hash.length * 7 + new Date().getDate()) % ps.length, pick = [];
+    for (var i = 0; i < Math.min(4, ps.length); i++) pick.push(ps[(seed + i * 3) % ps.length]);
+    var rot = [-6, 4, -3, 6];
+    ph.classList.add('has-pics');
+    ph.insertAdjacentHTML('beforeend', '<div class="ph-pics" aria-hidden="true">' + pick.map(function (r, k) { return '<span class="ph-p" style="--r:' + rot[k] + 'deg"><img src="' + esc(imgSrc(r.photo_url)) + '" alt=""><b>' + esc(r.nickname) + '</b></span>'; }).join('') + '</div>');
+  };
+  if (S.results) put(S.results); else loadResults().then(put);
 }
 function skTiles(n) { var h = ''; for (var i = 0; i < n; i++) h += '<div class="sk-tile" style="padding:0;min-height:0;border-radius:16px;overflow:hidden"><div class="sk" style="aspect-ratio:16/9;border-radius:0"></div><div class="stack" style="padding:16px 18px 18px;gap:10px"><div class="sk sk-l" style="width:25%"></div><div class="sk sk-h"></div><div class="sk sk-l" style="width:60%"></div></div></div>'; return '<div class="grid">' + h + '</div>'; }
 function skeleton(kind) {
@@ -534,7 +589,7 @@ function viewHome2() {
         (list.length ? '<div class="v2-grid">' + list.map(function (c) { return ncCard(c, mine, S.mem.prog); }).join('') + '</div>' : '<div class="empty"><p>ไม่เจอคอร์สที่ตรงกับที่ค้นหา</p><button class="pill ghost" data-clear="all">ดูคอร์สทั้งหมด</button></div>');
       page('home', html + '</div>'); return;
     }
-    var feat = cs.slice(0, 5);
+    var feat = billboardCourses(cs);
     html += '<section class="bbd" id="bbd" aria-roledescription="carousel" aria-label="คอร์สแนะนำ">' + feat.map(function (c, i) {
       return '<div class="bbd-s' + sc(c.subject) + (i === 0 ? ' on' : '') + '" aria-hidden="' + (i !== 0) + '">' + (c.cover_url ? '<div class="bbd-bg" style="--img:url(\'' + esc(imgSrc(c.cover_url)) + '\')"></div>' : '') +
         '<div class="bbd-in"><div><span class="bbd-k"><i></i>' + esc(c.subject_name) + (c.level ? ' · ' + esc(c.level) : '') + '</span><h2>' + esc(c.title) + '</h2>' + (c.subtitle ? '<p class="sub">' + esc(c.subtitle) + '</p>' : '') +
@@ -554,7 +609,7 @@ function viewHome2() {
       html += rowHtml('s' + ri, ks.map(function (k) { return esc(subs[k]); }).join(' · '), t, row.map(function (c) { return ncCard(c, mine, prog); }).join(''), ks.length === 1 ? '<button class="link sm" data-fsub="' + ks[0] + '">ดูทั้งหมด</button>' : '');
     });
     if ((S.bundles || []).length) html += '<section class="rw"><div class="rw-h"><div><small>ซื้อคู่ถูกกว่า</small><h2>แพ็กเกจสุดคุ้ม</h2></div></div>' + bundleCards(S.bundles) + '</section>';
-    html += hofHtml();
+    html += hofHtml() + reviewsRow();
     var ic = function (d) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; };
     html += '<div class="prm"><div>' + ic('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>') + '<b>ดูได้ตลอดชีพ</b><span>ซื้อครั้งเดียว ไม่มีการลบคลิป</span></div>' +
       '<div>' + ic('<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>') + '<b>ชีทประกอบทุกบท</b><span>เปิดข้างคลิป จดตามได้ทันที</span></div>' +
@@ -569,6 +624,12 @@ function viewHome2() {
   if (S.user) jobs.push(api('my.courses').then(function (m) { var o = {}, pg = {}; m.forEach(function (x) { o[x.course_id] = x.enrollment; pg[x.course_id] = { pct: x.percent || 0, done: x.done_count || 0, last: x.last_lesson_id || '' }; }); S.mem.mine = o; S.mem.prog = pg; }).catch(function () {}));
   Promise.all(jobs).then(render).catch(function (e) { failed('home', e); });
   S.homeRender = render;
+}
+/** คอร์สบนแบนเนอร์ใหญ่: ตามที่แอดมินเลือกและเรียงไว้ (ตั้งค่า home_billboard) ถ้าไม่ได้เลือกใช้ 5 คอร์สแรก */
+function billboardCourses(cs) {
+  var ids = String(S.cfg.home_billboard || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  var picked = ids.map(function (id) { return cs.filter(function (c) { return c.course_id === id; })[0]; }).filter(Boolean);
+  return picked.length ? picked : cs.slice(0, 5);
 }
 function startBillboard() {
   clearInterval(S.featT);
@@ -592,29 +653,61 @@ function startBillboard() {
 /* ─── ป้ายสีเข้มเลื่อนตามปุ่มที่กด (เมนูหัวเว็บ เมนูมือถือ เมนูหลังบ้าน ปุ่มแบ่งกลุ่ม) ─── */
 var GLIDES = [['.hdr .nav', 'a.on'], ['.mnav', 'a.on'], ['.aside', 'a.on'], ['.seg', '[aria-pressed="true"]'], ['.lside', 'a.ep.on']];
 S.glide = {};
+var GLIDE_MS = 420;
+S.gAnim = {};
 function glideTo(box, act, key, instant) {
-  var ind = box.querySelector(':scope > .glide');
+  var ind = box.querySelector('.glide');
+  if (ind && ind.parentNode !== box) box.insertBefore(ind, box.firstChild);
+  var made = !ind;
   if (!ind) { ind = document.createElement('span'); ind.className = 'glide'; ind.setAttribute('aria-hidden', 'true'); box.insertBefore(ind, box.firstChild); }
-  if (!act) { ind.style.opacity = '0'; return; }
+  if (!act) { ind.style.opacity = '0'; delete S.gAnim[key]; return; }
   var br = box.getBoundingClientRect(), r = act.getBoundingClientRect();
   var to = { x: r.left - br.left + box.scrollLeft, y: r.top - br.top + box.scrollTop, w: r.width, h: r.height };
   var put = function (p) { ind.style.transform = 'translate(' + p.x + 'px,' + p.y + 'px)'; ind.style.width = p.w + 'px'; ind.style.height = p.h + 'px'; ind.style.opacity = '1'; };
-  var from = S.glide[key];
-  ind.style.transition = 'none'; put(instant || !from ? to : from); void ind.offsetWidth; ind.style.transition = ''; put(to);
+  var same = function (a, b) { return a && b && Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1 && Math.abs(a.w - b.w) < 1 && Math.abs(a.h - b.h) < 1; };
+  var from = S.glide[key], an = S.gAnim[key], now = Date.now(), left = GLIDE_MS;
+  if (!made && an && same(an.to, to) && ind.style.opacity !== '0') { S.glide[key] = to; return; }
+  // หน้าวาดใหม่ระหว่างที่ป้ายกำลังเลื่อนไปที่เดิม: เลื่อนต่อจากจุดที่อยู่ด้วยเวลาที่เหลือ ไม่เริ่มนับใหม่ (ไม่กระตุก ไม่ช้าลง)
+  if (an && same(an.to, to)) { left = GLIDE_MS - (now - an.t0); if (left < 40) instant = true; }
+  else S.gAnim[key] = { to: to, t0: now };
+  ind.style.transition = 'none'; put(instant || !from ? to : from); void ind.offsetWidth;
+  ind.style.transition = ''; if (left !== GLIDE_MS) ind.style.transitionDuration = [left, left, left, 200].map(function (v) { return Math.max(0, v) + 'ms'; }).join(',');
+  else ind.style.transitionDuration = '';
+  put(to);
   S.glide[key] = to;
 }
 /** ก่อนวาดหน้าใหม่ จำตำแหน่งที่ป้ายอยู่จริงตอนนี้ (แม้กำลังเลื่อนอยู่) แล้วให้ป้ายในหน้าใหม่เลื่อนต่อจากตรงนั้น */
 function glideSnap() {
   if (!UI2()) return;
   GLIDES.forEach(function (g) { $$(g[0]).forEach(function (box, n) {
-    var ind = box.querySelector(':scope > .glide'); if (!ind || ind.style.opacity === '0') return;
+    var ind = box.querySelector('.glide'); if (!ind || ind.style.opacity === '0') return;
     var br = box.getBoundingClientRect(), r = ind.getBoundingClientRect();
     S.glide[g[0] + n] = { x: r.left - br.left + box.scrollLeft, y: r.top - br.top + box.scrollTop, w: r.width, h: r.height };
   }); });
 }
 function glideAll() {
   if (!UI2()) return;
-  GLIDES.forEach(function (g) { $$(g[0]).forEach(function (box, n) { box.classList.add('has-glide'); glideTo(box, $(g[1], box), g[0] + n); }); });
+  GLIDES.forEach(function (g) { $$(g[0]).forEach(function (box, n) { box.classList.add('has-glide'); glideTo(box, $(g[1], box), g[0] + n); glideWatch(box, g[1], g[0] + n); }); });
+}
+/** ถ้าโครงเมนูเปลี่ยนหลังวาด (สคริปต์เสริมห่อกลุ่มเมนู ฟอนต์โหลดเสร็จ ขนาดกล่องเปลี่ยน) ให้ป้ายเลื่อนไปตำแหน่งใหม่ต่อจากจุดที่อยู่ */
+function glideWatch(box, sel, key) {
+  if (box._gw) return; box._gw = 1;
+  var again = function () {
+    clearTimeout(box._gwt);
+    box._gwt = setTimeout(function () {
+      if (!box.isConnected) return;
+      var ind = box.querySelector('.glide'), act = $(sel, box), an = S.gAnim[key];
+      if (act && an) { var br0 = box.getBoundingClientRect(), r0 = act.getBoundingClientRect(); if (Math.abs(r0.left - br0.left + box.scrollLeft - an.to.x) < 1 && Math.abs(r0.top - br0.top + box.scrollTop - an.to.y) < 1 && Math.abs(r0.width - an.to.w) < 1) return; }
+      if (ind && ind.style.opacity !== '0') { var br = box.getBoundingClientRect(), r = ind.getBoundingClientRect(); S.glide[key] = { x: r.left - br.left + box.scrollLeft, y: r.top - br.top + box.scrollTop, w: r.width, h: r.height }; }
+      glideTo(box, act, key);
+    }, 40);
+  };
+  var isG = function (nd) { return nd.nodeType === 1 && nd.classList.contains('glide'); };
+  if (window.MutationObserver) new MutationObserver(function (rs) {
+    if (rs.some(function (r) { return [].some.call(r.addedNodes, function (x) { return !isG(x); }) || [].some.call(r.removedNodes, function (x) { return !isG(x); }); })) again();
+  }).observe(box, { childList: true, subtree: true });
+  if (window.ResizeObserver) new ResizeObserver(again).observe(box);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(again);
 }
 document.addEventListener('click', function (e) {
   if (!UI2()) return;
@@ -663,6 +756,24 @@ function hofHtml() {
       }).join('') + '</div>'; };
       return '<div class="marq" style="--dur:' + Math.max(20, list.length * 3.2) + 's"><div class="marq-track">' + set(false) + set(true) + '</div></div>';
     })() + '<div class="rowx" style="margin-top:16px"><a class="pill ghost" href="#/results">อ่านรีวิวจากน้องๆ ทั้งหมด →</a></div></section>';
+}
+/** รีวิวโดยภาพรวมบนหน้าแรก: ข้อความ + ชื่อเล่น ไม่ผูกกับคอร์สหรือวิชา */
+function reviewsRow() {
+  var list = (S.results || []).filter(function (r) { return r.review && String(r.review).trim(); });
+  // รีวิวเพิ่มเติมที่ไม่ได้อยู่ในผลงานน้อง: ตั้ง window.INEEDBIO_EXTRA_REVIEWS = [{ nickname, text, photo_url? }] ก่อนโหลดหน้า
+  var seen = list.map(function (r) { return String(r.review).trim(); });
+  (Array.isArray(window.INEEDBIO_EXTRA_REVIEWS) ? window.INEEDBIO_EXTRA_REVIEWS : []).forEach(function (x, k) {
+    var t = String((x && (x.text || x.review)) || '').trim(); if (!t || seen.indexOf(t) >= 0) return; seen.push(t);
+    list.push({ result_id: 'xr' + k, nickname: String(x.nickname || x.name || 'น้อง INeedBio'), review: t, photo_url: x.photo_url || '' });
+  });
+  if (!list.length) return '';
+  // คละทุกวิชาทุกรุ่นปนกัน (สลับลำดับใหม่ทุกวัน)
+  var day = Math.floor(Date.now() / 864e5);
+  list = list.map(function (r, i) { return [((i + 1) * 2654435761 + day * 97) % 1000003, r]; }).sort(function (a, b) { return a[0] - b[0]; }).map(function (x) { return x[1]; });
+  var cards = list.map(function (r) {
+    return '<article class="grv"><p>' + esc(r.review) + '</p><div class="grv-by">' + stuPhoto(r, 'grv-ph') + '<b>' + esc(r.nickname) + '</b></div></article>';
+  }).join('');
+  return rowHtml('rv', 'Reviews', 'รีวิวจากน้องๆ', cards, '<a class="link sm" href="#/results">อ่านทั้งหมด</a>');
 }
 function reviewCard(r) {
   var subs = S.cfg.subjects || {};
@@ -1068,6 +1179,8 @@ function stopPlayer() {
   S.ytCtl = null; document.body.classList.remove('fake-fs-on');
 }
 /** el = กล่อง .player · opt.onEnd เรียกเมื่อดูจบ · opt.key ใช้จำตำแหน่งที่ดูค้างไว้ */
+var YTRATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+var YTQ = [[2160, 'ชัดสุด', 'highres'], [1080, '1080p', 'hd1080'], [720, '720p', 'hd720'], [480, '480p', 'large'], [360, '360p', 'medium']];
 function safePlayer(el, vid, wm, opt) {
   opt = opt || {};
   stopPlayer();
@@ -1078,7 +1191,8 @@ function safePlayer(el, vid, wm, opt) {
     '<div class="yt-bar"><input type="range" class="yt-seek" min="0" max="1000" value="0" step="1" aria-label="เลื่อนเวลา">' +
     '<div class="yt-row"><button class="yt-b" data-y="toggle" aria-label="เล่น/หยุด">' + PI.play + '</button><button class="yt-b" data-y="back" aria-label="ย้อน 10 วินาที">' + PI.back + '</button><button class="yt-b" data-y="fwd" aria-label="ข้าม 10 วินาที">' + PI.fwd + '</button>' +
     '<button class="yt-b" data-y="mute" aria-label="เปิด/ปิดเสียง">' + PI.vol + '</button><span class="yt-time">0:00 / 0:00</span><span style="flex:1"></span>' +
-    '<select class="yt-rate" aria-label="ความเร็ว">' + [0.75, 1, 1.25, 1.5, 1.75, 2].map(function (r) { return '<option value="' + r + '"' + (r === 1 ? ' selected' : '') + '>' + r + 'x</option>'; }).join('') + '</select>' +
+    '<select class="yt-q" aria-label="ความชัด">' + YTQ.map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('') + '</select>' +
+    '<select class="yt-rate" aria-label="ความเร็ว">' + YTRATES.map(function (r) { return '<option value="' + r + '"' + (r === 1 ? ' selected' : '') + '>' + r + 'x</option>'; }).join('') + '</select>' +
     '<button class="yt-b" data-y="fs" aria-label="เต็มจอ">' + PI.fs + '</button></div></div>';
   var P = null, dur = 0, drag = false, hideT = null, ended = false, posKey = opt.key ? 'ib_pos_' + opt.key : '';
   var seek = $('.yt-seek', el), time = $('.yt-time', el), msg = $('.yt-msg', el), tgl = $('[data-y=toggle]', el), mb = $('[data-y=mute]', el);
@@ -1111,16 +1225,36 @@ function safePlayer(el, vid, wm, opt) {
   $$('.yt-b', el).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var y = b.dataset.y; if (y === 'toggle') toggle(); else if (y === 'back') jump(-10); else if (y === 'fwd') jump(10); else if (y === 'mute') S.ytCtl.mute(); else if (y === 'fs') fs(); wake(); }; });
   seek.oninput = function () { drag = true; seek.style.setProperty('--p', (seek.value / 10) + '%'); time.textContent = fmtT(seek.value / 1000 * dur) + ' / ' + fmtT(dur); };
   seek.onchange = function () { drag = false; if (P && dur) { P.seekTo(seek.value / 1000 * dur, true); ended = false; } wake(); };
-  $('.yt-rate', el).onchange = function () { if (P) P.setPlaybackRate(Number(this.value)); store('ib_rate', this.value); wake(); };
-  var savedRate = Number(store('ib_rate')) || 1; $('.yt-rate', el).value = String(savedRate);
+  var rateSel = $('.yt-rate', el), qSel = $('.yt-q', el);
+  var setRate = function (r) {
+    if (!P) return;
+    P.setPlaybackRate(r);
+    setTimeout(function () { var got = P.getPlaybackRate ? P.getPlaybackRate() : r; if (Math.abs(got - r) > 0.01) { rateSel.value = String(got); toast('YouTube เล่นได้เร็วสุด ' + got + 'x สำหรับคลิปนี้'); } }, 400);
+  };
+  rateSel.onchange = function () { setRate(Number(this.value)); store('ib_rate', this.value); wake(); };
+  var savedRate = Number(store('ib_rate')) || 1; rateSel.value = String(savedRate);
+  // ความชัด: YouTube เลือกความละเอียดตามขนาดกรอบ เลยวาดกรอบคลิปให้ใหญ่ตามความชัดที่เลือกแล้วย่อลงให้พอดีจอ
+  var qH = Number(store('ib_q')) || YTQ[0][0]; qSel.value = String(qH);
+  var crop = $('.yt-crop', el);
+  var fit = function () {
+    var ifr = $('iframe', crop); if (!ifr) return;
+    var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
+    var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, sc = Math.min(1, vh / qH);
+    var st = ifr.style;
+    st.setProperty('width', (vw / sc) + 'px', 'important'); st.setProperty('height', ((vh + 140) / sc) + 'px', 'important');
+    st.setProperty('left', ((W - vw) / 2) + 'px', 'important'); st.setProperty('top', ((H - vh) / 2 - 70) + 'px', 'important');
+    st.setProperty('transform', 'scale(' + sc + ')', 'important'); st.setProperty('transform-origin', '0 0', 'important');
+  };
+  qSel.onchange = function () { qH = Number(this.value); store('ib_q', this.value); fit(); if (P && P.setPlaybackQuality) try { P.setPlaybackQuality(YTQ.filter(function (q) { return q[0] === qH; })[0][2]); } catch (e) {} wake(); };
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(crop); else window.addEventListener('resize', fit);
   loadYT().then(function () {
     if (!document.body.contains(el)) return;
     P = new YT.Player('yt-host', {
       videoId: vid, host: 'https://www.youtube-nocookie.com',
-      playerVars: (function () { var v = { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0 }; if (/^https?:/.test(location.origin)) v.origin = location.origin; return v; })(),
+      playerVars: (function () { var v = { vq: (YTQ.filter(function (q) { return q[0] === qH; })[0] || YTQ[0])[2], controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0 }; if (/^https?:/.test(location.origin)) v.origin = location.origin; return v; })(),
       events: {
         onReady: function () {
-          S.yt = P; dur = P.getDuration() || 0; if (savedRate !== 1) P.setPlaybackRate(savedRate);
+          S.yt = P; dur = P.getDuration() || 0; fit(); if (savedRate !== 1) setRate(savedRate);
           var ifr = P.getIframe && P.getIframe(); if (ifr) { ifr.setAttribute('tabindex', '-1'); ifr.setAttribute('title', 'คลิปเรียน'); }
           var sv = posKey ? Number(store(posKey)) : 0;
           if (sv > 10 && (!dur || sv < dur - 20)) { P.cueVideoById({ videoId: vid, startSeconds: sv }); msg.textContent = 'ดูค้างไว้ที่ ' + fmtT(sv) + ' · กดเล่นเพื่อดูต่อ'; }
@@ -1493,6 +1627,13 @@ function viewLearn(cid, lid) {
     if (!all.length) { page('my', '<div class="empty" style="margin-block:60px"><p>คอร์สนี้ยังไม่มีบทเรียน</p><a class="pill" href="#/my">กลับ</a></div>'); return; }
     var cur = all.filter(function (l) { return l.lesson_id === lid; })[0] || all.filter(function (l) { return !l.done; })[0] || all[0];
     var i = all.indexOf(cur), done = all.filter(function (l) { return l.done; }).length, pct = Math.round(done / all.length * 100);
+    // ชวนรีวิวแค่ 2 จังหวะต่อคอร์ส: เรียนได้ครึ่งทาง กับใกล้จบ (กด "ไว้ทีหลัง" แล้วจะไม่ขึ้นอีกจนถึงจังหวะถัดไป) รีวิวได้คอร์สละ 1 ครั้ง
+    // แต่ละจังหวะขึ้นแค่ตอนเดียว (ตอนแรกที่ถึงจังหวะนั้น) ไปตอนอื่นแล้วจะไม่ขึ้นซ้ำ
+    var rvSeen = String(store('ib_rvseen_' + cid) || '').split(':'), rvStage = pct >= 90 || (i === all.length - 1 && pct >= 50) ? 'end' : pct >= 50 ? 'mid' : '';
+    if (rvSeen[0] === 'end' && rvStage === 'mid') rvStage = '';
+    if (rvStage && rvSeen[0] === rvStage && rvSeen[1] !== cur.lesson_id) rvStage = '';
+    if (!feat('reviews') || c.preview || c.reviewed) rvStage = '';
+    if (rvStage) store('ib_rvseen_' + cid, rvStage + ':' + cur.lesson_id);
     var chap = c.chapters.filter(function (ch) { return ch.lessons.indexOf(cur) >= 0; })[0];
     setSubj(c.subject);
     document.body.classList.remove('has-mnav');
@@ -1505,7 +1646,7 @@ function viewLearn(cid, lid) {
       '<button class="pill ' + (cur.done ? 'ghost' : '') + '" id="done-btn">' + (cur.done ? '✓ ดูจบแล้ว' : 'ทำเครื่องหมายว่าดูจบ') + '</button></div>' +
       ((cur.files && cur.files.length) || cur.attachment_url ? '<div class="files">' + (cur.files || []).map(function (f) { return '<button type="button" class="file" data-lf="' + esc(f.fid) + '"><b>' + esc(fileTag(f)) + '</b><span>' + esc(f.name) + (f.size ? ' <span class="sub" style="display:inline">· ' + fmtSize(f.size) + '</span>' : '') + '</span></button>'; }).join('') +
         (cur.attachment_url ? '<a class="file" href="' + esc(cur.attachment_url) + '" target="_blank" rel="noopener"><b>PDF</b>ไฟล์ประกอบตอนนี้</a>' : '') + '</div>' : '') +
-      (feat('reviews') && !c.preview && !c.reviewed ? '<div class="lrv" id="lrv"><div class="spread"><b>เรียนคอร์สนี้แล้วเป็นยังไงบ้าง?</b>' + (cellsOn() ? '<span class="sm muted">รีวิวรับ ' + (c.review_cells || 5) + ' เซลล์</span>' : '') + '</div>' +
+      (rvStage ? '<div class="lrv" id="lrv" data-stage="' + rvStage + '"><div class="spread"><b>' + (rvStage === 'end' ? 'ใกล้จบคอร์สแล้ว ช่วยรีวิวให้รุ่นน้องหน่อย' : 'เรียนมาครึ่งทางแล้ว เป็นยังไงบ้าง?') + '</b><span class="rowx" style="gap:8px">' + (cellsOn() ? '<span class="sm muted">รีวิวรับ ' + (c.review_cells || 5) + ' เซลล์ (ครั้งเดียว)</span>' : '') + '<button type="button" class="link sm" id="lrv-skip">ไว้ทีหลัง</button></span></div>' +
         '<div class="lrv-st" role="radiogroup" aria-label="ให้คะแนนคอร์ส">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" data-st="' + n + '" aria-label="' + n + ' ดาว">★</button>'; }).join('') + '</div>' +
         '<div id="lrv-more" hidden class="stack" style="gap:8px"><textarea class="i" id="lrv-t" rows="3" maxlength="1000" placeholder="เล่าให้รุ่นน้องฟังหน่อย เช่น ตรงไหนช่วยได้มาก เรียนแล้วสอบเป็นยังไง (อย่างน้อย 20 ตัวอักษร)"></textarea><p class="err" id="lrv-err" hidden></p><button class="pill s" id="lrv-go" style="justify-self:start">ส่งรีวิว</button></div></div>' : '') +
       '<div class="spread" style="border-top:1px solid var(--line);padding-top:16px">' +
@@ -1549,6 +1690,7 @@ function viewLearn(cid, lid) {
     } });
     if (!DEMO && !c.preview) startStudyPing(cur.lesson_id);
     if ($('#lrv')) {
+      $('#lrv-skip').onclick = function () { store('ib_rvseen_' + cid, $('#lrv').dataset.stage + ':-'); $('#lrv').remove(); };
       var rsv = 0, paint = function (n) { $$('[data-st]').forEach(function (b) { b.classList.toggle('on', Number(b.dataset.st) <= n); }); };
       $$('[data-st]').forEach(function (b) { b.onclick = function () { rsv = Number(b.dataset.st); paint(rsv); $('#lrv-more').hidden = false; }; b.onmouseenter = function () { paint(Number(b.dataset.st)); }; b.onmouseleave = function () { paint(rsv); }; });
       $('#lrv-go').onclick = function () {
@@ -2132,10 +2274,31 @@ function aUsers(shell) {
     });
   }).catch(function (e) { shell('<p class="err">' + esc(e.message) + '</p>'); });
 }
+function bbSetup() {
+  var box = $('#bbset'), inp = $('#f-home_billboard'); if (!box || !inp) return;
+  api('courses.list').then(function (cs) {
+    var by = {}; cs.forEach(function (c) { by[c.course_id] = c; });
+    var ids = inp.value.split(',').map(function (x) { return x.trim(); }).filter(function (x) { return by[x]; });
+    var draw = function () {
+      inp.value = ids.join(',');
+      box.innerHTML = (ids.length ? '<ol class="bbl">' + ids.map(function (id, i) { var c = by[id];
+        return '<li><span class="bbl-n">' + (i + 1) + '</span>' + (c.cover_url ? '<img src="' + esc(imgSrc(c.cover_url)) + '" alt="">' : '<span class="bbl-img"></span>') + '<span class="bbl-t"><b>' + esc(c.title) + '</b><small>' + esc(c.subject_name || '') + '</small></span>' +
+          '<span class="bbl-a"><button type="button" class="pill quiet s" data-bbm="' + i + '" data-d="-1"' + (i ? '' : ' disabled') + ' aria-label="เลื่อนขึ้น">↑</button><button type="button" class="pill quiet s" data-bbm="' + i + '" data-d="1"' + (i < ids.length - 1 ? '' : ' disabled') + ' aria-label="เลื่อนลง">↓</button><button type="button" class="pill ghost s" data-bbx="' + i + '">เอาออก</button></span></li>'; }).join('') + '</ol>'
+        : '<p class="hint">ยังไม่ได้เลือก ตอนนี้แบนเนอร์ใช้ 5 คอร์สแรก</p>') +
+        (cs.length > ids.length ? '<select class="i" id="bbadd" aria-label="เพิ่มคอร์สขึ้นแบนเนอร์"><option value="">+ เพิ่มคอร์สขึ้นแบนเนอร์</option>' + cs.filter(function (c) { return ids.indexOf(c.course_id) < 0; }).map(function (c) { return '<option value="' + esc(c.course_id) + '">' + esc(c.title) + '</option>'; }).join('') + '</select>' : '');
+      $$('[data-bbm]', box).forEach(function (b) { b.onclick = function () { var i = +b.dataset.bbm, j = i + Number(b.dataset.d), t = ids[i]; ids[i] = ids[j]; ids[j] = t; draw(); }; });
+      $$('[data-bbx]', box).forEach(function (b) { b.onclick = function () { ids.splice(+b.dataset.bbx, 1); draw(); }; });
+      var ad = $('#bbadd', box); if (ad) ad.onchange = function () { if (ad.value) { ids.push(ad.value); draw(); } };
+    };
+    draw();
+  }).catch(function () { box.innerHTML = '<p class="hint">โหลดรายชื่อคอร์สไม่ได้</p>'; });
+}
 function aSettings(shell) {
   api('admin.settings').then(function (s) {
     shell('<h1>ตั้งค่า</h1><form class="card form" id="sf" style="max-width:640px">' +
       '<h3 style="font-size:16px">หน้าแรก</h3>' + field('hero_eyebrow', 'ข้อความเล็กเหนือหัวข้อ', s.hero_eyebrow) + field('hero_title', 'หัวข้อใหญ่ (ใส่ | เพื่อขึ้นบรรทัดใหม่ บรรทัดที่ 2 จะเป็นสีเขียว)', s.hero_title) + field('hero_subtitle', 'ข้อความใต้หัวข้อ', s.hero_subtitle) +
+      '<h3 style="font-size:16px;margin-top:6px">แบนเนอร์ใหญ่หน้าแรก</h3><p class="hint" style="margin-top:-6px">เลือกคอร์สที่จะขึ้นแบนเนอร์ใหญ่ และเรียงลำดับด้วยลูกศร (อันดับ 1 ขึ้นก่อน) ถ้าไม่เลือกเลย เว็บจะใช้ 5 คอร์สแรก กดบันทึกด้านล่างเพื่อใช้</p>' +
+      '<input type="hidden" name="home_billboard" id="f-home_billboard" value="' + esc(s.home_billboard || '') + '"><div class="bbset" id="bbset"><p class="hint">กำลังโหลดคอร์ส…</p></div>' +
       '<h3 style="font-size:16px;margin-top:6px">ทั่วไป</h3>' + field('announcement', 'ประกาศบนหัวเว็บ (เว้นว่างเพื่อซ่อน)', s.announcement, { ph: 'เช่น เปิดรับสมัครคอร์สชีววิทยา สอวน. รอบ 2027 แล้ว' }) +
       (feat('cells') ? field('cells_enabled', 'ระบบเซลล์แบ่งตัว (สะสมวันเรียนต่อเนื่อง แลกโค้ดลด)', s.cells_enabled || '1', { options: [['1', 'เปิด'], ['0', 'ปิด']] }) : '') +
       (feat('fest') ? field('event_mode', 'ธีมเทศกาล (ทับธีมของทุกคนชั่วคราว น้องกดกลับไปใช้ธีมตัวเองได้)', s.event_mode || 'auto', { options: [['auto', 'อัตโนมัติตามปฏิทิน · ฮาโลวีน 1–31 ต.ค. · คริสต์มาส 1–31 ธ.ค.'], ['off', 'ปิด'], ['halloween', 'ฮาโลวีน ตั้งแต่ตอนนี้'], ['christmas', 'คริสต์มาส ตั้งแต่ตอนนี้']] }) : '') +
@@ -2152,6 +2315,7 @@ function aSettings(shell) {
       field('admin_emails', 'อีเมลที่รับแจ้งเตือนคำขอใหม่ (คั่นด้วย , )', s.admin_emails, { ph: 'a@gmail.com, b@gmail.com' }) +
       '<p class="err" id="sf-err" hidden></p><button class="pill" style="justify-self:start">บันทึก</button></form>');
     $('#copy-legal').onclick = function () { if (!$('#f-terms_text').value) $('#f-terms_text').value = DEFAULT_TERMS; if (!$('#f-privacy_text').value) $('#f-privacy_text').value = DEFAULT_PRIVACY; };
+    bbSetup();
     submitForm('#sf', 'admin.settings.save', '#sf-err', function () { toast('บันทึกแล้ว'); api('config').then(function (c) { S.cfg = c; }); });
   }).catch(function (e) { shell('<p class="err">' + esc(e.message) + '</p>'); });
 }
