@@ -8,7 +8,7 @@ import type { Course, Expense, Lesson, Payment, Prisma, Subject, User } from "@p
 import { prisma } from "../prisma";
 import { subjectKey } from "./subjects";
 import {
-  activate, adminEmails, auth, courseBySlug, getSetting, ig, isAdminUser, log, rate, setSetting, siteUrlOf, subjectsOf, canSubject,
+  activate, adminEmails, auth, courseBySlug, getSetting, ig, isAdminUser, isStaffUser, isTeacherUser, log, rate, rolesOf, setSetting, siteUrlOf, subjectsOf, teachSubjects, canSubject,
   type Ctx, type Data,
 } from "./api";
 import { sendNotice, sendPayoutEmail } from "./mail";
@@ -200,7 +200,20 @@ const teachersAll = () => prisma.user.findMany({ where: { role: { in: ["ADMIN", 
 type Split = { user_id: string; pct: number };
 const splitList = (v: Prisma.JsonValue): Split[] => (Array.isArray(v) ? (v as Split[]) : []);
 /** Owner-set split per subject with a start date: { chem: [{ from: "2026-10-01", parts: [{ user_id, pct }] }] } */
-type SplitVersion = { from: string; parts: Split[] };
+/** A version of a subject's split. Older: { from, parts } for every course of the subject. Newer (ticked per
+ *  course): { from, others: [{ label, pct }], courses: { <course_id>: [{ user_id, pct }] } } — "others" are parts
+ *  that are not teachers (e.g. ค่าหลังบ้าน): kept by INeedBio, no transfer. */
+type Other = { label: string; pct: number };
+type SplitVersion = { from: string; parts?: (Split & { kind?: string; label?: string })[]; others?: Other[]; courses?: Record<string, Split[]> };
+type VerPart = { user_id?: string; kind?: "other"; label?: string; pct: number };
+/** One course's parts in a version: its ticked teachers + the "others", or the older subject-wide parts. */
+function verParts(v: SplitVersion, cid: string): VerPart[] {
+  if (v.courses) return [
+    ...(v.courses[cid] || []).map((x): VerPart => ({ user_id: x.user_id, pct: Number(x.pct) })),
+    ...(v.others || []).map((x): VerPart => ({ kind: "other", label: x.label, pct: Number(x.pct) })),
+  ];
+  return (v.parts || []).map((x): VerPart => (x.kind === "other" ? { kind: "other", label: x.label, pct: Number(x.pct) } : { user_id: x.user_id, pct: Number(x.pct) }));
+}
 export async function subjectSplits(): Promise<Record<string, SplitVersion[]>> {
   let o: Record<string, SplitVersion[]> = {};
   try { o = JSON.parse((await getSetting("subject_splits")) || "{}") || {}; } catch {}
@@ -212,18 +225,20 @@ function splitFor(c: Course & { subject: Subject }, when: Date | string, teacher
   const day = new Date(new Date(when).getTime() + 7 * 36e5).toISOString().slice(0, 10), k = subjectKey(c.subject);
   const vs = (SS[k] || []).filter((v) => v.from <= day), v = vs[vs.length - 1];
   if (v) {
-    const parts = (v.parts || []).filter((x) => Number(x.pct) > 0 && teachers.some((t) => t.id === x.user_id));
+    const parts = verParts(v, c.slug).filter((x) => Number(x.pct) > 0 && (x.kind === "other" ? !!x.label : teachers.some((t) => t.id === x.user_id)));
+    // Ticked per course: a course no teacher is ticked on has nobody to share with yet (all of it stays with INeedBio).
+    if (v.courses && !parts.some((x) => x.kind !== "other")) return { custom: true, parts: [] };
     const tot = parts.reduce((a, x) => a + Number(x.pct), 0);
-    if (tot > 0) return { custom: true, parts: parts.map((x) => ({ user_id: x.user_id, w: Number(x.pct) / tot })) };
+    if (tot > 0) return { custom: true, parts: parts.map((x) => ({ user_id: x.kind === "other" ? "o:" + x.label : x.user_id!, w: Number(x.pct) / tot })) };
   }
-  return splitOf(c, teachers.filter((t) => t.role === "INSTRUCTOR" || splitList(c.teacherSplit).some((x) => x.user_id === t.id)));
+  return splitOf(c, teachers.filter((t) => isTeacherUser(t) || splitList(c.teacherSplit).some((x) => x.user_id === t.id)));
 }
 /** Teachers' shares of a course: set per course, else split equally among the subject's teachers. */
 function splitOf(c: Course & { subject: Subject }, teachers: User[]) {
   const sp = splitList(c.teacherSplit).filter((x) => Number(x.pct) > 0 && teachers.some((t) => t.id === x.user_id));
   const tot = sp.reduce((a, x) => a + Number(x.pct), 0);
   if (tot > 0) return { custom: true, parts: sp.map((x) => ({ user_id: x.user_id, w: Number(x.pct) / tot })) };
-  const k = subjectKey(c.subject), ts = teachers.filter((t) => t.role === "INSTRUCTOR" && subjectsOf(t).includes(k));
+  const k = subjectKey(c.subject), ts = teachers.filter((t) => teachSubjects(t).includes(k));
   return { custom: false, parts: ts.map((t) => ({ user_id: t.id, w: 1 / ts.length })) };
 }
 const expenseDate = (x: Expense) => bkkDate(x.date);
@@ -238,10 +253,14 @@ type Income = {
   enroll_id: string; order_number?: string; note?: string; dup_of?: string; date: string; course_id: string; course_title: string; subject: string; amount: number; source: string; source_label: string;
   student: string; nickname: string; bill_id: string; has_slip: boolean; account_label: string; held_by: string; revoked: boolean;
 };
-type SubjRow = { subject: string; name: string; income: number; expense: number; net: number; pct: number; platform: number; pool: number; unassigned: number; custom_missing: string[] };
+type SubjRow = {
+  subject: string; name: string; income: number; expense: number; net: number; pct: number; platform: number; pool: number; unassigned: number; custom_missing: string[];
+  /** parts that are not teachers (ค่าหลังบ้าน …): kept by INeedBio · pool_all = everything shared, pool = the teachers' part */
+  others?: { label: string; pct: number; amount: number }[]; kept?: number; pool_all?: number;
+};
 type TeacherRow = { user_id: string; name: string; subjects: string[]; share: number; held: number; settle?: number };
 /** What one person gets from one subject in a period (a payout row when the period closes). */
-type PayRow = { subject: string; user_id: string; name: string; pct: number; share: number; held: number; settle: number };
+type PayRow = { subject: string; user_id: string; name: string; pct: number; share: number; held: number; settle: number; courses: string[] };
 
 /** The whole month (all subjects); trimmed to what the viewer may see afterwards. */
 async function finCompute(pr: string) {
@@ -287,14 +306,19 @@ async function finCompute(pr: string) {
   const expenses = exps.map((x) => expenseOut(x, recorders)).sort((a, b) => (a.date < b.date ? 1 : -1));
   const uname = (id: string) => userName(users.find((u) => u.id === id));
   const subj: Record<string, SubjRow> = {}, tt: Record<string, TeacherRow> = {}, tw: Record<string, Record<string, number>> = {};
+  const tc: Record<string, Record<string, string[]>> = {}; // courses each person got a share from
   for (const k of SUBJECTS()) subj[k] = { subject: k, name: APP.SUBJECTS[k], income: 0, expense: 0, net: 0, pct: pct[k], platform: 0, pool: 0, unassigned: 0, custom_missing: [] };
   for (const it of income) {
     const S0 = subj[it.subject]; if (!S0) continue;
     S0.income += it.amount;
     const c = courses.find((x) => x.slug === it.course_id)!, sp = splitFor(c, it.date, teachers, SS);
     if (!sp.parts.length) { S0.unassigned += it.amount; continue; }
-    tw[it.subject] = tw[it.subject] || {};
-    for (const x of sp.parts) tw[it.subject][x.user_id] = (tw[it.subject][x.user_id] || 0) + it.amount * x.w;
+    tw[it.subject] = tw[it.subject] || {}; tc[it.subject] = tc[it.subject] || {};
+    for (const x of sp.parts) {
+      tw[it.subject][x.user_id] = (tw[it.subject][x.user_id] || 0) + it.amount * x.w;
+      const L = (tc[it.subject][x.user_id] = tc[it.subject][x.user_id] || []);
+      if (!L.includes(it.course_title)) L.push(it.course_title);
+    }
   }
   for (const x of expenses) if (x.status === "approved" && subj[x.subject]) subj[x.subject].expense += x.amount;
   const shared = expenses.filter((x) => x.status === "approved" && !subj[x.subject]).reduce((a, x) => a + x.amount, 0);
@@ -306,16 +330,21 @@ async function finCompute(pr: string) {
     const expAssigned = S0.income > 0 ? (S0.expense * assigned) / S0.income : Object.keys(tw[k] || {}).length ? S0.expense : 0;
     S0.pool = r2((assigned - expAssigned) * (1 - S0.pct / 100));
     S0.platform = r2(S0.net - S0.pool);
-    const totW = Object.values(tw[k] || {}).reduce((a, v) => a + v, 0);
+    const totW = Object.values(tw[k] || {}).reduce((a, v) => a + v, 0), P = S0.pool;
+    // Parts that are not teachers (e.g. ค่าหลังบ้าน): kept by INeedBio, no transfer · separate from expenses
+    S0.others = Object.keys(tw[k] || {}).filter((u) => u.startsWith("o:")).map((u) => ({ label: u.slice(2), pct: r2(totW > 0 ? (tw[k][u] / totW) * 100 : 0), amount: r2(totW > 0 ? (P * tw[k][u]) / totW : 0) }));
+    S0.kept = r2(S0.others.reduce((a, x) => a + x.amount, 0));
+    S0.pool_all = P; S0.pool = r2(P - S0.kept); S0.platform = r2(S0.platform + S0.kept);
     for (const uid of Object.keys(tw[k] || {})) {
+      if (uid.startsWith("o:")) continue;
       const t = teacherRow(uid);
       if (!t.subjects.includes(k)) t.subjects.push(k);
-      t.share += totW > 0 ? (S0.pool * tw[k][uid]) / totW : 0;
+      t.share += totW > 0 ? (P * tw[k][uid]) / totW : 0;
     }
     if (!totW && S0.expense && !S0.income) { // expenses only: the subject's teachers carry their part
-      const ts = teachers.filter((t) => subjectsOf(t).includes(k));
+      const ts = teachers.filter((t) => teachSubjects(t).includes(k));
       if (ts.length) {
-        S0.pool = r2(-S0.expense * (1 - S0.pct / 100)); S0.platform = r2(S0.net - S0.pool);
+        S0.pool = S0.pool_all = r2(-S0.expense * (1 - S0.pct / 100)); S0.platform = r2(S0.net - S0.pool);
         for (const t of ts) { const r = teacherRow(t.id); if (!r.subjects.includes(k)) r.subjects.push(k); r.share += S0.pool / ts.length; }
       }
     }
@@ -327,14 +356,19 @@ async function finCompute(pr: string) {
   for (const k of Object.keys(subj)) {
     const S0 = subj[k], w = tw[k] || {}, totW = Object.values(w).reduce((a, v) => a + v, 0);
     for (const uid of Object.keys(w)) {
-      const share = r2(totW > 0 ? (S0.pool * w[uid]) / totW : 0);
+      if (uid.startsWith("o:")) continue;
+      const share = r2(totW > 0 ? ((S0.pool_all ?? S0.pool) * w[uid]) / totW : 0);
       const held = r2(income.filter((it) => it.subject === k && it.held_by === uid).reduce((a, it) => a + it.amount, 0));
-      paysOut.push({ subject: k, user_id: uid, name: uname(uid), pct: r2(totW > 0 ? (w[uid] / totW) * 100 : 0), share, held, settle: r2(share - held) });
+      paysOut.push({ subject: k, user_id: uid, name: uname(uid), pct: r2(totW > 0 ? (w[uid] / totW) * 100 : 0), share, held, settle: r2(share - held), courses: (tc[k] || {})[uid] || [] });
     }
   }
   const tlist = Object.values(tt).map((t) => ({ ...t, share: r2(t.share), held: r2(t.held), settle: r2(r2(t.share) - r2(t.held)) })).sort((a, b) => b.share - a.share);
-  const totals: Record<string, number> = { income: 0, expense: 0, platform: 0, teachers: 0 };
-  for (const k of Object.keys(subj)) { totals.income += subj[k].income; totals.expense += subj[k].expense; totals.platform += subj[k].platform; totals.teachers += subj[k].pool; }
+  const totals: Record<string, number> = { income: 0, expense: 0, platform: 0, teachers: 0, kept: 0 };
+  for (const k of Object.keys(subj)) {
+    const S0 = subj[k];
+    if (S0.pool_all == null) { S0.pool_all = S0.pool; S0.others = []; S0.kept = 0; }
+    totals.income += S0.income; totals.expense += S0.expense; totals.platform += S0.platform; totals.teachers += S0.pool; totals.kept += S0.kept || 0;
+  }
   totals.expense += shared; totals.platform -= shared;
   for (const k of Object.keys(totals)) totals[k] = r2(totals[k]);
   totals.shared = r2(shared); totals.net = r2(totals.income - totals.expense);
@@ -355,8 +389,8 @@ function finScope(r: FinData, me: User, subject: string) {
   };
   if (allSubj) out.totals = r.totals;
   else {
-    const t: Record<string, number> = { income: 0, expense: 0, platform: 0, teachers: 0, shared: 0 };
-    for (const x of out.by_subject as SubjRow[]) { t.income += x.income; t.expense += x.expense; t.platform += x.platform; t.teachers += x.pool; }
+    const t: Record<string, number> = { income: 0, expense: 0, platform: 0, teachers: 0, shared: 0, kept: 0 };
+    for (const x of out.by_subject as SubjRow[]) { t.income += x.income; t.expense += x.expense; t.platform += x.platform; t.teachers += x.pool; t.kept += x.kept || 0; }
     for (const k of Object.keys(t)) t[k] = r2(t[k]);
     t.net = r2(t.income - t.expense); out.totals = t;
   }
@@ -638,39 +672,82 @@ export async function finPayoutsMine(_d: Data, _c: Ctx, me: User) {
     status: x.status, paid_at: iso(x.paidAt), has_slip: !!x.slipBlobId,
   }));
 }
-/** Subject splits (with their start dates) and everyone who can be given a part. */
+/** Subject splits (with their start dates), the courses to tick, and everyone who can be given a part. */
 export async function finSplits() {
-  const [splits, staffUsers] = await Promise.all([subjectSplits(), teachersAll()]);
+  const [splits, staffUsers, courses] = await Promise.all([
+    subjectSplits(), teachersAll(),
+    prisma.course.findMany({ include: { subject: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
+  ]);
   const people = [];
   for (const u of staffUsers) {
     const t = await team.profileOf(u.id);
-    people.push({ user_id: u.id, name: t?.display_name || u.nickname || u.firstName, full: u.firstName + " " + u.lastName, role: roleOf(u), subjects: subjectsOf(u).filter(() => u.role === "INSTRUCTOR"), photo: t?.photo_url || "" });
+    people.push({ user_id: u.id, name: t?.display_name || u.nickname || u.firstName, full: u.firstName + " " + u.lastName, role: roleOf(u), roles: rolesOf(u), subjects: teachSubjects(u), photo: t?.photo_url || "" });
   }
-  return { splits, people };
+  return {
+    splits, people,
+    courses: courses.map((c) => ({ course_id: c.slug, title: c.title, subject: subjectKey(c.subject), status: c.isPublished ? "published" : "draft" })),
+  };
 }
+/** Save a subject's split from a date.
+ *  Newer (ticked per course): { subject, from, others: [{ label, pct }], courses: { cid: [{ user_id, pct }] } } —
+ *  each course with teachers: teachers + others = 100% · older: { subject, from, parts: [{ user_id, pct }] } for all courses. */
 export async function finSplitsSave(d: Data, _c: Ctx, me: User) {
   const sj = String(d.subject || "");
   if (!APP.SUBJECTS[sj]) throw err("BAD_INPUT", "เลือกวิชา");
   const from = String(d.from || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw err("BAD_INPUT", "เลือกวันเริ่มมีผล");
   const staffIds = (await teachersAll()).map((u) => u.id);
-  const parts: Split[] = (Array.isArray(d.parts) ? d.parts : []).map((x: any) => ({ user_id: String(x.user_id), pct: r2(x.pct) })).filter((x: Split) => x.pct > 0 && staffIds.includes(x.user_id));
-  const tot = parts.reduce((a, x) => a + x.pct, 0);
-  if (parts.length && Math.abs(tot - 100) > 0.01) throw err("BAD_INPUT", "สัดส่วนรวมกันต้องได้ 100% (ตอนนี้ " + r2(tot) + "%)");
-  if (!d.remove && !parts.length) throw err("BAD_INPUT", "ใส่สัดส่วนของผู้สอนอย่างน้อย 1 คน");
+  let ver: SplitVersion | null = null;
+  if (!d.remove) {
+    if (d.courses || d.others) ver = await checkVersion(sj, from, d.others, d.courses, staffIds);
+    else {
+      const parts: Split[] = (Array.isArray(d.parts) ? d.parts : []).map((x: any) => ({ user_id: String(x.user_id), pct: r2(x.pct) })).filter((x: Split) => x.pct > 0 && staffIds.includes(x.user_id));
+      const tot = parts.reduce((a, x) => a + x.pct, 0);
+      if (parts.length && Math.abs(tot - 100) > 0.01) throw err("BAD_INPUT", "สัดส่วนรวมกันต้องได้ 100% (ตอนนี้ " + r2(tot) + "%)");
+      if (!parts.length) throw err("BAD_INPUT", "ใส่สัดส่วนของผู้สอนอย่างน้อย 1 คน");
+      ver = { from, parts };
+    }
+  }
   if (await isClosed(periodOf(dateOfDay(from)))) throw err("LOCKED", "งวดของวันที่เลือกปิดไปแล้ว เลือกวันเริ่มมีผลในงวดที่ยังไม่ปิด");
-  await saveSplitVersion(sj, from, d.remove ? null : parts, me);
+  await saveSplitVersion(sj, from, ver, me);
   return finSplits();
 }
-/** Add, replace (same start date) or remove (parts = null) one version of a subject's split. */
-export async function saveSplitVersion(sj: string, from: string, parts: Split[] | null, me: User) {
+async function checkVersion(sj: string, from: string, others: unknown, courses: unknown, staffIds: string[]): Promise<SplitVersion> {
+  const oth: Other[] = [], seen = new Set<string>();
+  for (const x of Array.isArray(others) ? others : []) {
+    const label = String((x as Other)?.label || "").trim().slice(0, 40), pct = r2((x as Other)?.pct);
+    if (!(pct > 0)) continue;
+    if (!label) throw err("BAD_INPUT", "ตั้งชื่อส่วนที่ไม่ใช่ผู้สอนด้วย เช่น ค่าหลังบ้าน");
+    if (seen.has(label)) throw err("BAD_INPUT", 'ชื่อส่วน "' + label + '" ซ้ำ');
+    seen.add(label);
+    oth.push({ label, pct });
+  }
+  const ot = oth.reduce((a, x) => a + x.pct, 0);
+  if (ot >= 100) throw err("BAD_INPUT", "ส่วนที่ไม่ใช่ผู้สอนรวมกันต้องน้อยกว่า 100%");
+  const list = (await prisma.course.findMany({ include: { subject: true } })).filter((c) => subjectKey(c.subject) === sj);
+  const map: Record<string, Split[]> = {}, given = (courses && typeof courses === "object" ? courses : {}) as Record<string, unknown>;
+  for (const cid of Object.keys(given)) {
+    const c = list.find((x) => x.slug === cid);
+    if (!c) continue;
+    const L: Split[] = (Array.isArray(given[cid]) ? (given[cid] as Split[]) : []).map((x) => ({ user_id: String(x.user_id), pct: r2(x.pct) })).filter((x) => x.pct > 0);
+    if (!L.length) continue;
+    if (L.some((x) => !staffIds.includes(x.user_id))) throw err("BAD_INPUT", "ผู้รับส่วนแบ่งต้องมียศผู้สอน ถ้าไม่ใช่ผู้สอนให้ใส่เป็นส่วนอื่น");
+    const t = L.reduce((a, x) => a + x.pct, 0) + ot;
+    if (Math.abs(t - 100) > 0.05) throw err("BAD_INPUT", "สัดส่วนของ " + c.title + " รวมกันต้องได้ 100% (ตอนนี้ " + r2(t) + "%)");
+    map[cid] = L;
+  }
+  return { from, others: oth, courses: map };
+}
+/** Add, replace (same start date) or remove (null) one version of a subject's split. */
+export async function saveSplitVersion(sj: string, from: string, ver: Omit<SplitVersion, "from"> | null, me: User) {
   const o = await subjectSplits();
   o[sj] = (o[sj] || []).filter((v) => v.from !== from);
-  if (parts) o[sj].push({ from, parts });
+  if (ver) o[sj].push(ver.courses ? { from, others: ver.others || [], courses: ver.courses } : { from, parts: ver.parts || [] });
   o[sj].sort((a, b) => (a.from < b.from ? -1 : 1));
   await setSetting("subject_splits", JSON.stringify(o));
-  await log(me, "finance.split", sj + " " + from + " " + (parts ? JSON.stringify(parts) : "ลบ"));
+  await log(me, "finance.split", sj + " " + from + " " + (ver ? JSON.stringify(ver) : "ลบ"));
 }
+export type { SplitVersion, Split };
 export { isClosed as periodClosed, dateOfDay };
 
 /** Teacher dashboard: their subjects only, nothing about members site-wide. */
@@ -731,7 +808,7 @@ async function legacyGrant(uid: string, rec: { courseIds: string; batch: string 
 const QUEUED = { matched: false, queued: true, message: "ส่งเรื่องให้แอดมินตรวจแล้ว รอไม่เกิน 1–2 วัน" };
 /** Name match: exactly one open record, nobody else has it → access right away · anything else goes to the admin. */
 export async function legacyMatchUser(u: User | null, manual: boolean): Promise<Record<string, unknown>> {
-  if (!u || u.role !== "STUDENT") return { matched: false };
+  if (!u || isStaffUser(u)) return { matched: false };
   const key = nameKey(u.firstName, u.lastName);
   const recs = await prisma.legacyStudent.findMany({ where: { norm: key, status: { not: "deleted" } } });
   const hasPending = !!(await prisma.legacyClaim.findFirst({ where: { userId: u.id, status: "pending" } }));
@@ -1024,7 +1101,7 @@ export async function syncPlaylists() {
 }
 async function notifySync(c: CourseS, titles: string[], added: number) {
   const k = subjectKey(c.subject);
-  let to = (await teachersAll()).filter((u) => subjectsOf(u).includes(k)).map((u) => u.email);
+  let to = (await teachersAll()).filter((u) => teachSubjects(u).includes(k)).map((u) => u.email);
   if (!to.length) to = await adminEmails();
   if (!to.length) return;
   const site = await siteUrlOf();

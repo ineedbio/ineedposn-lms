@@ -7,10 +7,12 @@
   'use strict';
   var byEnroll = {}, byBill = {}, income = null;
   // app.js keeps its state private, so learn the role from its own `me` / sign-in responses (tied to the token).
-  var who = { token: '', role: '' };
+  // Several roles at once: `roles` (e.g. ["admin","teacher"]); older replies only have `role`.
+  var who = { token: '', admin: false };
+  function adminOf(u) { return !!u && (Array.isArray(u.roles) ? u.roles.indexOf('admin') >= 0 : u.role === 'admin'); }
 
   function ls(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
-  function isAdmin() { return who.role === 'admin' && !!who.token && who.token === ls('ib_token'); }
+  function isAdmin() { return who.admin && !!who.token && who.token === ls('ib_token'); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
   // Remember the numbers the admin endpoints return (app.js drops fields it does not know).
@@ -31,8 +33,8 @@
     return p.then(function (res) {
       res.clone().json().then(function (j) {
         if (!j || !j.ok || !j.data) return;
-        if (action === 'me') who = { token: body.token || '', role: j.data.role || '' };
-        else if (j.data.token && j.data.user) who = { token: j.data.token, role: j.data.user.role || '' };
+        if (action === 'me') who = { token: body.token || '', admin: adminOf(j.data) };
+        else if (j.data.token && j.data.user) who = { token: j.data.token, admin: adminOf(j.data.user) };
         else if (staff && isAdmin()) remember(action, j.data);
         if (!isAdmin()) { byEnroll = {}; byBill = {}; income = null; }
         schedule();

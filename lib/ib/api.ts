@@ -105,13 +105,13 @@ function publicUser(u: User) {
   return {
     user_id: u.id, email: u.email, first_name: u.firstName, last_name: u.lastName, nickname: u.nickname || "",
     school: u.school || "", grade: u.gradeLevel || "", phone: u.phone || "",
-    role: u.role === "ADMIN" ? "admin" : u.role === "INSTRUCTOR" ? "teacher" : "student",
+    role: u.role === "ADMIN" ? "admin" : u.role === "INSTRUCTOR" ? "teacher" : "student", roles: rolesOf(u),
     status: u.isBanned ? "banned" : "active", created_at: iso(u.createdAt),
     current_faculty: u.currentFaculty || "", current_university: u.currentUniversity || "",
     dream_faculty: u.dreamFaculty || "", dream_university: u.dreamUniversity || "",
     is_repeat: isRepeat(u.gradeLevel), terms_version: u.termsVersion || "",
     birthday: u.birthday || "", facebook: u.facebook || "", instagram: u.instagram || "", line_id: u.lineId || "",
-    has_photo: !!u.photoBlobId, data_consent: !!u.dataConsentAt, subjects: u.role === "INSTRUCTOR" ? subjectsOf(u) : [],
+    has_photo: !!u.photoBlobId, data_consent: !!u.dataConsentAt, subjects: teachSubjects(u),
     profile_todo: [] as string[],
   };
 }
@@ -120,13 +120,34 @@ async function publicUserFull(u: User) {
   return { ...publicUser(u), profile_todo: await team.profileTodo(u) };
 }
 const hashPw = (pw: string) => bcrypt.hash(pw, 10);
-/** Admin = everything · teacher (INSTRUCTOR) = the subjects in User.subjects. */
-export const isAdminUser = (u: User) => u.role === "ADMIN";
-const isStaff = (u: User) => u.role === "ADMIN" || u.role === "INSTRUCTOR";
-export function subjectsOf(u: User) {
-  if (u.role === "ADMIN") return Object.keys(APP.SUBJECTS);
-  if (u.role !== "INSTRUCTOR") return [];
+/** Roles: several at once — User.roles = "admin,teacher" ("" = use the older single `role`; "student" = none).
+ *  Everyone can study anyway. Admin = everything · teacher = the subjects in User.subjects. */
+const ROLE_KEYS = ["admin", "teacher"] as const;
+type RoleKey = (typeof ROLE_KEYS)[number];
+export function rolesOf(u: Pick<User, "role" | "roles">): RoleKey[] {
+  const r = String(u.roles || "").split(",").map(trim).filter((x): x is RoleKey => (ROLE_KEYS as readonly string[]).includes(x));
+  if (!r.length && !u.roles) return u.role === "ADMIN" ? ["admin"] : u.role === "INSTRUCTOR" ? ["teacher"] : [];
+  return ROLE_KEYS.filter((k) => r.includes(k));
+}
+/** Every role change writes both `roles` and `role` (the main one: admin > teacher > student), so code that
+ *  still reads `role` keeps working. */
+export function rolePatch(roles: string[]) {
+  const r = ROLE_KEYS.filter((k) => roles.includes(k));
+  return { roles: r.join(",") || "student", role: (r.includes("admin") ? "ADMIN" : r.length ? "INSTRUCTOR" : "STUDENT") as User["role"] };
+}
+export const isAdminUser = (u: Pick<User, "role" | "roles">) => rolesOf(u).includes("admin");
+export const isTeacherUser = (u: Pick<User, "role" | "roles">) => rolesOf(u).includes("teacher");
+export const isStaffUser = (u: Pick<User, "role" | "roles">) => rolesOf(u).length > 0;
+const isStaff = isStaffUser;
+/** The subjects someone actually teaches (only with the teacher role). */
+export function teachSubjects(u: Pick<User, "role" | "roles" | "subjects" | "instructorSubjectKey">) {
+  if (!isTeacherUser(u)) return [];
   return String(u.subjects ?? u.instructorSubjectKey ?? "").split(",").map(trim).filter((s) => APP.SUBJECTS[s]);
+}
+/** The subjects someone may manage: admins every subject, teachers theirs. */
+export function subjectsOf(u: Pick<User, "role" | "roles" | "subjects" | "instructorSubjectKey">) {
+  if (isAdminUser(u)) return Object.keys(APP.SUBJECTS);
+  return teachSubjects(u);
 }
 export const canSubject = (u: User, s: string) => subjectsOf(u).includes(s);
 
@@ -241,8 +262,8 @@ function adminOnly(fn: (d: Data, ctx: Ctx, admin: User) => Promise<unknown>): Ha
   };
 }
 async function promoteIfBootstrap(u: User) {
-  if (BOOTSTRAP_ADMINS.includes(u.email.toLowerCase()) && u.role !== "ADMIN") {
-    u = await prisma.user.update({ where: { id: u.id }, data: { role: "ADMIN" } });
+  if (BOOTSTRAP_ADMINS.includes(u.email.toLowerCase()) && !isAdminUser(u)) {
+    u = await prisma.user.update({ where: { id: u.id }, data: rolePatch([...rolesOf(u), "admin"]) });
     const list = await adminEmails();
     if (!list.includes(u.email)) await setSetting("admin_emails", [...list, u.email].join(","));
   }
@@ -922,11 +943,14 @@ async function adminUserUpdate(d: Data, _c: Ctx, admin: User) {
   const u = await prisma.user.findUnique({ where: { id: String(d.user_id || "") } });
   if (!u) throw err("NOT_FOUND", "ไม่พบผู้ใช้");
   if (u.id === admin.id) throw err("BAD_INPUT", "แก้สิทธิ์ของตัวเองไม่ได้");
-  const patch: Prisma.UserUpdateInput = {};
-  if (d.role === "admin" || d.role === "teacher" || d.role === "student") {
-    patch.role = d.role === "admin" ? "ADMIN" : d.role === "teacher" ? "INSTRUCTOR" : "STUDENT";
-    if (d.role === "teacher") {
-      const subs = String(d.subjects || "").split(",").map(trim).filter((s) => APP.SUBJECTS[s]);
+  const patch: Prisma.UserUpdateInput = {}, before = rolesOf(u);
+  // New: roles = ["admin", "teacher"] (any combination) · older: role = "student" | "teacher" | "admin"
+  let roles: string[] | null = Array.isArray(d.roles) ? d.roles.map(String) : d.role ? (d.role === "student" ? [] : [String(d.role)]) : null;
+  if (roles) {
+    roles = roles.filter((k) => (ROLE_KEYS as readonly string[]).includes(k));
+    Object.assign(patch, rolePatch(roles));
+    if (roles.includes("teacher")) {
+      const subs = (Array.isArray(d.subjects) ? d.subjects.map(String) : String(d.subjects || "").split(",")).map(trim).filter((s: string) => APP.SUBJECTS[s]);
       if (!subs.length) throw err("BAD_INPUT", "เลือกวิชาที่ผู้สอนดูแลอย่างน้อย 1 วิชา");
       patch.subjects = subs.join(",");
       patch.instructorSubjectKey = subs[0];
@@ -937,11 +961,13 @@ async function adminUserUpdate(d: Data, _c: Ctx, admin: User) {
   }
   if (d.status === "active" || d.status === "banned") patch.isBanned = d.status === "banned";
   await prisma.user.update({ where: { id: u.id }, data: patch });
-  if (patch.isBanned || (patch.role && patch.role !== u.role)) await endSessions(u.id, patch.isBanned ? "banned" : "admin");
-  await log(admin, "user.update", u.email + " " + JSON.stringify({ role: d.role, subjects: d.subjects, status: d.status }));
-  // Became a teacher for the first time: email them to fill in the teacher profile.
-  if (patch.role === "INSTRUCTOR" && u.role !== "INSTRUCTOR") await team.inviteNewTeacher(u, String(patch.subjects || "").split(",")[0]);
-  return true;
+  const changed = !!roles && ([...roles].sort().join(",") !== [...before].sort().join(",") || String(patch.subjects || "") !== teachSubjects(u).join(","));
+  if (patch.isBanned || changed) await endSessions(u.id, patch.isBanned ? "banned" : "admin");
+  await log(admin, "user.update", u.email + " " + JSON.stringify({ roles: d.roles, role: d.role, subjects: d.subjects, status: d.status }));
+  const out: { ok: true; invite?: unknown } = { ok: true };
+  // Became a teacher for the first time: email the invite to fill in the teacher profile, and say how it went.
+  if (roles && roles.includes("teacher") && !before.includes("teacher")) out.invite = await team.inviteTeacher(u.id, admin);
+  return out;
 }
 
 async function adminResetDevice(d: Data, _c: Ctx, admin: User) {
@@ -1108,6 +1134,7 @@ const ROUTES: Record<string, Handler> = {
   "admin.team.add": adminOnly(team.adminTeamAdd),
   "admin.team.remove": adminOnly(team.adminTeamRemove),
   "admin.course.request": adminOnly(team.adminCourseRequest),
+  "admin.teacher.invite": adminOnly(team.adminTeacherInvite),
   "admin.log": adminOnly((d) => staff.adminLog(d)),
   // ชีทสรุป — back office only; nothing public until sheets.SHEETS_ON_SALE
   "admin.sheets": adminOnly(() => sheets.adminSheets()),

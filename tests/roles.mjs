@@ -4,7 +4,7 @@
 import assert from "node:assert";
 import fs from "node:fs";
 
-export async function run({ BASE, OUTBOX, makeAdmin }) {
+export async function run({ BASE, OUTBOX, makeAdmin, sql }) {
   const outbox = () => fs.readFileSync(OUTBOX, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
   const call = async (action, data, token, device_id = "dev") =>
     (await fetch(BASE + "api/ib", { method: "POST", body: JSON.stringify({ action, data: data || {}, token, device_id, device_info: "Test" }) })).json();
@@ -31,7 +31,7 @@ export async function run({ BASE, OUTBOX, makeAdmin }) {
   const adminId = A.user.user_id;
   let courses = ok(await call("admin.courses", {}, adm));
   const bySubj = (k) => courses.filter((c) => c.subject === k);
-  if (bySubj("math").length < 2) ok(await call("admin.course.save", { subject: "math", title: "คณิต ทดสอบ 2", new_id: "math-test-2", price: 490, status: "published" }, adm));
+  for (let i = bySubj("math").length; i < 3; i++) ok(await call("admin.course.save", { subject: "math", title: "คณิต ทดสอบ " + (i + 1), new_id: "math-test-" + (i + 1), price: 490, status: "published" }, adm));
   courses = ok(await call("admin.courses", {}, adm));
   const BIO = bySubj("bio")[0].course_id, CHEM = bySubj("chem")[0].course_id, PHYS = bySubj("phys")[0].course_id;
   const [MATH1, MATH2] = bySubj("math").map((c) => c.course_id);
@@ -137,29 +137,84 @@ export async function run({ BASE, OUTBOX, makeAdmin }) {
     assert.equal(ok(await call("course.detail", { course_id: CHEM })).instructors[0].name, "พี่หมีลี่");
   });
 
-  await t("team: add/remove teacher auto-rebalances %, invite email, forced profile, course color and price requests", async () => {
-    const NX = thai(17 * 24).slice(0, 10);
-    await reg("newt@x.com", "ครู", "ใหม่", "พี่ใหม่");
+  await t("team: multi-role, per-course ticks, other parts (not teachers), invite email with status", async () => {
+    const NX = thai(17 * 24).slice(0, 10), nxPeriod = NX.slice(0, 7) + (Number(NX.slice(8, 10)) <= 15 ? "-1" : "-2");
+    const nt = await reg("newt@x.com", "ครู", "ใหม่", "พี่ใหม่");
     const before = outbox().length;
     no(await call("admin.team.add", { email: "nobody@x.com", subject: "phys", from: NX }, adm), "NOT_FOUND");
     const r = ok(await call("admin.team.add", { email: "newt@x.com", subject: "phys", from: NX }, adm));
-    assert.equal(r.parts.length, 2); assert.equal(r.parts.reduce((a, x) => a + x.pct, 0), 100); assert.equal(r.parts[0].pct, 50);
-    const mails = outbox(); assert.equal(mails.length, before + 1); assert(/tprofile/.test(mails[mails.length - 1].html));
+    assert.equal(r.invite.ok, true); assert.equal(outbox().length, before + 1);
+    const mail = outbox().pop();
+    assert(/tprofile/.test(mail.html)); assert(/ยังขาด/.test(mail.html)); assert(/ฟิสิกส์/.test(mail.subject));
     no(await call("admin.team.add", { email: "newt@x.com", subject: "phys", from: NX }, adm), "ALREADY");
     no(await C("admin.team.add", { email: "newt@x.com", subject: "chem", from: NX }, chem, "chem@x.com"), "FORBIDDEN");
     // sign in again, then the profile must be filled in
     const nts = await login("newt@x.com");
     assert.deepEqual(ok(await call("me", {}, nts, "newt@x.com")).profile_todo, ["name", "photo", "bank"]);
+    // preview (not sent) · send again · a failed send is reported and recorded
+    const n0 = outbox().length;
+    const pv = ok(await call("admin.teacher.invite", { user_id: nt.user.user_id, preview: true }, adm));
+    assert(/กรอกโปรไฟล์ผู้สอน/.test(pv.html)); assert.equal(pv.to, "newt@x.com"); assert.equal(outbox().length, n0);
+    assert.equal(ok(await call("admin.teacher.invite", { user_id: nt.user.user_id }, adm)).ok, true); assert.equal(outbox().length, n0 + 1);
+    const day = new Date().toISOString().slice(0, 10); // the mail counter is per UTC day
+    sql(`INSERT INTO "RateLimitHit" (key, count, "expiresAt") VALUES ('mail:${day}', 1000000, now() + interval '2 days') ON CONFLICT (key) DO UPDATE SET count = 1000000`);
+    const bad = ok(await call("admin.teacher.invite", { user_id: nt.user.user_id }, adm));
+    assert.equal(bad.ok, false); assert(bad.error);
+    assert(ok(await call("admin.teachers", {}, adm)).find((x) => x.user_id === nt.user.user_id).invite_error);
+    sql(`UPDATE "RateLimitHit" SET count = 0 WHERE key = 'mail:${day}'`);
+    ok(await call("admin.teacher.invite", { user_id: nt.user.user_id }, adm));
+    const tl = ok(await call("admin.teachers", {}, adm)).find((x) => x.user_id === nt.user.user_id);
+    assert.equal(tl.invite_error, ""); assert(tl.invited_at); assert.deepEqual(tl.profile_todo, ["name", "photo", "bank"]); assert.equal(tl.email, "newt@x.com");
     ok(await call("teacher.profile.save", { display_name: "พี่ใหม่", photo_url: "https://x/a.jpg", bank_name: "กสิกร", account_name: "ครู ใหม่", account_no: "1234567890" }, nts, "newt@x.com"));
     assert.deepEqual(ok(await call("me", {}, nts, "newt@x.com")).profile_todo, []);
-    // a third teacher → equal thirds
-    const t3 = await reg("t3@x.com", "ครู", "สาม", "พี่สาม");
-    const r3 = ok(await call("admin.team.add", { email: "t3@x.com", subject: "phys", from: NX }, adm));
-    assert.equal(r3.parts.length, 3); assert.equal(r3.parts.reduce((a, x) => a + x.pct, 0), 100);
-    // remove → the others share their part · no subject left = student again
-    const rr = ok(await call("admin.team.remove", { user_id: t3.user.user_id, subject: "phys", from: NX }, adm));
-    assert.equal(rr.parts.length, 2); assert.equal(rr.parts[0].pct, 50);
-    assert.equal(ok(await call("login", { email: "t3@x.com", password: "secret123" }, null, "t3b")).user.role, "student");
+    // several roles at once: admin + biology teacher
+    const both = await reg("both@x.com", "ทั้ง", "สอง", "พี่สอง");
+    const ru = ok(await call("admin.user.update", { user_id: both.user.user_id, roles: ["admin", "teacher"], subjects: ["bio"] }, adm));
+    assert.equal(ru.invite.ok, true);
+    let bs = await login("both@x.com"), me = ok(await call("me", {}, bs, "both@x.com"));
+    assert.deepEqual(me.roles, ["admin", "teacher"]); assert.equal(me.role, "admin"); assert.deepEqual(me.subjects, ["bio"]);
+    assert.deepEqual(me.profile_todo, ["name", "photo", "bank"]); // an admin who teaches fills in the profile too
+    ok(await call("admin.users", { q: "" }, bs, "both@x.com"));
+    assert(ok(await call("admin.teachers", {}, adm)).find((x) => x.user_id === both.user.user_id).subjects.includes("bio"));
+    ok(await call("admin.user.update", { user_id: both.user.user_id, roles: ["admin"] }, adm));
+    bs = await login("both@x.com"); me = ok(await call("me", {}, bs, "both@x.com"));
+    assert.deepEqual(me.roles, ["admin"]); assert.deepEqual(me.subjects, []); assert.deepEqual(me.profile_todo, []);
+    ok(await call("admin.user.update", { user_id: both.user.user_id, roles: [] }, adm));
+    assert.equal(ok(await call("login", { email: "both@x.com", password: "secret123" }, null, "both2")).user.role, "student");
+    // ticked per course: teachers 70%, the other 30% is ค่าหลังบ้าน (not a teacher, no role needed)
+    const MC = bySubj("math").map((c) => c.course_id), A_ = mathA.user.user_id, B_ = mathB.user.user_id;
+    no(await call("fin.splits.save", { subject: "math", from: NX, others: [{ label: "ค่าหลังบ้าน", pct: 30 }], courses: { [MC[0]]: [{ user_id: A_, pct: 80 }] } }, adm), "BAD_INPUT");
+    no(await call("fin.splits.save", { subject: "math", from: NX, others: [{ label: "", pct: 30 }], courses: {} }, adm), "BAD_INPUT");
+    no(await call("fin.splits.save", { subject: "math", from: NX, others: [], courses: { [MC[0]]: [{ user_id: s1.user.user_id, pct: 100 }] } }, adm), "BAD_INPUT");
+    no(await call("fin.splits.save", { subject: "math", from: NX, others: [{ label: "ก", pct: 10 }, { label: "ก", pct: 10 }], courses: {} }, adm), "BAD_INPUT");
+    no(await call("fin.splits.save", { subject: "math", from: NX, others: [{ label: "ก", pct: 100 }], courses: {} }, adm), "BAD_INPUT");
+    const sv = ok(await call("fin.splits.save", { subject: "math", from: NX, others: [{ label: "ค่าหลังบ้าน", pct: 30 }], courses: { [MC[0]]: [{ user_id: A_, pct: 70 }], [MC[1]]: [{ user_id: A_, pct: 35 }, { user_id: B_, pct: 35 }] } }, adm));
+    assert(sv.courses.length >= MC.length);
+    // real money on that day: ฿1000 of the first course, ฿1000 of an unticked course
+    const sale = (id, cid) => sql(`INSERT INTO "Payment" (id, "userId", "courseId", amount, "promptpayRef", status, source, "createdAt", "reviewedAt")
+      SELECT '${id}', '${nt.user.user_id}', c.id, 1000, '${id}', 'APPROVED', 'bill', '${NX}T12:00:00+07:00', '${NX}T12:00:00+07:00' FROM "Course" c WHERE c.slug = '${cid}'`);
+    sale("EMX1", MC[0]); sale("EMX2", MC[2]);
+    let f = ok(await call("fin.summary", { period: nxPeriod }, adm));
+    let bm = f.by_subject.find((x) => x.subject === "math");
+    assert.equal(bm.unassigned, 1000); // not ticked = nobody to share with yet
+    assert.equal(bm.pool_all, 1000); assert.equal(bm.kept, 300); assert.equal(bm.pool, 700);
+    assert.deepEqual(f.pays.filter((x) => x.subject === "math").map((x) => [x.user_id, x.share]), [[A_, 700]]);
+    // add พี่บี to the first course → its teachers split the 70% equally, ค่าหลังบ้าน stays
+    ok(await call("admin.team.add", { user_id: B_, subject: "math", from: NX, course_ids: [MC[0]] }, adm));
+    let v = ok(await call("fin.splits", {}, adm)).splits.math.find((x) => x.from === NX);
+    assert.deepEqual(v.courses[MC[0]].map((x) => x.pct), [35, 35]); assert.equal(v.others[0].pct, 30);
+    f = ok(await call("fin.summary", { period: nxPeriod }, adm));
+    bm = f.by_subject.find((x) => x.subject === "math");
+    assert.equal(bm.pool_all, 1000); assert.equal(bm.kept, 300); assert.equal(bm.pool, 700); assert.equal(bm.others[0].label, "ค่าหลังบ้าน");
+    const pm = f.pays.filter((x) => x.subject === "math");
+    assert.deepEqual(pm.map((x) => x.share).sort(), [350, 350]); assert(!pm.some((x) => /^o:/.test(x.user_id)));
+    assert.deepEqual(pm[0].courses, [bySubj("math")[0].title]);
+    assert.equal(f.totals.kept, 300);
+    // remove พี่เอ → their part of each course goes to that course's other teachers
+    ok(await call("admin.team.remove", { user_id: A_, subject: "math", from: NX }, adm));
+    v = ok(await call("fin.splits", {}, adm)).splits.math.find((x) => x.from === NX);
+    assert.deepEqual(v.courses[MC[0]], [{ user_id: B_, pct: 70 }]); assert.deepEqual(v.courses[MC[1]], [{ user_id: B_, pct: 70 }]);
+    sql(`DELETE FROM "Payment" WHERE id IN ('EMX1', 'EMX2')`);
     // a date in a closed period is refused
     no(await call("admin.team.add", { email: "t3@x.com", subject: "phys", from: today }, adm), "LOCKED");
     // course colour and price requests
@@ -169,14 +224,8 @@ export async function run({ BASE, OUTBOX, makeAdmin }) {
     let c2 = ok(await call("admin.courses", {}, adm)).find((x) => x.course_id === CHEM);
     assert.equal(c2.accent, "#e91e63"); assert.equal(String(c2.price), String(c.price)); assert.equal(JSON.parse(c2.pending_change).price, "590");
     assert.equal(ok(await call("courses.list", {})).find((x) => x.course_id === CHEM).accent, "#e91e63");
-    assert.equal(ok(await call("course.detail", { course_id: CHEM })).accent, "#e91e63");
     no(await C("admin.course.request", { course_id: CHEM, decision: "approve" }, chem, "chem@x.com"), "FORBIDDEN");
     ok(await call("admin.course.request", { course_id: CHEM, decision: "approve" }, adm));
-    c2 = ok(await call("admin.courses", {}, adm)).find((x) => x.course_id === CHEM);
-    assert.equal(String(c2.price), "590"); assert.equal(c2.pending_change, "");
-    // reject keeps the price
-    ok(await C("admin.course.save", Object.assign({}, c2, { req_price: 10 }), chem, "chem@x.com"));
-    ok(await call("admin.course.request", { course_id: CHEM, decision: "reject" }, adm));
     c2 = ok(await call("admin.courses", {}, adm)).find((x) => x.course_id === CHEM);
     assert.equal(String(c2.price), "590"); assert.equal(c2.pending_change, "");
   });

@@ -43,7 +43,7 @@ try {
     await new Promise((r) => setTimeout(r, 1000));
   }
   const { run } = await import("./roles.mjs");
-  await run({ BASE, OUTBOX, makeAdmin: (email) => sql(TEST_URL, `UPDATE "User" SET role = 'ADMIN' WHERE email = '${email.replace(/'/g, "")}'`) });
+  await run({ BASE, OUTBOX, makeAdmin: (email) => sql(TEST_URL, `UPDATE "User" SET role = 'ADMIN' WHERE email = '${email.replace(/'/g, "")}'`), sql: (q) => sql(TEST_URL, q) });
   code = 0;
 } catch (e) {
   console.error(e);

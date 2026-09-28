@@ -70,6 +70,9 @@ model User {
   bills                Bill[]
   instructorSubjectKey String? // "bio" | "chem" | "phys" | "math" (when role is INSTRUCTOR)
   subjects             String? // web app v4: subjects a teacher (INSTRUCTOR) looks after, comma-separated
+  roles                String           @default("") // several roles at once: "admin,teacher" ("" = use role; "student" = none). role stays the main one (admin > teacher > student)
+  invitedAt            DateTime? // last teacher invite email that went out
+  inviteError          String           @default("") // why the last teacher invite could not be sent ("" = none)
   recordedExpenses     Expense[]        @relation("RecordedExpenses")
 }
 
