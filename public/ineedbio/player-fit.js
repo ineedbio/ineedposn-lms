@@ -1,43 +1,36 @@
 // Lesson / preview player sizing for iPhone & iPad (rotation, fullscreen).
 // The player hides YouTube's own title bar, logo and "more videos" overlays by making the iframe taller than
-// the box and cutting the extra off (.yt-crop, overflow:hidden). ineedbio.css — which must stay byte-identical
-// (CHECKSUMS.txt) — sizes that iframe with a fixed 70 px margin and, in fullscreen, with 100vw / 100vh units.
-// On iOS Safari 100vh is not the visible height (it counts the toolbars) and iPhone has no element fullscreen,
-// so after rotating the video was cut in the wrong place, with odd black bars, and in landscape the player was
-// taller than the screen.
-// Here the iframe's size and position are computed from the player's real box (ResizeObserver + resize /
-// orientationchange / visualViewport) every time it changes, in normal, iPad fullscreen and the phone
-// "fake" fullscreen alike: the 16:9 picture is fitted inside the box and centred, the cut-off window is made
-// exactly that picture, and the hidden margins scale with it. In landscape on a phone the player is kept within the screen height.
+// the picture and cutting the extra off (.yt-crop, overflow:hidden). app.js sizes the iframe inside .yt-crop
+// itself (fitted 16:9 picture, 70 px hidden above and below, drawn large for the chosen quality and scaled down
+// with transform, re-run whenever .yt-crop changes size). But ineedbio.css — which must stay byte-identical
+// (CHECKSUMS.txt) — makes .yt-crop cover the whole player, so when the player is taller than a 16:9 picture
+// (phone "fullscreen" held upright, iOS 100vh vs the visible height after rotating) the hidden strips above and
+// below the picture — where YouTube draws its title bar and logo — showed inside the black box.
+// Here only the cut-off window is sized: .yt-crop is made exactly the largest 16:9 picture that fits the
+// player's real box, centred (ResizeObserver + resize / orientationchange / visualViewport), in normal, iPad
+// fullscreen and phone "fake" fullscreen alike. The iframe itself is left to app.js (quality / scaling).
+// In landscape on a phone the player is kept within the screen height.
 (function () {
   'use strict';
   var RATIO = 16 / 9;
   var seen = typeof WeakSet === 'function' ? new WeakSet() : null, list = [];
 
-  // YouTube's overlays (title bar on top, logo / "watch on YouTube" at the bottom) are about 60 px tall at any
-  // player size, but shrink a little on small players; keep the hidden margin in that range.
-  function margin(h) { return Math.round(Math.max(56, Math.min(80, h * 0.16))); }
-
   function fit(player) {
     var crop = player.querySelector('.yt-crop'); if (!crop) return;
-    var f = crop.querySelector('iframe'); if (!f) return;
     var W = player.clientWidth, H = player.clientHeight;
     if (!W || !H) return;
     var key = W + 'x' + H;
-    if (f.__ibFit === key && crop.__ibFit === key) return; // nothing changed (the time display ticks 4× a second)
-    f.__ibFit = crop.__ibFit = key;
+    if (crop.__ibFit === key) return; // nothing changed (the time display ticks 4× a second)
+    crop.__ibFit = key;
     // The largest 16:9 picture that fits the box, centred. The cut-off window (.yt-crop) is exactly that
-    // picture — also when the box is much taller (phone fullscreen held upright) — so YouTube's overlays
-    // above and below the picture always stay hidden; the rest of the box is the player's black background.
-    var vw = Math.min(W, H * RATIO), vh = vw / RATIO, m = margin(vh);
+    // picture, so YouTube's overlays above and below it always stay hidden; the rest of the box is the
+    // player's black background. app.js then fits the iframe to this window (its ResizeObserver on .yt-crop).
+    var vw = Math.min(W, H * RATIO), vh = vw / RATIO;
     var put = function (el, k, v) { el.style.setProperty(k, v, 'important'); };
     put(crop, 'position', 'absolute');
     put(crop, 'left', Math.round((W - vw) / 2) + 'px'); put(crop, 'top', Math.round((H - vh) / 2) + 'px');
     put(crop, 'width', Math.round(vw) + 'px'); put(crop, 'height', Math.round(vh) + 'px');
     put(crop, 'right', 'auto'); put(crop, 'bottom', 'auto'); put(crop, 'overflow', 'hidden');
-    put(f, 'position', 'absolute'); put(f, 'transform', 'none'); put(f, 'max-width', 'none'); put(f, 'max-height', 'none');
-    put(f, 'left', '0px'); put(f, 'top', -m + 'px');
-    put(f, 'width', Math.round(vw) + 'px'); put(f, 'height', Math.round(vh + 2 * m) + 'px');
   }
 
   function watch(player) {

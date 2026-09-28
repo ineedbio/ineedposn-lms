@@ -6,3 +6,4 @@ node_modules
 backend/lessons/
 next-env.d.ts
 *.tsbuildinfo
+.next-test

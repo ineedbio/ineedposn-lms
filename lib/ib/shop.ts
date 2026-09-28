@@ -12,6 +12,7 @@ import {
   subjectsOf, type CourseRow, type Ctx, type Data,
 } from "./api";
 import { activeWhere } from "./staff";
+import * as team from "./team";
 import { APP, checkImageUrl, clip, err, iso, lines, req, sha256, trim, youtubeId } from "./util";
 
 const BILL_OPEN = ["awaiting_payment", "reviewing", "rejected"]; // still in progress: its courses can't go in the cart again
@@ -424,13 +425,9 @@ export async function openBillFor(uid: string, slug: string) {
 }
 
 // ───────────────────────── Bundle page ─────────────────────────
+/** Who teaches a course: the chosen teachers' profiles (team.ts), else the course's own instructor fields. */
 export function instructors(x: CourseRow) {
-  return [
-    [x.instructorName, x.instructorTitle, x.instructorBio, x.instructorPhoto],
-    [x.instructor2Name, x.instructor2Title, x.instructor2Bio, x.instructor2Photo],
-  ]
-    .filter((k) => k[0])
-    .map((k) => ({ name: k[0]!, title: k[1] || "", bio: k[2] || "", photo: k[3] || "" }));
+  return team.instructorsOf(x);
 }
 export async function bundleDetail(d: Data) {
   const b: any = (await publicBundles()).find((x) => x.bundle_id === d.bundle_id);

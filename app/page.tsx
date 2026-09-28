@@ -25,12 +25,12 @@ export default function Home() {
       </Script>
       {/* สีประจำวิชา (ชีวะเขียว · เคมีม่วง · ฟิสิกส์แดง · คณิตส้ม) ทั้งเว็บ — ก่อนวาดหน้า จะได้ไม่กระพริบ */}
       <Script src="/ineedbio/subject-colors.js" strategy="beforeInteractive" />
+      {/* รีวิวชีววิทยา สอวน. (window.INEEDBIO_EXTRA_REVIEWS) — ต้องมาก่อน app.js วาดแถว "รีวิวจากน้องๆ" */}
+      <Script src="/ineedbio/reviews.js" strategy="beforeInteractive" />
       {/* ตัวเว็บทั้งหมด (หน้าแรก คอร์ส ห้องเรียน หลังบ้าน) — ใช้ hash route เช่น /#/course/ID */}
       {/* fixes for app.js that can't go in app.js itself (it must match the zip byte for byte) */}
       <Script src="/ineedbio/fixes.js" strategy="afterInteractive" />
       <Script src="/ineedbio/app.js" strategy="afterInteractive" />
-      {/* "รีวิวจากน้องๆ" on the home page (added next to app.js, which stays unchanged) */}
-      <Script src="/ineedbio/reviews.js" strategy="afterInteractive" />
       {/* หน้าคอร์ส: เล่นตอนดูฟรีอัตโนมัติ (ปิดเสียงไว้ก่อน) · ซ่อนจำนวนตอน/ชั่วโมงบนหน้าสาธารณะ */}
       <Script src="/ineedbio/course-page.js" strategy="afterInteractive" />
       {/* ขนาดวิดีโอตามกล่องจริง: หมุนจอ / เต็มจอ บน iPhone-iPad ไม่ครอปผิดตำแหน่ง */}

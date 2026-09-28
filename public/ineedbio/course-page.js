@@ -1,7 +1,7 @@
 // Course page tweaks for public/ineedbio/app.js, which must stay byte-identical to the zip (CHECKSUMS.txt).
 //  1) Free preview episodes ("ดูฟรี") play in the same player as paid lessons (a port of app.js's safePlayer:
 //     YouTube IFrame API with YouTube's own controls, title and share/copy-link hidden behind a shield, and the
-//     site's play/seek/speed/fullscreen bar). The first free episode starts by itself in the course hero —
+//     site's play/seek/quality/speed/fullscreen bar). The first free episode starts by itself in the course hero —
 //     muted, so browsers (iOS Safari included) allow it — with a "แตะเพื่อเปิดเสียง" button. "ดูฟรี" buttons
 //     open the same player in a modal. The clip ids are taken out of the page's attributes.
 //     course.detail only sends the YouTube id of free episodes, so no enrollment check is involved.
@@ -119,6 +119,16 @@
     return ytLoad;
   }
 
+  // Same speed / quality choices as app.js's lesson player, remembered under the same keys (ib_rate, ib_q).
+  var YTRATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+  var YTQ = [[2160, 'ชัดสุด', 'highres'], [1080, '1080p', 'hd1080'], [720, '720p', 'hd720'], [480, '480p', 'large'], [360, '360p', 'medium']];
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function toast(t) { // same markup as app.js's toast()
+    var box = document.getElementById('toasts'); if (!box) return;
+    var d = document.createElement('div'); d.className = 'toast'; d.setAttribute('role', 'status'); d.textContent = t; box.appendChild(d);
+    setTimeout(function () { d.classList.add('out'); setTimeout(function () { d.remove(); }, 260); }, 3000);
+  }
+
   var players = [], seq = 0;
   function pauseOthers(keep) { players.forEach(function (p) { if (p !== keep && p.P && p.P.pauseVideo) try { p.P.pauseVideo(); } catch (e) {} }); }
   function sweep() { players = players.filter(function (p) { if (document.body.contains(p.el)) return true; clearInterval(p.t); try { p.P && p.P.destroy(); } catch (e) {} return false; }); }
@@ -135,7 +145,8 @@
       '<div class="yt-bar"><input type="range" class="yt-seek" min="0" max="1000" value="0" step="1" aria-label="เลื่อนเวลา">' +
       '<div class="yt-row"><button class="yt-b" data-y="toggle" aria-label="เล่น/หยุด">' + PI.play + '</button><button class="yt-b" data-y="back" aria-label="ย้อน 10 วินาที">' + PI.back + '</button><button class="yt-b" data-y="fwd" aria-label="ข้าม 10 วินาที">' + PI.fwd + '</button>' +
       '<button class="yt-b" data-y="mute" aria-label="เปิด/ปิดเสียง">' + PI.vol + '</button><span class="yt-time">0:00 / 0:00</span><span style="flex:1"></span>' +
-      '<select class="yt-rate" aria-label="ความเร็ว">' + [0.75, 1, 1.25, 1.5, 1.75, 2].map(function (r) { return '<option value="' + r + '"' + (r === 1 ? ' selected' : '') + '>' + r + 'x</option>'; }).join('') + '</select>' +
+      '<select class="yt-q" aria-label="ความชัด">' + YTQ.map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('') + '</select>' +
+      '<select class="yt-rate" aria-label="ความเร็ว">' + YTRATES.map(function (r) { return '<option value="' + r + '"' + (r === 1 ? ' selected' : '') + '>' + r + 'x</option>'; }).join('') + '</select>' +
       '<button class="yt-b" data-y="fs" aria-label="เต็มจอ">' + PI.fs + '</button></div></div>';
     var $ = function (s) { return el.querySelector(s); };
     var P = null, dur = 0, drag = false, hideT = null, ended = false;
@@ -177,18 +188,44 @@
     Array.prototype.forEach.call(el.querySelectorAll('.yt-b'), function (b) { b.onclick = function (e) { e.stopPropagation(); var y = b.dataset.y; if (y === 'toggle') toggle(); else if (y === 'back') jump(-10); else if (y === 'fwd') jump(10); else if (y === 'mute') mute(); else if (y === 'fs') fs(); wake(); }; });
     seek.oninput = function () { drag = true; seek.style.setProperty('--p', (seek.value / 10) + '%'); time.textContent = fmtT(seek.value / 1000 * dur) + ' / ' + fmtT(dur); };
     seek.onchange = function () { drag = false; if (P && dur) { P.seekTo(seek.value / 1000 * dur, true); ended = false; } wake(); };
-    var rate = $('.yt-rate');
-    rate.onchange = function () { if (P) P.setPlaybackRate(Number(this.value)); wake(); };
+    var rate = $('.yt-rate'), qSel = $('.yt-q');
+    var setRate = function (r) {
+      if (!P) return;
+      P.setPlaybackRate(r);
+      setTimeout(function () { var got = P.getPlaybackRate ? P.getPlaybackRate() : r; if (Math.abs(got - r) > 0.01) { rate.value = String(got); toast('YouTube เล่นได้เร็วสุด ' + got + 'x สำหรับคลิปนี้'); } }, 400);
+    };
+    rate.onchange = function () { setRate(Number(this.value)); store('ib_rate', this.value); wake(); };
+    var savedRate = Number(store('ib_rate')) || 1; rate.value = String(savedRate);
+    // Quality: YouTube picks the resolution from the frame size, so (as in app.js) the iframe is drawn at the
+    // chosen quality's size and scaled down to fit. .yt-crop is the fitted 16:9 picture (player-fit.js).
+    var qH = Number(store('ib_q')) || YTQ[0][0]; qSel.value = String(qH);
+    var crop = $('.yt-crop');
+    var fit = function () {
+      var ifr = crop.querySelector('iframe'); if (!ifr) return;
+      var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
+      var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, sc = Math.min(1, vh / qH), st = ifr.style;
+      st.setProperty('width', (vw / sc) + 'px', 'important'); st.setProperty('height', ((vh + 140) / sc) + 'px', 'important');
+      st.setProperty('left', ((W - vw) / 2) + 'px', 'important'); st.setProperty('top', ((H - vh) / 2 - 70) + 'px', 'important');
+      st.setProperty('transform', 'scale(' + sc + ')', 'important'); st.setProperty('transform-origin', '0 0', 'important');
+    };
+    qSel.onchange = function () { qH = Number(this.value); store('ib_q', this.value); fit(); if (P && P.setPlaybackQuality) try { P.setPlaybackQuality(YTQ.filter(function (q) { return q[0] === qH; })[0][2]); } catch (e) {} wake(); };
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(crop); else window.addEventListener('resize', fit);
+    // The hero player is narrower than a lesson player (≈288 px on a 360 px phone): with the quality and speed
+    // pickers the bar would run past the right edge, so below 320 px the time readout steps aside (the seek
+    // bar still shows the position).
+    var narrow = function () { el.classList.toggle('ibp-narrow', el.clientWidth > 0 && el.clientWidth < 320); };
+    if (window.ResizeObserver) new ResizeObserver(narrow).observe(el); else window.addEventListener('resize', narrow);
+    narrow();
     if (opt.muted) showPill();
     loadYT().then(function () {
       if (!document.body.contains(el)) return;
-      var v = { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0, autoplay: opt.muted || opt.sound ? 1 : 0, mute: opt.muted ? 1 : 0 };
+      var v = { vq: (YTQ.filter(function (q) { return q[0] === qH; })[0] || YTQ[0])[2], controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0, autoplay: opt.muted || opt.sound ? 1 : 0, mute: opt.muted ? 1 : 0 };
       if (/^https?:/.test(location.origin)) v.origin = location.origin;
       P = me.P = new YT.Player(host, {
         videoId: vid, host: 'https://www.youtube-nocookie.com', playerVars: v,
         events: {
           onReady: function () {
-            dur = P.getDuration() || 0;
+            dur = P.getDuration() || 0; fit(); if (savedRate !== 1) setRate(savedRate);
             var ifr = P.getIframe && P.getIframe(); if (ifr) { ifr.setAttribute('tabindex', '-1'); ifr.setAttribute('title', 'ตอนตัวอย่างฟรี'); }
             if (opt.muted) { P.mute(); P.playVideo(); }
             else if (opt.sound) {
@@ -265,6 +302,7 @@
   var css = document.createElement('style');
   css.textContent = '.player .ap-snd{position:absolute;left:12px;top:12px;z-index:5;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:7px 14px 7px 11px;font:500 13.5px/1.2 inherit;font-family:inherit;color:#fff;background:rgba(0,0,0,.72);cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
     '.player .ap-snd svg{width:16px;height:16px} .player .ap-snd:hover{background:rgba(0,0,0,.86)} .ap-cap{margin:6px 0 0}' +
+    '.player.ibp-narrow .yt-time{display:none}' + // preview player under 320 px wide (see mount)
     '.cover .upd,.nc-cv .upd{position:absolute;right:12px;top:12px;z-index:1;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
     '.feat .cover .upd{right:14px;top:14px} .ci .cover .upd{display:none}' +
     '.nc-cv .upd{right:10px;top:10px;font-size:12px} .nc-cv .nc-off ~ .upd{top:40px}' + // UI v2 cards: under "ลด ฿…" when both show
