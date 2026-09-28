@@ -93,13 +93,13 @@ export async function teacherProfile(d: Data, _c: Ctx, me: User) {
     courses: courses.filter((c) => csv(c.teacherIds).includes(uid)).map((c) => ({ course_id: c.slug, title: c.title })),
   };
 }
-/** teacher.profile.save — same rights as teacher.profile; the photo must be an https link (from admin.upload). */
+/** teacher.profile.save — same rights as teacher.profile; the photo is a file from admin.upload (/api/ib/file/…) or an https link. */
 export async function teacherProfileSave(d: Data, c: Ctx, me: User) {
   const uid = isAdminUser(me) && d.user_id ? String(d.user_id) : me.id;
   const u = await prisma.user.findUnique({ where: { id: uid } });
   if (!u || !isStaff(u)) throw err("NOT_FOUND", "ผู้ใช้นี้ไม่ได้มียศผู้สอน");
   const photo = clip(d.photo_url, 500);
-  if (photo && !/^https:\/\//.test(photo)) throw err("BAD_INPUT", "อัปโหลดรูปใหม่อีกครั้ง");
+  if (photo && !/^https:\/\//.test(photo) && !/^\/api\/ib\/file\/[\w-]+$/.test(photo)) throw err("BAD_INPUT", "อัปโหลดรูปใหม่อีกครั้ง");
   const bio = (Array.isArray(d.bio) ? d.bio : []).map((x: unknown) => String(x || "").trim().slice(0, 200)).filter(Boolean).slice(0, 20);
   const data = {
     displayName: req(d.display_name, "ชื่อที่แสดง", 60), title: clip(d.title, 160), bio, photoUrl: photo,
