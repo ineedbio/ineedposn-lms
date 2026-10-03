@@ -1,4 +1,4 @@
-/* INeedBio UI v2 รอบ 4 (r4) · ทีมผู้สอน สีประจำคอร์ส หน้าเรียน 3 โหมด Liquid Glass */
+/* INeedBio UI v2 รอบ 4 + hotfix เครื่องเล่น (r4h) · ความชัดอัตโนมัติ เพดาน 1080p บนมือถือ ไม่มีกระจกในเครื่องเล่น iframe ตัวเดียว */
 /* ═══════════ ตั้งค่า: วาง URL ของ Apps Script Web App ที่นี่ ═══════════ */
 var API_URL = window.INEEDBIO_API_URL || 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 /* ฟีเจอร์ที่ยังไม่เปิดบนเว็บจริง (ต้องมี route ฝั่ง backend ก่อน) — เปิดทีหลังได้ใน app/page.tsx โดยตั้ง window.INEEDBIO_FEATURES ก่อนโหลดไฟล์นี้ */
@@ -1175,17 +1175,30 @@ function loadYT() {
 }
 function fmtT(s) { s = Math.max(0, Math.floor(s || 0)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + pad2(m) : m) + ':' + pad2(x); }
 function stopPlayer() {
+  S.ytGen = (S.ytGen || 0) + 1; // ตัวที่กำลังโหลดอยู่จะไม่ถูกสร้างต่อ
   if (S.ytT) { clearInterval(S.ytT); S.ytT = null; }
   clearInterval(S.studyT);
-  if (S.yt) { try { S.yt.destroy(); } catch (e) {} S.yt = null; }
+  if (S.ytOff) { try { S.ytOff(); } catch (e) {} S.ytOff = null; }
+  var p = S.yt || S.ytPend; S.yt = null; S.ytPend = null;
+  if (p) { try { p.destroy(); } catch (e) {} }
   S.ytCtl = null; document.body.classList.remove('fake-fs-on');
+}
+/** มือถือ/แท็บเล็ต (รวม iPad ที่แจ้งตัวเป็น Mac) · คอมจอสัมผัสที่มีเมาส์ไม่นับ */
+function isHandheld() {
+  var ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;
+  if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return true;
+  return !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches);
 }
 /** el = กล่อง .player · opt.onEnd เรียกเมื่อดูจบ · opt.key ใช้จำตำแหน่งที่ดูค้างไว้ */
 var YTRATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
-var YTQ = [[2160, 'ชัดสุด', 'highres'], [1080, '1080p', 'hd1080'], [720, '720p', 'hd720'], [480, '480p', 'large'], [360, '360p', 'medium']];
+/* ความชัด: 0 = อัตโนมัติ (กรอบเท่าจอ ไม่ย่อ ให้ YouTube เลือกตามจอเอง) · มือถือ/แท็บเล็ตไม่มี 1440p/4K */
+var YTQ = [[0, 'อัตโนมัติ', ''], [2160, '4K', 'highres'], [1440, '1440p', 'hd1440'], [1080, '1080p', 'hd1080'], [720, '720p', 'hd720'], [480, '480p', 'large'], [360, '360p', 'medium']];
+var YTQ_KEY = 'ib_q2';
 function safePlayer(el, vid, wm, opt) {
   opt = opt || {};
   stopPlayer();
+  var gen = S.ytGen, hand = isHandheld(), QS = YTQ.filter(function (q) { return !hand || q[0] <= 1080; });
   el.classList.add('sp', 'is-idle');
   el.innerHTML = '<div class="yt-crop"><div id="yt-host"></div></div><div class="yt-shield"></div>' +
     (wm ? '<span class="wm" id="wm" style="top:12%;left:8%">' + esc(wm) + '</span>' : '') +
@@ -1193,7 +1206,7 @@ function safePlayer(el, vid, wm, opt) {
     '<div class="yt-bar"><input type="range" class="yt-seek" min="0" max="1000" value="0" step="1" aria-label="เลื่อนเวลา">' +
     '<div class="yt-row"><button class="yt-b" data-y="toggle" aria-label="เล่น/หยุด">' + PI.play + '</button><button class="yt-b" data-y="back" aria-label="ย้อน 10 วินาที">' + PI.back + '</button><button class="yt-b" data-y="fwd" aria-label="ข้าม 10 วินาที">' + PI.fwd + '</button>' +
     '<button class="yt-b" data-y="mute" aria-label="เปิด/ปิดเสียง">' + PI.vol + '</button><span class="yt-time">0:00 / 0:00</span><span style="flex:1"></span>' +
-    '<select class="yt-q" aria-label="ความชัด">' + YTQ.map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('') + '</select>' +
+    '<select class="yt-q" aria-label="ความชัด">' + QS.map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('') + '</select>' +
     '<select class="yt-rate" aria-label="ความเร็ว">' + YTRATES.map(function (r) { return '<option value="' + r + '"' + (r === 1 ? ' selected' : '') + '>' + r + 'x</option>'; }).join('') + '</select>' +
     '<button class="yt-b" data-y="fs" aria-label="เต็มจอ">' + PI.fs + '</button></div></div>';
   var P = null, dur = 0, drag = false, hideT = null, ended = false, posKey = opt.key ? 'ib_pos_' + opt.key : '';
@@ -1235,28 +1248,36 @@ function safePlayer(el, vid, wm, opt) {
   };
   rateSel.onchange = function () { setRate(Number(this.value)); store('ib_rate', this.value); wake(); };
   var savedRate = Number(store('ib_rate')) || 1; rateSel.value = String(savedRate);
-  // ความชัด: YouTube เลือกความละเอียดตามขนาดกรอบ เลยวาดกรอบคลิปให้ใหญ่ตามความชัดที่เลือกแล้วย่อลงให้พอดีจอ
-  var qH = Number(store('ib_q')) || YTQ[0][0]; qSel.value = String(qH);
+  // ความชัด: อัตโนมัติ = iframe เท่ากรอบ ไม่ย่อ · เลือกเอง = วาดให้ได้พิกเซลจริงเท่าความชัดนั้น (หาร devicePixelRatio) แล้วย่อลง
+  // มือถือ/แท็บเล็ต: พิกเซลจริงของภาพไม่เกิน 1920×1080 · ค่าเดิม ib_q (เคยตั้ง "ชัดสุด") เลิกใช้
+  store('ib_q', null);
+  var qH = Number(store(YTQ_KEY)) || 0; if (!QS.some(function (q) { return q[0] === qH; })) qH = 0; qSel.value = String(qH);
+  var qOf = function () { return (YTQ.filter(function (q) { return q[0] === qH; })[0] || YTQ[0])[2]; };
   var crop = $('.yt-crop', el);
   var fit = function () {
     var ifr = $('iframe', crop); if (!ifr) return;
     var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
-    var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, sc = Math.min(1, vh / qH);
+    var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, dpr = window.devicePixelRatio || 1, sc = 1;
+    if (qH) sc = Math.min(1, vh * dpr / qH);
+    if (hand) sc = Math.min(1, Math.max(sc, vh * dpr / 1080, vw * dpr / 1920));
     var st = ifr.style;
-    st.setProperty('width', (vw / sc) + 'px', 'important'); st.setProperty('height', ((vh + 140) / sc) + 'px', 'important');
-    st.setProperty('left', ((W - vw) / 2) + 'px', 'important'); st.setProperty('top', ((H - vh) / 2 - 70) + 'px', 'important');
-    st.setProperty('transform', 'scale(' + sc + ')', 'important'); st.setProperty('transform-origin', '0 0', 'important');
+    st.setProperty('width', (vw / sc) + 'px', 'important'); st.setProperty('height', (vh / sc + 140) + 'px', 'important');
+    st.setProperty('left', ((W - vw) / 2) + 'px', 'important'); st.setProperty('top', ((H - vh) / 2 - 70 * sc) + 'px', 'important');
+    st.setProperty('transform', sc < 1 ? 'scale(' + sc + ')' : 'none', 'important'); st.setProperty('transform-origin', '0 0', 'important');
   };
-  qSel.onchange = function () { qH = Number(this.value); store('ib_q', this.value); fit(); if (P && P.setPlaybackQuality) try { P.setPlaybackQuality(YTQ.filter(function (q) { return q[0] === qH; })[0][2]); } catch (e) {} wake(); };
-  if (window.ResizeObserver) new ResizeObserver(fit).observe(crop); else window.addEventListener('resize', fit);
+  qSel.onchange = function () { qH = Number(this.value); store(YTQ_KEY, qH ? this.value : null); fit(); if (qH && P && P.setPlaybackQuality) try { P.setPlaybackQuality(qOf()); } catch (e) {} wake(); };
+  var ro = window.ResizeObserver ? new ResizeObserver(fit) : null;
+  if (ro) ro.observe(crop); else window.addEventListener('resize', fit);
+  S.ytOff = function () { if (ro) ro.disconnect(); else window.removeEventListener('resize', fit); clearTimeout(hideT); };
   loadYT().then(function () {
-    if (!document.body.contains(el)) return;
+    if (gen !== S.ytGen || !document.body.contains(el)) return;
     P = new YT.Player('yt-host', {
       videoId: vid, host: 'https://www.youtube-nocookie.com',
-      playerVars: (function () { var v = { vq: (YTQ.filter(function (q) { return q[0] === qH; })[0] || YTQ[0])[2], controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0 }; if (/^https?:/.test(location.origin)) v.origin = location.origin; return v; })(),
+      playerVars: (function () { var v = { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0 }; if (qH) v.vq = qOf(); if (/^https?:/.test(location.origin)) v.origin = location.origin; return v; })(),
       events: {
         onReady: function () {
-          S.yt = P; dur = P.getDuration() || 0; fit(); if (savedRate !== 1) setRate(savedRate);
+          if (gen !== S.ytGen) { try { P.destroy(); } catch (e) {} return; }
+          S.yt = P; S.ytPend = null; dur = P.getDuration() || 0; fit(); if (savedRate !== 1) setRate(savedRate);
           var ifr = P.getIframe && P.getIframe(); if (ifr) { ifr.setAttribute('tabindex', '-1'); ifr.setAttribute('title', 'คลิปเรียน'); }
           var sv = posKey ? Number(store(posKey)) : 0;
           if (sv > 10 && (!dur || sv < dur - 20)) { P.cueVideoById({ videoId: vid, startSeconds: sv }); msg.textContent = 'ดูค้างไว้ที่ ' + fmtT(sv) + ' · กดเล่นเพื่อดูต่อ'; }
@@ -1273,6 +1294,7 @@ function safePlayer(el, vid, wm, opt) {
         onError: function (e) { fail(e.data === 101 || e.data === 150 ? 'คลิปนี้ไม่ได้เปิดให้ฝังในเว็บ แจ้งแอดมินให้เปิด "อนุญาตการฝัง" ใน YouTube Studio' : 'เล่นคลิปนี้ไม่ได้ ลองรีเฟรชหน้า หรือแจ้งแอดมินทาง IG'); }
       }
     });
+    S.ytPend = P;
   }).catch(function () { fail('โหลดเครื่องเล่นวิดีโอไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วรีเฟรชหน้า'); });
 }
 document.addEventListener('keydown', function (e) {
@@ -1678,17 +1700,22 @@ function viewLearn(cid, lid) {
       api('progress.set', { lesson_id: cur.lesson_id, done: nv }).then(function () {
         cur.done = nv; S.mem.mine = null;
         if (nv && all[i + 1]) toast('เยี่ยม! ไปตอนถัดไปได้เลย');
-        draw(c);
+        markDone(nv); busy(b, false);
       }).catch(function (e) { busy(b, false); toast(e.message, true); });
+    };
+    // อัปเดตเฉพาะปุ่ม เครื่องหมายในรายการตอน และแถบความคืบหน้า · ไม่วาดหน้าใหม่ เครื่องเล่นจึงเล่นต่อได้
+    var markDone = function (nv) {
+      var b = $('#done-btn'); if (b) { b.textContent = nv ? '✓ ดูจบแล้ว' : 'ทำเครื่องหมายว่าดูจบ'; b.classList.toggle('ghost', nv); }
+      var ep = $('.ep.on'); if (ep) { ep.classList.toggle('done', nv); $('.ck', ep).textContent = nv ? '✓' : ''; }
+      var dn = all.filter(function (l) { return l.done; }).length, pg = $('.lside .prog');
+      if (pg) { var t = $('.sm', pg), bi = $('.bar i', pg); if (t) t.textContent = 'เรียนไปแล้ว ' + dn + ' จาก ' + all.length + ' ตอน'; if (bi) bi.style.width = Math.round(dn / all.length * 100) + '%'; }
     };
     if (!DEMO) safePlayer($('#player'), cur.youtube_id, c.watermark, { poster: c.cover_url, key: cur.lesson_id, onEnd: function (msg) {
       var nx = all[i + 1];
       msg.innerHTML = 'ดูจบตอนนี้แล้ว' + (nx ? '<br><a class="pill" style="margin-top:12px" href="#/learn/' + encodeURIComponent(cid) + '/' + nx.lesson_id + '">ตอนถัดไป: ' + esc(nx.title) + ' →</a>' : '<br>จบคอร์สแล้ว เก่งมาก!');
       if (cur.done || c.preview) return;
       api('progress.set', { lesson_id: cur.lesson_id, done: true }).then(function () {
-        cur.done = true; S.mem.mine = null;
-        var b = $('#done-btn'); if (b) { b.textContent = '✓ ดูจบแล้ว'; b.classList.add('ghost'); }
-        var ep = $('.ep.on'); if (ep) { ep.classList.add('done'); $('.ck', ep).textContent = '✓'; }
+        cur.done = true; S.mem.mine = null; markDone(true);
       }).catch(function () {});
     } });
     if (!DEMO && !c.preview) startStudyPing(cur.lesson_id);
