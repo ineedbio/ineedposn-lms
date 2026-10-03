@@ -1700,7 +1700,7 @@ function viewLearn(cid, lid) {
       api('progress.set', { lesson_id: cur.lesson_id, done: nv }).then(function () {
         cur.done = nv; S.mem.mine = null;
         if (nv && all[i + 1]) toast('เยี่ยม! ไปตอนถัดไปได้เลย');
-        markDone(nv); busy(b, false);
+        busy(b, false); markDone(nv);
       }).catch(function (e) { busy(b, false); toast(e.message, true); });
     };
     // อัปเดตเฉพาะปุ่ม เครื่องหมายในรายการตอน และแถบความคืบหน้า · ไม่วาดหน้าใหม่ เครื่องเล่นจึงเล่นต่อได้
