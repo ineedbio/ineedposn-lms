@@ -60,7 +60,7 @@ var SCHEMA = {
 };
 
 var PUBLIC_SETTINGS = ['terms_text','privacy_text','hero_eyebrow','hero_title','hero_subtitle','announcement','promptpay_id','promptpay_name','contact_ig',
-  'pay_terms_text','order_expire_hours','proof_paid_at','proof_amount','proof_from_bank','proof_payer_name','proof_extra','cells_enabled','event_mode','home_billboard'];
+  'pay_terms_text','order_expire_hours','proof_paid_at','proof_amount','proof_from_bank','proof_payer_name','proof_extra','cells_enabled','event_mode','event_from','event_until','home_billboard'];
 var DEFAULT_SETTINGS = {
   hero_eyebrow: 'INeedBio Online',
   hero_title: 'ติวเข้ม ม.ปลาย|กับ INeedBio',
@@ -85,6 +85,8 @@ var DEFAULT_SETTINGS = {
   platform_pct: '{}',
   cells_enabled: '1',
   event_mode: 'auto',
+  event_from: '',
+  event_until: '',
   home_billboard: '',
   subject_splits: '{}'
 };
@@ -1253,7 +1255,9 @@ function adminBillDecide_(d, p, admin) {
 // วันไหนครบ 15 นาที = เรียน 1 วัน (+1 เซลล์) · ยอดเซลล์จริงคือผลรวมใน CellLedger · ตัดวันตามเวลาไทย
 var CELLS = { MIN_PER_DAY: 15, PING_GAP_MS: 50000, MIN_ADVANCE: 30, REVIEW: 5, GRADES: 5, GRADES_PROOF: 5, COST: 100, VALUE: 100, CODE_DAYS: 60, REDEEM_GAP_DAYS: 30, FREEZE_EVERY: 7, FREEZE_MAX: 2,
   BONUS: { 7: 5, 15: 10, 30: 30, 60: 50, 100: 100, 200: 150, 365: 365 },
-  THEMES: [['base', 0], ['petri', 15], ['scope', 30], ['reef', 60], ['forest', 100], ['nebula', 200], ['gold', 365]] };
+  THEMES: [['base', 0], ['petri', 15], ['scope', 30], ['reef', 60], ['forest', 100], ['nebula', 200], ['gold', 365]],
+  // กิจกรรมช่วงเวลา: เรียนครบ need วัน (วันที่นับ = เรียนครบ 15 นาที) ในช่วง from–to ได้สกินลิมิเต็ด เก็บไว้ถาวร (คิดจาก StudyDays ไม่ต้องมีตารางใหม่)
+  EVENTS: [{ key: 'halloween2569', name: 'ฮาโลวีน 2569', skin: 'spooky', from: '2026-10-01', to: '2026-10-31', need: 10 }] };
 var DAY_SHIFT_MS = 0; // ใช้เฉพาะเดโมเพื่อจำลองวันถัดไป ของจริงเป็น 0 เสมอ
 function thDay_(ms) { return new Date((ms == null ? Date.now() + DAY_SHIFT_MS : ms) + 7 * 36e5).toISOString().slice(0, 10); }
 function dayDiff_(a, b) { return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 864e5); }
@@ -1265,7 +1269,12 @@ function streakRow_(uid, create) {
 }
 function ledgerSum_(uid) { return read_('CellLedger').filter(function (x) { return x.user_id === uid; }).reduce(function (a, x) { return a + (Number(x.delta) || 0); }, 0); }
 function ledgerAdd_(uid, delta, reason, day, ref) { append_('CellLedger', { entry_id: 'CL' + id_(), user_id: uid, delta: delta, reason: reason, day: day || '', ref: ref || '', created_at: now_() }); }
-function themesFor_(best) { return CELLS.THEMES.filter(function (t) { return best >= t[1]; }).map(function (t) { return t[0]; }); }
+function eventDaysOf_(uid, ev, days) { return (days || read_('StudyDays')).filter(function (x) { return x.user_id === uid && truthy_(x.credited) && x.day >= ev.from && x.day <= ev.to; }).length; }
+function themesFor_(best, uid) {
+  var t = CELLS.THEMES.filter(function (t) { return best >= t[1]; }).map(function (t) { return t[0]; });
+  if (uid) { var all = read_('StudyDays'); CELLS.EVENTS.forEach(function (ev) { if (eventDaysOf_(uid, ev, all) >= ev.need) t.push(ev.skin); }); }
+  return t;
+}
 /** เรียนครบวันนี้ → นับต่อสตรีค (ใช้บัตรพักตัวถ้าขาดไม่เกินจำนวนบัตร) + ลงสมุดเซลล์ · เรียกภายใน withLock_ เท่านั้น */
 function creditDay_(uid, day) {
   var st = streakRow_(uid, true), last = st.last_day, streak = Number(st.streak) || 0, best = Number(st.best) || 0, fr = Number(st.freezes) || 0;
@@ -1288,7 +1297,9 @@ function studyPing_(d, p) {
   if (!cellsOn_()) return { off: true };
   var l = findOne_('Lessons', function (r) { return r.lesson_id === d.lesson_id; });
   if (!l) throw err_('NOT_FOUND', 'ไม่พบบทเรียน');
-  if (!enrollActive_(latestEnroll_(u.user_id, l.course_id))) throw err_('NO_ACCESS', 'ยังไม่ได้รับสิทธิ์');
+  // ตอนตัวอย่างฟรีนับเป็นเวลาเรียนด้วย (ต้องล็อกอิน = ยืนยันอีเมลตอนสมัครแล้ว) · ตอนอื่นต้องมีสิทธิ์เรียน
+  var freeOk = !!d.preview && truthy_(l.is_preview) && !truthy_(l.hidden);
+  if (!freeOk && !enrollActive_(latestEnroll_(u.user_id, l.course_id))) throw err_('NO_ACCESS', 'ยังไม่ได้รับสิทธิ์');
   var ck = 'cp:' + u.user_id, t = Date.now(), last = Number(cache_().get(ck)) || 0;
   if (t - last < CELLS.PING_GAP_MS) return { ignored: true };
   // คลิปต้องเดินหน้าจริง: ตำแหน่งในคลิปต้องขยับไปข้างหน้าอย่างน้อย 30 วินาทีจากครั้งก่อน (หยุด วนซ้ำ หรือเปิดทิ้งที่เดิมไม่นับ)
@@ -1323,7 +1334,8 @@ function cellsStatus_(d, p) {
   var codes = read_('Coupons').filter(function (c) { return c.owner_id === u.user_id && /^CELL/.test(c.code); }).map(function (c) {
     return { code: c.code, value: Number(c.value) || 0, ends_at: c.ends_at, used: couponUses_(c.code) > 0 }; });
   return { enabled: cellsOn_(), today: day, today_min: today ? today.minutes : 0, today_done: !!(today && today.credited), need: CELLS.MIN_PER_DAY,
-    streak: streak, best: best, freezes: fr, points: points, theme: themesFor_(best).indexOf(st.theme) >= 0 ? st.theme : 'base', themes: themesFor_(best),
+    streak: streak, best: best, freezes: fr, points: points, theme: themesFor_(best, u.user_id).indexOf(st.theme) >= 0 ? st.theme : 'base', themes: themesFor_(best, u.user_id),
+    events: CELLS.EVENTS.map(function (ev) { var n = eventDaysOf_(u.user_id, ev); return { key: ev.key, name: ev.name, skin: ev.skin, from: ev.from, to: ev.to, need: ev.need, days: Math.min(n, ev.need), earned: n >= ev.need, active: day >= ev.from && day <= ev.to }; }),
     all_themes: CELLS.THEMES, bonus: CELLS.BONUS, cost: CELLS.COST, value: CELLS.VALUE, can_redeem: points >= CELLS.COST && (!nextAt || new Date(nextAt).getTime() <= Date.now()),
     next_redeem_at: nextAt && new Date(nextAt).getTime() > Date.now() ? nextAt : '', days: days, codes: codes,
     ledger: led.sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 30).map(function (x) { return { delta: Number(x.delta) || 0, reason: x.reason, day: x.day, ref: x.ref, created_at: x.created_at }; }) };
@@ -1349,7 +1361,7 @@ function cellsTheme_(d, p) {
   var u = auth_(p), key = String(d.theme || 'base');
   withLock_(function () {
     var st = streakRow_(u.user_id, true);
-    if (themesFor_(Number(st.best) || 0).indexOf(key) < 0) throw err_('BAD_INPUT', 'ยังไม่ได้ปลดล็อกธีมนี้');
+    if (themesFor_(Number(st.best) || 0, u.user_id).indexOf(key) < 0) throw err_('BAD_INPUT', 'ยังไม่ได้ปลดล็อกธีมนี้');
     update_('Streaks', st._row, { theme: key, updated_at: now_() });
   });
   return { theme: key };
