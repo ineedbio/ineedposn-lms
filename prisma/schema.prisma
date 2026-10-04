@@ -467,6 +467,8 @@ model Coupon {
   status      String    @default("active")
   note        String    @default("")
   createdAt   DateTime  @default(now())
+  // Personal code (cells.redeem): only this user may use it. null = anyone.
+  ownerId     String?
 }
 
 model ShopOrder {
@@ -654,4 +656,103 @@ model SheetBundle {
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
+}
+
+// ───── Cells (study streaks), reviews, trial feedback, grade reports — a port of the Code.gs sheets
+// Streaks / StudyDays / CellLedger / Reviews / TrialFeedback / GradeReports. Ids are plain strings (no FKs),
+// like the sheets: rows stay readable even if a user or course goes away.
+
+/// One row per student: current / best streak (days in a row with 15+ minutes of real video), freeze cards, theme.
+model Streak {
+  userId       String    @id
+  streak       Int       @default(0)
+  best         Int       @default(0)
+  lastDay      String    @default("") // "YYYY-MM-DD", Thai time
+  freezes      Int       @default(0)
+  points       Int       @default(0) // cache of sum(CellLedger.delta); the ledger is the truth
+  theme        String    @default("base")
+  lastRedeemAt DateTime?
+  // study.ping anti-cheat (Code.gs keeps these in CacheService): last counted ping, last reported video position
+  pingAt       DateTime?
+  posLessonId  String    @default("")
+  pos          Int       @default(0)
+  posAt        DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
+/// Minutes of real video per student per Thai day; credited = the day counted (15+ minutes).
+model StudyDay {
+  userId    String
+  day       String // "YYYY-MM-DD", Thai time
+  minutes   Int      @default(0)
+  credited  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, day])
+  @@index([day])
+}
+
+/// Every cell gained or spent: study / bonus-N / review / grades / redeem. A student's cells = sum(delta).
+model CellLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  delta     Int
+  reason    String
+  day       String   @default("")
+  ref       String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Course review by an enrolled student: pending → approved (shown on the course page, +cells) / hidden.
+model Review {
+  id        String    @id @default(cuid())
+  userId    String
+  courseId  String // Course.id
+  rating    Int
+  text      String
+  status    String    @default("pending")
+  createdAt DateTime  @default(now())
+  decidedBy String?
+  decidedAt DateTime?
+
+  @@unique([userId, courseId])
+  @@index([courseId, status])
+}
+
+/// "Did the free episode make sense?" — anyone, no login needed.
+model TrialFeedback {
+  id        String   @id @default(cuid())
+  courseId  String // Course.id
+  lesson    String   @default("")
+  level     String // clear | partly | lost
+  text      String   @default("")
+  userId    String?
+  deviceId  String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([courseId])
+}
+
+/// A student's school grades for one term; pending until an admin approves (+cells, more with a proof photo).
+model GradeReport {
+  id             String    @id @default(cuid())
+  userId         String
+  year           String
+  term           String
+  gradeLevel     String    @default("")
+  grades         Json      @default("[]")
+  gpa            String    @default("")
+  exam           String    @default("")
+  message        String    @default("")
+  proofBlobId    String?
+  consentPublish Boolean   @default(false)
+  status         String    @default("pending")
+  createdAt      DateTime  @default(now())
+  decidedBy      String?
+  decidedAt      DateTime?
+
+  @@unique([userId, year, term])
+  @@index([status])
 }

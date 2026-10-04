@@ -15,6 +15,7 @@ import * as shop from "./shop";
 import * as staff from "./staff";
 import * as sheets from "./sheets";
 import * as team from "./team";
+import * as cells from "./cells";
 import { notifyAdmins, remainingQuota, sendDecisionEmail, sendOtpEmail } from "./mail";
 import {
   APP, ApiError, bkkDate, checkImageUrl, checkPassword, clip, err, iso, isRepeat, lines, normEmail, otpCode, parseFaq,
@@ -32,7 +33,7 @@ type Handler = (d: Data, ctx: Ctx) => Promise<unknown>;
 // ───────────────────────── Settings ─────────────────────────
 const PUBLIC_SETTINGS = ["terms_text", "privacy_text", "hero_eyebrow", "hero_title", "hero_subtitle", "announcement", "promptpay_id", "promptpay_name", "contact_ig",
   "pay_terms_text", "order_expire_hours", "proof_paid_at", "proof_amount", "proof_from_bank", "proof_payer_name", "proof_extra",
-  "home_billboard"];
+  "cells_enabled", "event_mode", "event_from", "event_until", "home_billboard"];
 const DEFAULT_SETTINGS: Record<string, string> = {
   hero_eyebrow: "INeedBio Online",
   hero_title: "ติวเข้ม ม.ปลาย|กับ INeedBio",
@@ -43,6 +44,11 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   contact_ig: "ineedbiochem",
   // Home billboard: course ids in order, comma-separated ("" = the first 5 courses)
   home_billboard: "",
+  // Cells (study streaks → discount codes) and the seasonal theme; event_from/event_until = Thai time, "" = by the calendar
+  cells_enabled: "1",
+  event_mode: "auto",
+  event_from: "",
+  event_until: "",
   admin_emails: process.env.ADMIN_NOTIFICATION_EMAIL || "",
   terms_text: "",
   privacy_text: "",
@@ -194,7 +200,7 @@ function profileFields(d: Data) {
 
 // Student photo: private FileBlob, visible only to its owner and admins.
 type Photo = { mime?: string; base64?: string } | null | undefined;
-function checkPhoto(ph: Photo, required: boolean) {
+export function checkPhoto(ph: Photo, required: boolean) {
   if (!ph || !ph.base64) {
     if (required) throw err("BAD_INPUT", "ใส่รูปของน้องด้วย (รูปไหนก็ได้ ขอแค่เป็นรูปน้องเอง)");
     return false;
@@ -203,11 +209,11 @@ function checkPhoto(ph: Photo, required: boolean) {
   if (String(ph.base64).length * 0.75 > APP.PHOTO_MAX_BYTES) throw err("BAD_INPUT", "รูปถ่ายใหญ่เกิน 1 MB ลองเลือกรูปใหม่");
   return true;
 }
-async function savePhoto(ph: Photo) {
+export async function savePhoto(ph: Photo) {
   const b = await prisma.fileBlob.create({ data: { mime: ph!.mime!, data: Buffer.from(String(ph!.base64), "base64"), isPublic: false } });
   return b.id;
 }
-async function photoOut(id: string | null | undefined) {
+export async function photoOut(id: string | null | undefined) {
   if (!id) return null;
   const b = await prisma.fileBlob.findUnique({ where: { id } });
   return b ? { mime: b.mime, base64: Buffer.from(b.data).toString("base64") } : null;
@@ -452,7 +458,7 @@ function stateOf(pays: Payment[], enr: Enrollment | undefined): EnrollState {
     ? { status: "pending", note: last.note || "", at: last.createdAt }
     : { status: "rejected", note: last.rejectReason || last.note || "", at: last.createdAt };
 }
-async function enrollState(userId: string, courseId: string) {
+export async function enrollState(userId: string, courseId: string) {
   const [pays, enr] = await Promise.all([
     prisma.payment.findMany({ where: { userId, courseId } }),
     prisma.enrollment.findUnique({ where: { userId_courseId: { userId, courseId } } }),
@@ -479,6 +485,8 @@ async function courseDetail(d: Data, { p }: Ctx) {
   out.instructor = (out.instructors as unknown[])[0] || null;
   out.faq = parseFaq(x.faq);
   out.bundles = (await shop.publicBundles()).filter((b) => b.course_ids.includes(x.slug));
+  out.reviews = await cells.courseReviews(x.id);
+  out.trial = await cells.trialStats(x.id);
   out.enrollment = null;
   if (p.token) {
     try {
@@ -539,6 +547,8 @@ async function learnGet(d: Data, { p }: Ctx) {
   }));
   out.watermark = u.email + " · " + u.id;
   out.preview = preview;
+  out.reviewed = await cells.hasReviewed(u.id, x.id);
+  out.review_cells = cells.CELLS.REVIEW;
   return out;
 }
 
@@ -1069,6 +1079,19 @@ const ROUTES: Record<string, Handler> = {
   "bill.proof": (d, c) => shop.billProof(d, c),
   "bill.cancel": (d, c) => shop.billCancel(d, c),
   "legacy.claim": staff.legacyClaim,
+  // Cells (study streaks), reviews, free-episode feedback, grade reports — lib/ib/cells.ts
+  "study.ping": cells.studyPing,
+  "cells.status": cells.cellsStatus,
+  "cells.redeem": cells.cellsRedeem,
+  "cells.theme": cells.cellsTheme,
+  "review.submit": cells.reviewSubmit,
+  "trial.feedback": cells.trialFeedback,
+  "grades.submit": cells.gradesSubmit,
+  "my.submissions": cells.mySubmissions,
+  "admin.cells": adminOnly((d) => cells.adminCells(d)),
+  "admin.feedback": adminOnly((d) => cells.adminFeedback(d)),
+  "admin.feedback.decide": adminOnly(cells.adminFeedbackDecide),
+  "admin.grades.proof": adminOnly((d) => cells.adminGradesProof(d)),
   "learn.file": staff.learnFile,
 
   "admin.stats": staffOnly(adminStats),

@@ -1,7 +1,7 @@
 // Local test runner: a throwaway database in the LOCAL Postgres + its own dev server, then the role tests.
 //   TEST_PG=postgresql://postgres@localhost:5433/postgres?host=/tmp npm run test:roles
 // It refuses any database that is not on this machine, creates a new database (ib_test_<time>), applies the
-// migrations, runs tests/roles.mjs against http://localhost:3107 and drops that database afterwards.
+// migrations, runs tests/roles.mjs and tests/cells.mjs against http://localhost:3107 and drops that database afterwards.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -33,7 +33,7 @@ try {
   for (const d of dirs) sql(TEST_URL, fs.readFileSync(path.join("prisma/migrations", d, "migration.sql"), "utf8"));
   fs.writeFileSync(OUTBOX, "");
   server = spawn("npx", ["next", "dev", "-p", String(PORT)], {
-    env: { ...process.env, DATABASE_URL: TEST_URL, DATABASE_URL_UNPOOLED: TEST_URL, MAIL_OUTBOX_FILE: OUTBOX, NEXT_DIST_DIR: ".next-test", NODE_ENV: "development" },
+    env: { ...process.env, DATABASE_URL: TEST_URL, DATABASE_URL_UNPOOLED: TEST_URL, MAIL_OUTBOX_FILE: OUTBOX, NEXT_DIST_DIR: ".next-test", NODE_ENV: "development", IB_TEST_HOOKS: "1" },
     stdio: ["ignore", "pipe", "pipe"], detached: true,
   });
   let log = ""; server.stdout.on("data", (b) => (log += b)); server.stderr.on("data", (b) => (log += b));
@@ -44,6 +44,10 @@ try {
   }
   const { run } = await import("./roles.mjs");
   await run({ BASE, OUTBOX, makeAdmin: (email) => sql(TEST_URL, `UPDATE "User" SET role = 'ADMIN' WHERE email = '${email.replace(/'/g, "")}'`), sql: (q) => sql(TEST_URL, q) });
+  // Cells / reviews / grades (tests/cells.mjs) — same database, reuses the admin and courses made above.
+  const { PrismaClient } = await import("@prisma/client");
+  const db = new PrismaClient({ datasources: { db: { url: TEST_URL } } });
+  try { await (await import("./cells.mjs")).run({ BASE, OUTBOX, db }); } finally { await db.$disconnect(); }
   code = 0;
 } catch (e) {
   console.error(e);

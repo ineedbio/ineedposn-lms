@@ -88,7 +88,7 @@ async function paidMap(uid: string | undefined) {
 
 // ───────────────────────── Discount codes ─────────────────────────
 const normCode = (c: unknown) => String(c || "").trim().toUpperCase().replace(/\s+/g, "");
-async function couponUses(code: string, uid?: string) {
+export async function couponUses(code: string, uid?: string) {
   const orders = await prisma.shopOrder.findMany({ where: { couponCode: code, ...(uid ? { userId: uid } : {}) }, include: { bills: true } });
   return orders.filter((o) => o.bills.some((b) => BILL_LIVE.includes(billStatus(b)))).length;
 }
@@ -100,6 +100,8 @@ type CartItem = {
 async function applyCoupon(code: string, items: CartItem[], u: User | null) {
   const cp = await prisma.coupon.findUnique({ where: { code } });
   if (!cp || cp.status !== "active") throw err("COUPON", "ไม่พบโค้ด " + code + " หรือโค้ดนี้ปิดใช้งานแล้ว");
+  // Personal code (redeemed with cells): only its owner may use it.
+  if (cp.ownerId && (!u || u.id !== cp.ownerId)) throw err("COUPON", u ? "โค้ดนี้เป็นโค้ดส่วนตัวของบัญชีอื่น" : "โค้ดนี้เป็นโค้ดส่วนตัว เข้าสู่ระบบก่อนใช้");
   const t = Date.now();
   if (cp.startsAt && cp.startsAt.getTime() > t) throw err("COUPON", "โค้ดนี้ยังไม่เริ่มใช้");
   if (cp.endsAt && cp.endsAt.getTime() < t) throw err("COUPON", "โค้ดนี้หมดอายุแล้ว");
