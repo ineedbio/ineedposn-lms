@@ -469,6 +469,9 @@ model Coupon {
   createdAt   DateTime  @default(now())
   // Personal code (cells.redeem): only this user may use it. null = anyone.
   ownerId     String?
+  /// New members only (สมัครตั้งแต่ startsAt, never bought, not a legacy student, phone not shared with a buyer);
+  /// applied by itself when the cart has no code.
+  newOnly     Boolean   @default(false)
 }
 
 model ShopOrder {
@@ -552,6 +555,23 @@ model FinPeriod {
   closedAt DateTime @default(now())
   closedBy String
   snapshot Json // {by_subject, teachers, totals} at closing
+  /// Money that came in after this moment rolls to the next open period (null on older rows = closedAt).
+  cutoff   DateTime?
+}
+
+/// ปรับปรุงยอด: plus/minus on a teacher's transfer in a period (manual, or from re-cutting a period already paid).
+model FinAdjustment {
+  id        String   @id // "AJ…"
+  period    String // "YYYY-MM-1" / "YYYY-MM-2"
+  userId    String
+  subject   String
+  amount    Float
+  note      String   @default("")
+  source    String   @default("manual") // manual | recut
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@index([period])
 }
 
 model FinPayout {

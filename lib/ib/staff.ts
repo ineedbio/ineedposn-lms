@@ -195,6 +195,53 @@ export const periodNow = () => periodOf(new Date()).slice(0, 7);
 const periodRow = (pr: string) => prisma.finPeriod.findUnique({ where: { period: pr } });
 /** A half month is also closed when its whole month was closed the old way. */
 const isClosed = async (pr: string) => !!(await periodRow(pr)) || (/-[12]$/.test(pr) && !!(await periodRow(pr.slice(0, 7))));
+/** The next half month. */
+export function prNext(pr: string) {
+  if (pr.length === 7) pr += "-2";
+  if (pr.slice(-1) === "1") return pr.slice(0, 8) + "2";
+  let y = +pr.slice(0, 4), m = +pr.slice(5, 7) + 1;
+  if (m > 12) { m = 1; y++; }
+  return y + "-" + ("0" + m).slice(-2) + "-1";
+}
+/** Cutoff of each closed period { "YYYY-MM-1": iso } (older whole months count for both halves) · `over` replaces
+ *  one while closing / re-cutting. Money recorded after a period's cutoff belongs to the next open period. */
+type CutoffMap = Record<string, string>;
+const isoN = (v: Date | string | null | undefined) => { if (!v) return ""; const t = new Date(v); return isNaN(t.getTime()) ? "" : t.toISOString(); };
+async function cutoffMap(over?: CutoffMap): Promise<CutoffMap> {
+  const o: CutoffMap = {};
+  for (const r of await prisma.finPeriod.findMany()) {
+    const c = iso(r.cutoff || r.closedAt) || "9999";
+    if (r.period.length === 7) { o[r.period + "-1"] = o[r.period + "-1"] || c; o[r.period + "-2"] = o[r.period + "-2"] || c; }
+    else o[r.period] = c;
+  }
+  return { ...o, ...(over || {}) };
+}
+/** The period an item really falls in: its own (by date), or — when that one was cut off before the item came in —
+ *  the next period still open (or cut off after the item). */
+function assignPeriod(natural: string, recorded: Date | string | null | undefined, CM: CutoffMap) {
+  let q = natural;
+  const r = isoN(recorded);
+  for (let i = 0; i < 72; i++) { const c = CM[q]; if (!c || !r || r <= c) return q; q = prNext(q); }
+  return q;
+}
+const inAssigned = (a: string, pr: string) => (pr.length === 7 ? a.slice(0, 7) === pr : a === pr);
+const expensePeriod = (x: Pick<Expense, "date" | "createdAt">, CM: CutoffMap) => assignPeriod(periodOf(x.date), x.createdAt, CM);
+/** The first period still open, from this one (closed early = the next one). */
+async function openPeriod() {
+  let q = periodOf(new Date());
+  for (let i = 0; i < 24 && (await isClosed(q)); i++) q = prNext(q);
+  return q;
+}
+/** The latest closed period (only that one can be re-cut or reopened). */
+async function lastClosed() {
+  const L = (await prisma.finPeriod.findMany({ select: { period: true } })).map((r) => (r.period.length === 7 ? r.period + "-2" : r.period)).sort();
+  return L[L.length - 1] || "";
+}
+/** The day (from 00:00 Thai time) is before the cutoff of its closed period → a split can't start that early. */
+async function dayLocked(day: string) {
+  const c = (await cutoffMap())[periodOf(dateOfDay(day))];
+  return !!c && new Date(day + "T00:00:00+07:00").toISOString() < c;
+}
 /** Everyone who can receive a share: teachers and admins (the owner teaches a subject too). */
 const teachersAll = () => prisma.user.findMany({ where: { role: { in: ["ADMIN", "INSTRUCTOR"] } } });
 type Split = { user_id: string; pct: number };
@@ -251,30 +298,46 @@ function expenseOut(x: Expense, users: User[]) {
 }
 type Income = {
   enroll_id: string; order_number?: string; note?: string; dup_of?: string; date: string; course_id: string; course_title: string; subject: string; amount: number; source: string; source_label: string;
-  student: string; nickname: string; bill_id: string; has_slip: boolean; account_label: string; held_by: string; revoked: boolean;
+  student: string; nickname: string; bill_id: string; has_slip: boolean; account_label: string; held_by: string; revoked: boolean; rolled_from: string;
 };
 type SubjRow = {
   subject: string; name: string; income: number; expense: number; net: number; pct: number; platform: number; pool: number; unassigned: number; custom_missing: string[];
   /** parts that are not teachers (ค่าหลังบ้าน …): kept by INeedBio · pool_all = everything shared, pool = the teachers' part */
   others?: { label: string; pct: number; amount: number }[]; kept?: number; pool_all?: number;
 };
-type TeacherRow = { user_id: string; name: string; subjects: string[]; share: number; held: number; settle?: number };
+type TeacherRow = { user_id: string; name: string; subjects: string[]; share: number; held: number; settle?: number; adjust?: number };
 /** What one person gets from one subject in a period (a payout row when the period closes). */
-type PayRow = { subject: string; user_id: string; name: string; pct: number; share: number; held: number; settle: number; courses: string[] };
+type PayRow = { subject: string; user_id: string; name: string; pct: number; share: number; held: number; settle: number; courses: string[]; adjust?: number; adjust_notes?: string[] };
 
-/** The whole month (all subjects); trimmed to what the viewer may see afterwards. */
-async function finCompute(pr: string) {
-  const range = periodRange(pr);
-  const [users, courses, teachers, pct, SS, pays, exps, accs] = await Promise.all([
+/** The whole period (all subjects); trimmed to what the viewer may see afterwards. Money is counted in the period it
+ *  is assigned to (assignPeriod): its own, or the next open one when it came in after its period's cutoff.
+ *  opt.cutoff = this period's cutoff while closing / re-cutting it. */
+async function finCompute(pr: string, opt: { cutoff?: string } = {}) {
+  const range = periodRange(pr), CM = await cutoffMap(opt.cutoff ? { [pr]: opt.cutoff } : undefined);
+  // Money rolled in comes from earlier periods: look back far enough (a chain of early closings is at most a few periods).
+  const wide = { gte: new Date(range.gte.getTime() - 100 * 864e5), lt: range.lt };
+  const [users, courses, teachers, pct, SS, pays0, exps0, accs, adjRows] = await Promise.all([
     prisma.user.findMany({ where: { role: { in: ["ADMIN", "INSTRUCTOR"] } } }),
     prisma.course.findMany({ include: { subject: true } }),
     teachersAll(),
     platformPct(),
     subjectSplits(),
-    prisma.payment.findMany({ where: { status: "APPROVED", OR: [{ reviewedAt: range }, { reviewedAt: null, createdAt: range }] }, include: { user: true } }),
-    prisma.expense.findMany({ where: { date: range } }),
+    prisma.payment.findMany({ where: { status: "APPROVED", OR: [{ reviewedAt: wide }, { reviewedAt: null, createdAt: wide }] }, include: { user: true } }),
+    prisma.expense.findMany({ where: { date: { lt: range.lt } } }),
     prisma.payAccount.findMany(),
+    prisma.finAdjustment.findMany({ where: pr.length === 7 ? { period: { startsWith: pr } } : { period: pr }, orderBy: { createdAt: "asc" } }),
   ]);
+  const rolled: Record<string, string> = {};
+  const pays = pays0.filter((e) => {
+    const when = e.reviewedAt || e.createdAt, nat = periodOf(when), asg = assignPeriod(nat, when, CM);
+    if (asg !== nat) rolled[e.id] = nat;
+    return inAssigned(asg, pr);
+  });
+  const exps = exps0.filter((x) => {
+    const nat = periodOf(x.date), asg = expensePeriod(x, CM);
+    if (asg !== nat) rolled[x.id] = nat;
+    return inAssigned(asg, pr);
+  });
   const billIds = pays.map((p) => p.billId || ((p.note || "").match(/^บิล (\S+)/) || [])[1] || "").filter(Boolean);
   const bills = await prisma.bill.findMany({ where: { id: { in: billIds } } });
   const income: Income[] = [], free = { grant: 0, legacy: 0, test: 0, bill0: 0 };
@@ -299,11 +362,11 @@ async function finCompute(pr: string) {
       enroll_id: e.id, order_number: e.orderNumber || "", note: e.note || "",
       dup_of: !e.revokedAt && firstOf[e.userId + "|" + e.courseId] && firstOf[e.userId + "|" + e.courseId] !== e.id ? firstOf[e.userId + "|" + e.courseId] : "", date: iso(e.reviewedAt || e.createdAt), course_id: c.slug, course_title: c.title, subject: subjectKey(c.subject), amount: e.amount,
       source: src, source_label: SOURCE_LABEL[src] || src, student: fullName(e.user), nickname: e.user.nickname || "", bill_id: bid, has_slip: !!e.slipImageUrl,
-      account_label: acc ? acc.label : b ? "บัญชีหลัก" : "—", held_by: acc?.ownerId || "", revoked: !!e.revokedAt,
+      account_label: acc ? acc.label : b ? "บัญชีหลัก" : "—", held_by: acc?.ownerId || "", revoked: !!e.revokedAt, rolled_from: rolled[e.id] || "",
     });
   }
   const recorders = await prisma.user.findMany({ where: { id: { in: Array.from(new Set(exps.map((x) => x.recordedById))) } } });
-  const expenses = exps.map((x) => expenseOut(x, recorders)).sort((a, b) => (a.date < b.date ? 1 : -1));
+  const expenses = exps.map((x) => ({ rolled_from: rolled[x.id] || "", ...expenseOut(x, recorders) })).sort((a, b) => (a.date < b.date ? 1 : -1));
   const uname = (id: string) => userName(users.find((u) => u.id === id));
   const subj: Record<string, SubjRow> = {}, tt: Record<string, TeacherRow> = {}, tw: Record<string, Record<string, number>> = {};
   const tc: Record<string, Record<string, string[]>> = {}; // courses each person got a share from
@@ -362,7 +425,19 @@ async function finCompute(pr: string) {
       paysOut.push({ subject: k, user_id: uid, name: uname(uid), pct: r2(totW > 0 ? (w[uid] / totW) * 100 : 0), share, held, settle: r2(share - held), courses: (tc[k] || {})[uid] || [] });
     }
   }
-  const tlist = Object.values(tt).map((t) => ({ ...t, share: r2(t.share), held: r2(t.held), settle: r2(r2(t.share) - r2(t.held)) })).sort((a, b) => b.share - a.share);
+  // ปรับปรุงยอด (corrections, or a re-cut period that was already paid): added to / taken off this period's transfer
+  const adjustments = adjRows.map((a) => ({ adj_id: a.id, period: a.period, user_id: a.userId, name: uname(a.userId), subject: a.subject, amount: r2(a.amount), note: a.note, source: a.source, created_at: iso(a.createdAt) }));
+  for (const a of adjustments) {
+    let x = paysOut.find((y) => y.user_id === a.user_id && y.subject === a.subject);
+    if (!x) { x = { subject: a.subject, user_id: a.user_id, name: a.name, pct: 0, share: 0, held: 0, settle: 0, courses: [] }; paysOut.push(x); }
+    x.adjust = r2((x.adjust || 0) + a.amount); x.settle = r2(x.settle + a.amount);
+    (x.adjust_notes = x.adjust_notes || []).push((a.amount > 0 ? "+" : "−") + Math.abs(a.amount) + " " + a.note);
+    const t = teacherRow(a.user_id);
+    t.adjust = (t.adjust || 0) + a.amount; if (!t.subjects.includes(a.subject)) t.subjects.push(a.subject);
+    const S0 = subj[a.subject];
+    if (S0) { S0.pool = r2(S0.pool + a.amount); S0.platform = r2(S0.platform - a.amount); (S0 as SubjRow & { adjust?: number }).adjust = r2(((S0 as SubjRow & { adjust?: number }).adjust || 0) + a.amount); }
+  }
+  const tlist = Object.values(tt).map((t) => ({ ...t, share: r2(t.share), held: r2(t.held), adjust: r2(t.adjust || 0), settle: r2(r2(t.share) - r2(t.held) + r2(t.adjust || 0)) })).sort((a, b) => b.share - a.share);
   const totals: Record<string, number> = { income: 0, expense: 0, platform: 0, teachers: 0, kept: 0 };
   for (const k of Object.keys(subj)) {
     const S0 = subj[k];
@@ -372,7 +447,8 @@ async function finCompute(pr: string) {
   totals.expense += shared; totals.platform -= shared;
   for (const k of Object.keys(totals)) totals[k] = r2(totals[k]);
   totals.shared = r2(shared); totals.net = r2(totals.income - totals.expense);
-  return { income, expenses, by_subject: Object.values(subj), teachers: tlist as TeacherRow[], pays: paysOut, totals, free };
+  totals.adjust = r2(adjustments.reduce((a, x) => a + x.amount, 0));
+  return { income, expenses, by_subject: Object.values(subj), teachers: tlist as TeacherRow[], pays: paysOut, totals, free, adjustments };
 }
 type FinData = Awaited<ReturnType<typeof finCompute>>;
 function finScope(r: FinData, me: User, subject: string) {
@@ -385,6 +461,7 @@ function finScope(r: FinData, me: User, subject: string) {
     by_subject: r.by_subject.filter((x) => want.includes(x.subject)),
     teachers: admin ? r.teachers.filter((t) => allSubj || t.subjects.some((s) => want.includes(s))) : r.teachers.filter((t) => t.user_id === me.id),
     pays: (r.pays || []).filter((x) => (allSubj || want.includes(x.subject)) && (admin || x.user_id === me.id)),
+    adjustments: (r.adjustments || []).filter((x) => (allSubj || want.includes(x.subject)) && (admin || x.user_id === me.id)),
     free: r.free,
   };
   if (allSubj) out.totals = r.totals;
@@ -401,7 +478,7 @@ function finScope(r: FinData, me: User, subject: string) {
   return out;
 }
 export async function finSummary(d: Data, _c: Ctx, me: User) {
-  const pr = d.period ? checkPeriod(d.period) : periodOf(new Date());
+  const pr = d.period ? checkPeriod(d.period) : await openPeriod();
   let row = await periodRow(pr);
   const live = await finCompute(pr);
   const pendingExp = live.expenses.some((x) => x.status === "pending");
@@ -414,6 +491,11 @@ export async function finSummary(d: Data, _c: Ctx, me: User) {
   const admin = isAdminUser(me);
   const out = finScope(live, me, String(d.subject || ""));
   out.period = pr; out.closed = !!row; out.closed_at = iso(row?.closedAt); out.label = periodLabel(pr);
+  out.cutoff = row ? iso(row.cutoff || row.closedAt) : "";
+  out.open_period = await openPeriod(); out.max_period = prNext(out.open_period);
+  out.can_close = admin && !row && pr <= prNext(periodOf(new Date()));
+  out.can_recut = admin && !!row && pr.length > 7 && (await lastClosed()) === pr;
+  out.rolled_in = live.income.filter((x) => x.rolled_from).length;
   out.subjects = subjectsOf(me); out.admin = admin; out.categories = EXPENSE_CATS;
   out.payouts = (await prisma.finPayout.findMany({ where: { period: pr, ...(admin ? {} : { userId: me.id }) }, orderBy: { createdAt: "asc" } })).map((x) => ({
     payout_id: x.id, user_id: x.userId, subject: x.subject || "", amount: x.amount, share: x.share, held: x.held, status: x.status, paid_at: iso(x.paidAt), note: x.note,
@@ -439,7 +521,7 @@ export async function finExpenseSave(d: Data, _c: Ctx, me: User) {
   if (!isAdminUser(me) && !canSubject(me, subject)) throw err("FORBIDDEN", "บันทึกรายจ่ายได้เฉพาะวิชาที่คุณดูแล");
   const amount = r2(d.amount);
   if (!(amount > 0)) throw err("BAD_INPUT", "ใส่ยอดเงินมากกว่า 0");
-  if (await isClosed(periodOf(dateOfDay(date)))) throw err("LOCKED", "งวดนี้ปิดแล้ว ลงรายจ่ายในงวดถัดไปแทน");
+  // A date in a closed period is fine: the expense rolls to the next open period (assignPeriod).
   const category = EXPENSE_CATS.includes(d.category) ? d.category : "อื่นๆ", note = clip(d.note, 300);
   const patch: Prisma.ExpenseUncheckedUpdateInput = { date: dateOfDay(date), subjectKey: subject || null, category, amount, note, title: clip(note || category, 120) };
   if (d.receipt && d.receipt.base64) {
@@ -451,7 +533,7 @@ export async function finExpenseSave(d: Data, _c: Ctx, me: User) {
   if (d.expense_id) {
     const x = await prisma.expense.findUnique({ where: { id: String(d.expense_id) } });
     if (!x) throw err("NOT_FOUND", "ไม่พบรายการนี้");
-    if (await isClosed(periodOf(x.date))) throw err("LOCKED", "รายการนี้อยู่ในงวดที่ปิดแล้ว แก้ไม่ได้");
+    if (await isClosed(expensePeriod(x, await cutoffMap()))) throw err("LOCKED", "รายการนี้อยู่ในงวดที่ปิดแล้ว แก้ไม่ได้");
     if (!isAdminUser(me) && (x.recordedById !== me.id || x.status !== "pending")) throw err("FORBIDDEN", "แก้ได้เฉพาะรายการของคุณที่ยังรอแอดมินอนุมัติ");
     await prisma.expense.update({ where: { id: x.id }, data: patch });
     await log(me, "expense.edit", x.id + " ฿" + amount);
@@ -472,7 +554,7 @@ export async function finExpenseDecide(d: Data, _c: Ctx, me: User) {
   if (!st) throw err("BAD_INPUT", "เลือกอนุมัติหรือไม่อนุมัติ");
   const x = await prisma.expense.findUnique({ where: { id: String(d.expense_id || "") } });
   if (!x) throw err("NOT_FOUND", "ไม่พบรายการนี้");
-  if (await isClosed(periodOf(x.date))) throw err("LOCKED", "งวดนี้ปิดแล้ว");
+  if (await isClosed(expensePeriod(x, await cutoffMap()))) throw err("LOCKED", "งวดนี้ปิดแล้ว");
   await prisma.expense.update({ where: { id: x.id }, data: { status: st, decidedById: me.id, decidedAt: new Date() } });
   await log(me, "expense." + st, x.id);
   return true;
@@ -480,7 +562,7 @@ export async function finExpenseDecide(d: Data, _c: Ctx, me: User) {
 export async function finExpenseDelete(d: Data, _c: Ctx, me: User) {
   const x = await prisma.expense.findUnique({ where: { id: String(d.expense_id || "") } });
   if (!x) throw err("NOT_FOUND", "ไม่พบรายการนี้");
-  if (await isClosed(periodOf(x.date))) throw err("LOCKED", "งวดนี้ปิดแล้ว ลบไม่ได้");
+  if (await isClosed(expensePeriod(x, await cutoffMap()))) throw err("LOCKED", "งวดนี้ปิดแล้ว ลบไม่ได้");
   if (!isAdminUser(me) && (x.recordedById !== me.id || x.status !== "pending")) throw err("FORBIDDEN", "ลบได้เฉพาะรายการของคุณที่ยังรออนุมัติ");
   await prisma.expense.delete({ where: { id: x.id } });
   await log(me, "expense.delete", x.id + " ฿" + x.amount);
@@ -567,26 +649,99 @@ export async function finIncomeDelete(d: Data, _c: Ctx, me: User) {
 async function incomeRow(d: Data) {
   const e = await prisma.payment.findUnique({ where: { id: String(d.enroll_id || "") } });
   if (!e || e.status !== "APPROVED") throw err("NOT_FOUND", "ไม่พบรายการรายรับนี้");
-  if (await isClosed(periodOf(e.reviewedAt || e.createdAt))) throw err("LOCKED", "งวดของรายการนี้ปิดแล้ว กด \"เปิดงวด\" ของงวดนั้นก่อนแก้ไข");
+  if (await isClosed(assignPeriod(periodOf(e.reviewedAt || e.createdAt), e.reviewedAt || e.createdAt, await cutoffMap()))) throw err("LOCKED", "งวดของรายการนี้ปิดแล้ว กด \"เปิดงวด\" ของงวดนั้นก่อนแก้ไข");
   return e;
 }
+/** An admin closes a period any time, without waiting for its end (this one or the next) · the cutoff may be set back
+ *  (e.g. when the money was really transferred): what came in after it rolls to the next period. */
 export async function finClose(d: Data, c: Ctx, me: User) {
   const pr = checkPeriod(d.period);
-  if (pr > periodOf(new Date())) throw err("BAD_INPUT", "ปิดงวดล่วงหน้าไม่ได้");
-  if (await isClosed(pr)) throw err("ALREADY", "งวดนี้ปิดไปแล้ว");
-  const r = await finCompute(pr);
+  if (pr.length === 7) throw err("BAD_INPUT", "ปิดยอดได้เป็นรายงวด (ครึ่งเดือน)");
+  if (pr > prNext(periodOf(new Date()))) throw err("BAD_INPUT", "ปิดงวดล่วงหน้าเกิน 1 งวดไม่ได้");
+  if (await isClosed(pr)) throw err("ALREADY", "งวดนี้ปิดยอดแล้ว");
+  const cut = cutoffIn(d.cutoff);
+  const r = await finCompute(pr, { cutoff: cut });
   if (r.expenses.some((x) => x.status === "pending")) throw err("BAD_INPUT", "ยังมีรายจ่ายรออนุมัติในงวดนี้ อนุมัติหรือไม่อนุมัติก่อนปิดงวด");
-  await closePeriod(pr, r, me.id);
-  await log(me, "finance.close", pr + " รายรับ ฿" + r.totals.income);
+  await closePeriod(pr, r, me.id, cut);
+  await log(me, "finance.close", pr + " ตัดยอด " + cut + " รายรับ ฿" + r.totals.income);
   const out = await finSummary({ period: pr }, c, me);
   return { ...out, payouts: out.payouts }; // payouts: one per (subject, person)
 }
 /** Close a period: freeze the figures and create one payout per (subject, person) — by an admin, or by itself
  *  once the half month has ended (autoCloseFinance / opening it in รายรับรายจ่าย). */
-async function closePeriod(pr: string, r: FinData, by: string) {
+function cutoffIn(v: unknown) {
+  const now = new Date().toISOString();
+  if (!v) return now;
+  const c = isoN(String(v));
+  if (!c) throw err("BAD_INPUT", "เวลาตัดยอดไม่ถูกต้อง");
+  if (c > now) throw err("BAD_INPUT", "เวลาตัดยอดต้องไม่เกินตอนนี้");
+  return c;
+}
+const snapOf = (r: FinData) => ({ by_subject: r.by_subject, teachers: r.teachers, pays: r.pays, totals: r.totals }) as unknown as Prisma.InputJsonValue;
+/** Re-cut the latest closed period (a correction afterwards): recompute; what came in after the new cutoff goes to the
+ *  next period · teachers not paid yet → their pending transfer changes · already paid → the difference becomes a
+ *  ปรับปรุงยอด in the next period (a transfer already made is never changed). */
+export async function finRecut(d: Data, c: Ctx, me: User) {
+  const pr = checkPeriod(d.period), cut = cutoffIn(d.cutoff);
+  const row = await periodRow(pr);
+  if (!row) throw err("NOT_FOUND", "งวดนี้ยังไม่ได้ปิดยอด");
+  if ((await lastClosed()) !== pr) throw err("LOCKED", "แก้เวลาตัดยอดได้เฉพาะงวดที่ปิดล่าสุด");
+  const r = await finCompute(pr, { cutoff: cut });
+  if (r.expenses.some((x) => x.status === "pending")) throw err("BAD_INPUT", "ยังมีรายจ่ายรออนุมัติในช่วงนี้ อนุมัติหรือไม่อนุมัติก่อน");
+  const nxt = prNext(pr), why = "ปรับจากงวด " + periodLabel(pr) + " (แก้เวลาตัดยอด)", now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT 1 FROM "FinPeriod" WHERE period = ${pr} FOR UPDATE`;
+    await tx.finPeriod.update({ where: { period: pr }, data: { cutoff: new Date(cut), snapshot: snapOf(r) } });
+    const pos = await tx.finPayout.findMany({ where: { period: pr } }), seen = new Set<string>();
+    const adj = (uid: string, sj: string, amt: number) =>
+      Math.abs(amt) < 0.005 ? null : tx.finAdjustment.create({ data: { id: "AJ" + shortId(8), period: nxt, userId: uid, subject: sj, amount: r2(amt), note: why, source: "recut", createdBy: me.id } });
+    for (const t of r.pays) {
+      const po = pos.find((x) => x.userId === t.user_id && (x.subject || "") === t.subject);
+      const fresh = { share: t.share, held: t.held, amount: t.settle, status: t.settle === 0 ? "paid" : "pending", paidAt: t.settle === 0 ? now : null };
+      if (po) seen.add(po.id);
+      if (!po) await tx.finPayout.create({ data: { id: "PO" + shortId(8), period: pr, userId: t.user_id, subject: t.subject, subjects: t.subject, ...fresh } });
+      else if (po.status !== "paid" || (!po.amount && !po.slipBlobId)) await tx.finPayout.update({ where: { id: po.id }, data: fresh });
+      else await adj(t.user_id, t.subject, t.settle - po.amount);
+    }
+    for (const po of pos) {
+      if (seen.has(po.id)) continue;
+      if (po.status === "paid" && po.amount) await adj(po.userId, po.subject || "", -po.amount);
+      else await tx.finPayout.delete({ where: { id: po.id } });
+    }
+  });
+  await log(me, "finance.recut", pr + " ตัดยอดใหม่ " + cut);
+  return finSummary({ period: pr }, c, me);
+}
+/** ปรับปรุงยอด by hand: plus/minus for a teacher in a period still open (e.g. fixing an earlier period). */
+export async function finAdjustSave(d: Data, c: Ctx, me: User) {
+  const pr = checkPeriod(d.period);
+  if (pr.length === 7) throw err("BAD_INPUT", "เลือกงวด");
+  if (await isClosed(pr)) throw err("LOCKED", "งวดนี้ปิดยอดแล้ว ลงปรับปรุงในงวดที่ยังเปิดอยู่");
+  const amt = r2(d.amount);
+  if (!amt) throw err("BAD_INPUT", "ใส่ยอด (ติดลบได้ ถ้าจะหักคืน)");
+  const sj = String(d.subject || "");
+  if (!APP.SUBJECTS[sj]) throw err("BAD_INPUT", "เลือกวิชา");
+  const u = await prisma.user.findUnique({ where: { id: String(d.user_id || "") } });
+  if (!u || !isStaffUser(u)) throw err("BAD_INPUT", "เลือกผู้สอน");
+  const note = clip(d.note, 200);
+  if (!note) throw err("BAD_INPUT", "ใส่เหตุผลด้วย ผู้สอนจะเห็นข้อความนี้");
+  await prisma.finAdjustment.create({ data: { id: "AJ" + shortId(8), period: pr, userId: u.id, subject: sj, amount: amt, note, source: "manual", createdBy: me.id } });
+  await log(me, "finance.adjust", pr + " " + u.id + " " + sj + " " + amt + " " + note);
+  return finSummary({ period: pr }, c, me);
+}
+export async function finAdjustDelete(d: Data, c: Ctx, me: User) {
+  const a = await prisma.finAdjustment.findUnique({ where: { id: String(d.adj_id || "") } });
+  if (!a) throw err("NOT_FOUND", "ไม่พบรายการ");
+  if (await isClosed(a.period)) throw err("LOCKED", "งวดนี้ปิดยอดแล้ว ลบไม่ได้");
+  if (a.source === "recut") throw err("LOCKED", "รายการนี้มาจากการแก้เวลาตัดยอด ลบไม่ได้ ใช้ปรับปรุงยอดเพิ่มแทน");
+  await prisma.finAdjustment.delete({ where: { id: a.id } });
+  await log(me, "finance.adjust.delete", a.id + " " + a.amount);
+  return finSummary({ period: a.period }, c, me);
+}
+async function closePeriod(pr: string, r: FinData, by: string, cutoff?: string) {
   try {
     await prisma.$transaction([
-      prisma.finPeriod.create({ data: { period: pr, closedBy: by, snapshot: { by_subject: r.by_subject, teachers: r.teachers, pays: r.pays, totals: r.totals } as unknown as Prisma.InputJsonValue } }),
+      prisma.finPeriod.create({ data: { period: pr, closedBy: by, cutoff: cutoff ? new Date(cutoff) : new Date(), snapshot: { by_subject: r.by_subject, teachers: r.teachers, pays: r.pays, totals: r.totals } as unknown as Prisma.InputJsonValue } }),
       ...r.pays.map((t) =>
         prisma.finPayout.create({
           data: { id: "PO" + shortId(8), period: pr, userId: t.user_id, subject: t.subject, subjects: t.subject, share: t.share, held: t.held, amount: t.settle,
@@ -613,6 +768,7 @@ export async function autoCloseFinance() {
 export async function finReopen(d: Data, c: Ctx, me: User) {
   const pr = checkPeriod(d.period);
   if (!(await periodRow(pr))) throw err("NOT_FOUND", "งวดนี้ยังไม่ได้ปิด");
+  if (pr.length > 7 && (await lastClosed()) !== pr) throw err("LOCKED", "เปิดใหม่ได้เฉพาะงวดที่ปิดล่าสุด");
   const pays = await prisma.finPayout.findMany({ where: { period: pr } });
   if (pays.some((x) => x.status === "paid" && x.amount !== 0)) throw err("LOCKED", "มีการจ่ายเงินผู้สอนของงวดนี้แล้ว เปิดงวดใหม่ไม่ได้ ลงรายการปรับปรุงในงวดถัดไปแทน");
   await prisma.$transaction([prisma.finPayout.deleteMany({ where: { period: pr } }), prisma.finPeriod.delete({ where: { period: pr } })]);
@@ -708,7 +864,7 @@ export async function finSplitsSave(d: Data, _c: Ctx, me: User) {
       ver = { from, parts };
     }
   }
-  if (await isClosed(periodOf(dateOfDay(from)))) throw err("LOCKED", "งวดของวันที่เลือกปิดไปแล้ว เลือกวันเริ่มมีผลในงวดที่ยังไม่ปิด");
+  if (await dayLocked(from)) throw err("LOCKED", "วันที่เลือกอยู่ก่อนเวลาตัดยอดของงวดที่ปิดแล้ว เลือกวันเริ่มมีผลหลังจากนั้น");
   await saveSplitVersion(sj, from, ver, me);
   return finSplits();
 }
@@ -748,7 +904,7 @@ export async function saveSplitVersion(sj: string, from: string, ver: Omit<Split
   await log(me, "finance.split", sj + " " + from + " " + (ver ? JSON.stringify(ver) : "ลบ"));
 }
 export type { SplitVersion, Split };
-export { isClosed as periodClosed, dateOfDay };
+export { isClosed as periodClosed, dateOfDay, dayLocked };
 
 /** Teacher dashboard: their subjects only, nothing about members site-wide. */
 export async function teacherStats(me: User) {
@@ -994,7 +1150,9 @@ export async function playlistsSave(d: Data, _c: Ctx, me: User) {
 async function yt(path: string, params: Record<string, string>) {
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) throw err("SETUP", "ยังไม่ได้ตั้ง YOUTUBE_API_KEY ใน Vercel (Settings → Environment Variables) ดึงคลิปจากเพลย์ลิสต์ไม่ได้");
-  const r = await fetch("https://www.googleapis.com/youtube/v3/" + path + "?" + new URLSearchParams({ ...params, key }));
+  // The test server (IB_TEST_HOOKS=1, never in production) points this at a local stand-in for YouTube.
+  const testBase = process.env.IB_TEST_HOOKS === "1" && process.env.NODE_ENV !== "production" ? process.env.IB_TEST_YT_BASE : "";
+  const r = await fetch((testBase || "https://www.googleapis.com/youtube/v3/") + path + "?" + new URLSearchParams({ ...params, key }));
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw err("YOUTUBE", "YouTube ตอบกลับผิดพลาด: " + (j?.error?.message || r.status));
   return j;
@@ -1025,13 +1183,78 @@ async function ytMinutes(ids: string[]) {
   }
   return out;
 }
-function cleanTitle(t: string, strip: string) {
+function cleanTitle(t: string, strip?: string) {
   let s = String(t || "");
   if (strip) s = s.split(strip).join("");
   return s.replace(/^[\s|·\-–—:]+|[\s|·\-–—:]+$/g, "").replace(/\s{2,}/g, " ").slice(0, 160) || String(t || "").slice(0, 160);
 }
-const ytOf = (l: Lesson) => (l.youtubeUrl || "").match(/([A-Za-z0-9_-]{11})$/)?.[1] || "";
-export async function syncCourse(c: Course) {
+// ── Lesson titles from clips, written like the course's earlier lessons (each subject has its own style) ──
+const NUM_RE = /^(EP\.?\s?|Ep\.?\s?|ep\.?\s?|ตอนที่\s?|ตอน\s?|คลิปที่\s?|Part\s?|#)(\d+)(\s*[.:\-–|·]?\s*)/;
+const NUM_ANY = /(?:^|\s)(?:EP|Ep|ep)\.?\s*(\d+)(?:\s*[.:\-–|·])?|ตอนที่\s*(\d+)|ตอน\s*(\d+)(?=\s)|คลิปที่\s*(\d+)|Part\s*(\d+)|#(\d+)|^(\d+)\s*[.)]\s/;
+type TitleStyle = { pre: string; sep: string; next: number; example: string };
+/** The course's title style, from its lessons (an empty course: other courses of the subject) · null = none. */
+async function titleStyle(c: CourseS): Promise<TitleStyle | null> {
+  const all = await prisma.lesson.findMany({ where: { course: { subjectId: c.subjectId } }, select: { courseId: true, title: true }, orderBy: [{ order: "asc" }, { id: "asc" }] });
+  const mine = all.filter((l) => l.courseId === c.id), src = mine.some((l) => NUM_RE.test(l.title)) ? mine : all;
+  const cnt: Record<string, number> = {};
+  let best = "", max = 0;
+  for (const l of src) { const m = l.title.match(NUM_RE); if (!m) continue; const k = m[1] + "\u0000" + m[3]; cnt[k] = (cnt[k] || 0) + 1; if (!best || cnt[k] > cnt[best]) best = k; }
+  for (const l of mine) { const m = l.title.match(NUM_RE); if (m) max = Math.max(max, Number(m[2])); }
+  if (!best) return null;
+  const [pre, sep] = best.split("\u0000");
+  const ex = src.filter((l) => { const m = l.title.match(NUM_RE); return m && m[1] === pre && m[3] === sep; }).slice(-1)[0];
+  return { pre, sep: sep || " ", next: max + 1, example: ex ? ex.title : "" };
+}
+/** Words every clip of the playlist starts / ends with (course name, channel) — at least 2 clips. */
+function commonCut(titles: string[]) {
+  if (titles.length < 2) return { pre: "", suf: "" };
+  const tk = titles.map((t) => String(t).split(/\s+/).filter(Boolean)), pre: string[] = [], suf: string[] = [];
+  let i: number;
+  for (i = 0; tk.every((a) => a.length > i + 1 && a[i] === tk[0][i]); i++) pre.push(tk[0][i]);
+  for (i = 1; tk.every((a) => a.length > pre.length + i && a[a.length - i] === tk[0][tk[0].length - i]); i++) suf.unshift(tk[0][tk[0].length - i]);
+  // never cut the word that carries the episode number (e.g. "Ep.1")
+  while (pre.length && (/^(EP|Ep|ep)\.?$|^ตอนที่$|^ตอน$|^คลิปที่$|^Part$|^#$/.test(pre[pre.length - 1]) || (/\d/.test(pre[pre.length - 1]) && NUM_ANY.test(" " + pre[pre.length - 1])))) pre.pop();
+  return { pre: pre.join(" "), suf: suf.join(" ") };
+}
+/** Suggested title per clip: cut the shared words and the words set to strip → when the course numbers its lessons,
+ *  use the clip's number (or count on) and write it like the lesson before. */
+function suggestTitles(st: TitleStyle | null, raw: string[], strip: string | undefined, all: string[]) {
+  const cut = commonCut(all.length > 1 ? all : raw);
+  let next = st ? st.next : 0;
+  return raw.map((t) => {
+    let s = String(t || "");
+    if (cut.pre && s.indexOf(cut.pre) === 0) s = s.slice(cut.pre.length);
+    if (cut.suf && s.length >= cut.suf.length && s.lastIndexOf(cut.suf) === s.length - cut.suf.length) s = s.slice(0, s.length - cut.suf.length);
+    s = cleanTitle(s, strip);
+    if (!st) return s;
+    const m = s.match(NUM_ANY);
+    let n = 0;
+    if (m) { n = Number(m.slice(1).filter(Boolean)[0]); s = cleanTitle(s.replace(m[0], " ")); }
+    if (!n) n = next;
+    next = Math.max(next, n + 1);
+    return (st.pre + n + st.sep + s).replace(/\s{2,}/g, " ").trim().slice(0, 160);
+  });
+}
+/** Look before adding: every clip of a playlist with a suggested title and length, and which ones the course has
+ *  already (nothing is saved). */
+export async function playlistPreview(d: Data, _c: Ctx, me: User) {
+  const c = await courseFor(me, d.course_id), id = playlistId(d.url || d.id);
+  if (!id) throw err("BAD_INPUT", "ลิงก์เพลย์ลิสต์ไม่ถูกต้อง (ต้องมี list=...)");
+  await rate("plp:" + me.id, 20, 600, "ดึงเพลย์ลิสต์บ่อยเกินไป รอสักครู่");
+  const data = await ytItems(id), items = data.items.filter((x) => x.ok);
+  if (!items.length) throw err("NOT_FOUND", "ไม่เจอคลิปที่ดูได้ในเพลย์ลิสต์นี้ (เพลย์ลิสต์ต้องเป็นสาธารณะหรือไม่เป็นสาธารณะ ห้ามเป็นส่วนตัว)");
+  const have: Record<string, string> = {};
+  for (const l of await prisma.lesson.findMany({ where: { courseId: c.id } })) have[ytOf(l)] = l.title;
+  const fresh = items.filter((x) => !(x.id in have)), mins = await ytMinutes(items.map((x) => x.id)), st = await titleStyle(c);
+  const sug = suggestTitles(st, fresh.map((x) => x.title), clip(d.strip, 60), items.map((x) => x.title));
+  let k = 0;
+  return {
+    id, title: data.title, style: st ? { example: st.example, next: st.next, format: st.pre + "N" + st.sep } : null,
+    items: items.map((x) => { const ex = x.id in have; return { youtube_id: x.id, yt_title: x.title, title: ex ? have[x.id] : sug[k++], duration_min: mins[x.id] || 0, exists: ex }; }),
+  };
+}
+const ytOf = (l: Pick<Lesson, "youtubeUrl">) => (l.youtubeUrl || "").match(/([A-Za-z0-9_-]{11})$/)?.[1] || "";
+export async function syncCourse(c: CourseS) {
   const pls = plList(c.playlists);
   if (!pls.length) throw err("BAD_INPUT", "คอร์สนี้ยังไม่ได้ผูกเพลย์ลิสต์");
   const fetched = [];
@@ -1063,10 +1286,15 @@ export async function syncCourse(c: Course) {
     result.playlists.push({ id: f.pl.id, title: f.pl.title, count: f.pl.last_count });
   }
   if (newOnes.length) {
-    const mins = await ytMinutes(newOnes.map((x) => x.it.id));
+    const mins = await ytMinutes(newOnes.map((x) => x.it.id)), st = await titleStyle(c), sugBy: Record<string, string> = {};
+    for (const f of fetched) {
+      const mineN = newOnes.filter((x) => x.pl.id === f.pl.id);
+      const sg = suggestTitles(st, mineN.map((x) => x.it.title), f.pl.strip, f.data.items.filter((x) => x.ok).map((x) => x.title));
+      mineN.forEach((x, i) => (sugBy[x.it.id] = sg[i]));
+    }
     await prisma.lesson.createMany({
       data: newOnes.map((x, i) => {
-        const title = cleanTitle(x.it.title, x.pl.strip);
+        const title = sugBy[x.it.id] || cleanTitle(x.it.title, x.pl.strip);
         result.titles.push(title);
         return { title, chapter: x.pl.chapter || lastChap, youtubeUrl: "https://youtu.be/" + x.it.id, duration: (mins[x.it.id] || 0) * 60, type: "VIDEO" as const, order: max + (i + 1) * 10, courseId: c.id, sourcePlaylist: x.pl.id };
       }),

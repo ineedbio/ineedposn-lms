@@ -11,7 +11,7 @@ import {
   auth, activate, adminEmails, canSubject, chapters, courseBySlug, courseCard, courseInclude, getSetting, ig, isAdminUser, log, rate,
   subjectsOf, type CourseRow, type Ctx, type Data,
 } from "./api";
-import { activeWhere } from "./staff";
+import { activeWhere, playlistId } from "./staff";
 import * as team from "./team";
 import { APP, checkImageUrl, clip, err, iso, lines, req, sha256, trim, youtubeId } from "./util";
 
@@ -92,6 +92,61 @@ export async function couponUses(code: string, uid?: string) {
   const orders = await prisma.shopOrder.findMany({ where: { couponCode: code, ...(uid ? { userId: uid } : {}) }, include: { bills: true } });
   return orders.filter((o) => o.bills.some((b) => BILL_LIVE.includes(billStatus(b)))).length;
 }
+const TH_MS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const thShortDate = (d: Date | null) => { if (!d) return ""; const t = new Date(d.getTime() + 7 * 36e5); return t.getUTCDate() + " " + TH_MS[t.getUTCMonth()] + " " + (t.getUTCFullYear() + 543); };
+const phoneKey = (v: unknown) => { const d = String(v || "").replace(/\D/g, ""); return d.length >= 9 ? d.slice(-9) : ""; };
+/** Of these accounts, the ones that bought a course (a paid approval, or a bill over 0 that is not cancelled/expired)
+ *  or are older students (legacy grant, linked legacy record, or a legacy claim that was not rejected). */
+async function boughtOrOld(ids: string[]) {
+  const out = new Set<string>();
+  if (!ids.length) return out;
+  const [pays, bills, leg, lc] = await Promise.all([
+    prisma.payment.findMany({ where: { userId: { in: ids }, status: "APPROVED", OR: [{ amount: { gt: 0 }, revokedAt: null }, { source: "legacy" }] }, select: { userId: true } }),
+    prisma.bill.findMany({ where: { userId: { in: ids }, total: { gt: 0 }, status: { in: BILL_LIVE } }, select: { userId: true, status: true, expiresAt: true } }),
+    prisma.legacyStudent.findMany({ where: { userId: { in: ids } }, select: { userId: true } }),
+    prisma.legacyClaim.findMany({ where: { userId: { in: ids }, status: { not: "rejected" } }, select: { userId: true } }),
+  ]);
+  for (const x of pays) out.add(x.userId);
+  for (const b of bills) if (BILL_LIVE.includes(billStatus(b))) out.add(b.userId);
+  for (const x of leg) if (x.userId) out.add(x.userId);
+  for (const x of lc) out.add(x.userId);
+  return out;
+}
+/** New member = signed up on/after `since`, never bought, not an older student, and the phone (last 9 digits)
+ *  is not shared with an account that bought or is an older student. */
+export async function isNewMember(u: User | null, since: Date | null) {
+  if (!u) return false;
+  if (since && u.createdAt.getTime() < since.getTime()) return false;
+  if ((await boughtOrOld([u.id])).size) return false;
+  const pk = phoneKey(u.phone);
+  if (pk) {
+    const same = await prisma.$queryRaw<{ id: string }[]>`SELECT id FROM "User" WHERE id <> ${u.id} AND right(regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g'), 9) = ${pk}`;
+    if ((await boughtOrOld(same.map((x) => x.id))).size) return false;
+  }
+  return true;
+}
+/** New-member codes on right now (applied by themselves); personal codes never count. */
+async function newMemberCoupons() {
+  const t = new Date();
+  return prisma.coupon.findMany({
+    where: { newOnly: true, ownerId: null, status: "active", AND: [{ OR: [{ startsAt: null }, { startsAt: { lte: t } }] }, { OR: [{ endsAt: null }, { endsAt: { gte: t } }] }] },
+    orderBy: { createdAt: "asc" },
+  });
+}
+const couponShort = (c: { kind: string; value: number }) => (c.kind === "percent" ? c.value + "%" : "฿" + baht(c.value));
+/** The new-member offer that is on (home page banner), or null. */
+export async function newMemberPromo() {
+  const nm = (await newMemberCoupons()).sort((a, b) => Number(b.kind === "percent") - Number(a.kind === "percent") || b.value - a.value)[0];
+  if (!nm) return null;
+  return { label: couponShort(nm), each: nm.kind === "each", all: nm.scope === "all", min_total: nm.minTotal || 0, starts_at: iso(nm.startsAt), ends_at: iso(nm.endsAt) };
+}
+/** me / login / register: whether this account gets the new-member offer (only said while one is on). */
+export async function newMemberFlag(u: User): Promise<{ new_member?: boolean }> {
+  const nm = await newMemberCoupons();
+  if (!nm.length) return {};
+  for (const c of nm) if (await isNewMember(u, c.startsAt)) return { new_member: true };
+  return { new_member: false };
+}
 type CartItem = {
   course_id: string; title: string; subject: string; subject_name: string; cover_url: string; price: number; discount: number;
   bundle_discount: number; coupon_discount: number; bundle: string; net: number; account_id: string; blocked: string; base?: number;
@@ -105,6 +160,10 @@ async function applyCoupon(code: string, items: CartItem[], u: User | null) {
   const t = Date.now();
   if (cp.startsAt && cp.startsAt.getTime() > t) throw err("COUPON", "โค้ดนี้ยังไม่เริ่มใช้");
   if (cp.endsAt && cp.endsAt.getTime() < t) throw err("COUPON", "โค้ดนี้หมดอายุแล้ว");
+  if (cp.newOnly) {
+    if (!u) throw err("COUPON", "ส่วนลดนี้สำหรับสมาชิกใหม่ เข้าสู่ระบบหรือสมัครสมาชิกก่อน");
+    if (!(await isNewMember(u, cp.startsAt))) throw err("COUPON", "ส่วนลดนี้สำหรับสมาชิกใหม่ที่สมัครตั้งแต่ " + thShortDate(cp.startsAt) + " และยังไม่เคยซื้อคอร์ส");
+  }
   const targets = csv(cp.targets);
   const elig = items.filter((it) => (cp.scope === "subject" ? targets.includes(it.subject) : cp.scope === "course" ? targets.includes(it.course_id) : true));
   if (!elig.length) throw err("COUPON", "โค้ดนี้ใช้กับคอร์สในตะกร้าไม่ได้");
@@ -228,13 +287,29 @@ async function priceCart(idsIn: unknown, codeIn: unknown, u: User | null) {
   const ok = items.filter((it) => !it.blocked);
   const bd = await applyBundles(ok, u, courses, own);
   for (const it of ok) { it.base = it.price - it.bundle_discount; it.discount = it.bundle_discount; it.net = it.base; }
-  let coupon: Record<string, unknown> | null = null;
-  const code = normCode(codeIn);
+  let coupon: Record<string, unknown> | null = null, promo: Record<string, unknown> | null = null;
+  const typed = normCode(codeIn);
+  let code = typed;
+  if (!code && ok.length) {
+    const nm = await newMemberCoupons();
+    // No code typed → the new-member discount applies by itself (the one that takes off the most) when this account may use it.
+    if (nm.length && u && (await isNewMember(u, null))) {
+      let best: { code: string; total: number } | null = null;
+      for (const c of nm) {
+        try { const r0 = await applyCoupon(c.code, ok, u); if (!best || r0.total > best.total) best = { code: c.code, total: r0.total }; }
+        catch (e: any) { if (e?.code !== "COUPON") throw e; }
+      }
+      if (best && best.total > 0) code = best.code;
+    }
+    if (nm.length && !code && !u) promo = { label: couponShort(nm[0]), ends_at: iso(nm[0].endsAt), signed_in: false };
+  }
+  const auto = !!code && !typed;
   if (code && ok.length) {
     try {
       const r = await applyCoupon(code, ok, u);
       for (const it of ok) { it.coupon_discount = r.per[it.course_id] || 0; it.discount = it.bundle_discount + it.coupon_discount; it.net = it.price - it.discount; }
-      coupon = { code, ok: true, label: r.label, discount: r.total };
+      const cp = await prisma.coupon.findUnique({ where: { code }, select: { newOnly: true } });
+      coupon = { code, ok: true, label: r.label, discount: r.total, auto, new_only: !!cp?.newOnly };
     } catch (e: any) {
       if (e?.code !== "COUPON") throw e;
       coupon = { code, ok: false, message: e.message };
@@ -253,7 +328,7 @@ async function priceCart(idsIn: unknown, codeIn: unknown, u: User | null) {
   });
   const subtotal = ok.reduce((a, it) => a + it.price, 0), discount = ok.reduce((a, it) => a + it.discount, 0);
   return {
-    items: items.map(clean), missing, bills, subtotal, discount, total: subtotal - discount, coupon,
+    items: items.map(clean), missing, bills, subtotal, discount, total: subtotal - discount, coupon, promo,
     bundles: bd.applied, bundle_discount: ok.reduce((a, it) => a + it.bundle_discount, 0), suggest: bd.suggest,
     _accounts: accountOf,
   };
@@ -622,7 +697,7 @@ export async function adminCoupons() {
     return {
       code: c.code, kind: c.kind, value: String(c.value), max_discount: opt(c.maxDiscount), scope: c.scope, targets: csv(c.targets), min_total: opt(c.minTotal),
       max_uses: opt(c.maxUses), per_user: opt(c.perUser), starts_at: iso(c.startsAt), ends_at: iso(c.endsAt), status: c.status, note: c.note, created_at: iso(c.createdAt),
-      used, revenue: paid, discount_given: disc,
+      new_only: c.newOnly ? "1" : "", used, revenue: paid, discount_given: disc,
     };
   });
 }
@@ -640,9 +715,12 @@ export async function adminCouponSave(d: Data, _c: Ctx, admin: User) {
   const data = {
     code, kind, value, maxDiscount: kind === "percent" ? pos(d.max_discount) : null, scope, targets: targets.join(","), minTotal: pos(d.min_total),
     maxUses: pos(d.max_uses), perUser: pos(d.per_user), startsAt: dt(d.starts_at, "วันเริ่ม"), endsAt: dt(d.ends_at, "วันหมดอายุ"),
+    newOnly: d.new_only === true || d.new_only === "true" || d.new_only === "1" || d.new_only === 1,
     status: d.status === "inactive" ? "inactive" : "active", note: clip(d.note, 200),
   };
   if (data.startsAt && data.endsAt && data.endsAt <= data.startsAt) throw err("BAD_INPUT", "วันหมดอายุต้องหลังวันเริ่ม");
+  if (data.newOnly && !data.startsAt) throw err("BAD_INPUT", "ส่วนลดสมาชิกใหม่ต้องใส่วันเริ่ม (นับคนที่สมัครตั้งแต่วันนั้น)");
+  if (data.newOnly && !data.perUser) data.perUser = 1;
   const orig = normCode(d.orig_code);
   const same = await prisma.coupon.findUnique({ where: { code } });
   if (orig) {
@@ -711,7 +789,8 @@ export async function adminBundleDelete(d: Data, _c: Ctx, admin: User) {
 }
 
 // ───────────────────────── Admin: paste many lessons at once ─────────────────────────
-/** items = [{ chapter, title, youtube, duration_min, is_preview }], appended after the course's lessons. */
+/** items = [{ chapter, title, youtube, duration_min, is_preview, source_playlist? }], appended after the course's lessons
+ *  (source_playlist: the playlist the clips came from, so syncing it later knows them). */
 export async function adminLessonsBulk(d: Data, _c: Ctx, admin: User) {
   const items: any[] = Array.isArray(d.items) ? d.items.slice(0, 300) : [];
   if (!items.length) throw err("BAD_INPUT", "ไม่มีรายการตอน");
@@ -721,7 +800,7 @@ export async function adminLessonsBulk(d: Data, _c: Ctx, admin: User) {
     const title = clip(it.title, 160), chapter = clip(it.chapter, 120);
     if (!title) throw err("BAD_INPUT", n + "ไม่มีชื่อตอน");
     if (!chapter) throw err("BAD_INPUT", n + "ไม่มีชื่อบท (ใส่บรรทัด # ชื่อบท ไว้ก่อน)");
-    return { chapter, title, youtubeUrl: "https://youtu.be/" + yt, duration: Math.max(0, Math.round(Number(it.duration_min) || 0)) * 60, isPreview: !!it.is_preview };
+    return { sourcePlaylist: playlistId(it.source_playlist) || null, chapter, title, youtubeUrl: "https://youtu.be/" + yt, duration: Math.max(0, Math.round(Number(it.duration_min) || 0)) * 60, isPreview: !!it.is_preview };
   });
   const c = await courseBySlug(d.course_id);
   if (!c) throw err("NOT_FOUND", "ไม่พบคอร์ส");

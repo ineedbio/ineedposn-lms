@@ -1,4 +1,4 @@
-// Scheduled job (Vercel Cron, see vercel.json), once a day:
+// Scheduled job (Vercel Cron, see vercel.json), every 15 minutes (like the Apps Script trigger for syncPlaylists):
 //  1) close the half-month finance period that just ended (Code.gs autoCloseFinance) — only when CRON_SECRET
 //     is set and Vercel sent it; skipped while an expense of that period still waits for approval.
 //  2) pull new lessons from the YouTube playlists linked to courses (Code.gs syncPlaylists) — needs YOUTUBE_API_KEY.

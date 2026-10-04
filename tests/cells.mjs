@@ -1,4 +1,4 @@
-// Cells tests for /api/ib, ported from reference/tests-cells.js (13 groups, same names and checks).
+// Cells tests for /api/ib, ported from reference/tests-cells.js (14 groups, same names and checks).
 // Runs after tests/roles.mjs on the same throwaway local database (tests/run.mjs): reuses its admin and courses.
 // Code.gs test tricks → here: cache_().remove('cp:…') = clear Streak.pingAt · DAY_SHIFT_MS = the test-only
 // setting test_day_shift_ms (read only when the server runs with IB_TEST_HOOKS=1) · ledgerAdd_ = a CellLedger row.
@@ -133,14 +133,21 @@ export async function run({ BASE, OUTBOX, db }) {
       assert.equal(ok(await C2("study.ping", { lesson_id: LP, preview: 1, pos: 60 })).today_min, 1);
       globalThis.__LP = LP;
     });
-    await t("halloween: 10 study days in Oct 2569 = limited skin, kept after the event", async () => {
+    await t("halloween 2569: no skin event by default (owner removed it)", async () => {
+      const S0 = await reg("hw0@x.com", "ไม่มี", "สกิน"), st = ok(await call("cells.status", {}, S0.token, "hw0@x.com"));
+      assert.equal(st.events.length, 0); assert(st.themes.indexOf("spooky") < 0);
+    });
+    await t("event mechanism still works: 10 study days in window = limited skin, kept after the event", async () => {
+      // like CELLS.EVENTS.push(…) in the reference test: the test-only setting test_events (IB_TEST_HOOKS=1)
+      await exec(`INSERT INTO "Setting" (key, value, "updatedAt") VALUES ('test_events', $1, now()) ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()`,
+        JSON.stringify([{ key: "halloween2569", name: "ฮาโลวีน 2569", skin: "spooky", from: "2026-10-04", to: "2026-10-31", need: 10 }]));
       const LP = globalThis.__LP;
       const S3 = await reg("hw@x.com", "ฮาโล", "วีน"), C3 = (a, d) => call(a, d, S3.token, "hw@x.com"), u3 = S3.user.user_id;
       let P3 = 0;
       const dayAt = (iso) => setShift(Date.parse(iso + "T05:00:00Z") - Date.now());
       const studyDay = async () => { for (let i = 0; i < 15; i++) { await resetGap(u3); P3 += 60; ok(await C3("study.ping", { lesson_id: LP, preview: 1, pos: P3 })); } };
-      await dayAt("2026-09-30"); await studyDay(); // before the event: does not count
-      for (let d = 1; d <= 9; d++) { await dayAt("2026-10-" + String(d * 3).padStart(2, "0")); await studyDay(); } // 9 days, not in a row
+      await dayAt("2026-10-03"); await studyDay(); // before the event (starts 4 Oct): does not count
+      for (const d of [16, 17, 19, 20, 22, 24, 25, 27, 28]) { await dayAt("2026-10-" + d); await studyDay(); } // 9 days, not in a row
       let st = ok(await C3("cells.status", {})), ev = st.events.find((e) => e.key === "halloween2569");
       assert.equal(ev.days, 9); assert.equal(ev.earned, false); assert(st.themes.indexOf("spooky") < 0);
       no(await C3("cells.theme", { theme: "spooky" }), "BAD_INPUT");
@@ -150,11 +157,13 @@ export async function run({ BASE, OUTBOX, db }) {
       ok(await C3("cells.theme", { theme: "spooky" }));
       await dayAt("2026-12-15"); st = ok(await C3("cells.status", {}));
       assert.equal(st.theme, "spooky"); assert.equal(st.events[0].active, false); assert.equal(st.events[0].earned, true);
+      await exec(`UPDATE "Setting" SET value = '[]' WHERE key = 'test_events'`);
     });
     await t("settings: cells_enabled / event_mode / event_from / event_until are public and saved by the admin", async () => {
       const cfg = ok(await call("config", {}));
       for (const k of ["cells_enabled", "event_mode", "event_from", "event_until"]) assert(k in cfg, k);
       assert.equal(cfg.event_mode, "auto");
+      assert.equal(cfg.event_from, "2026-10-04T00:00"); assert.equal(cfg.event_until, "2026-10-31T23:59"); // migration 24
       ok(await call("admin.settings.save", { event_mode: "halloween", event_from: "2026-10-01T00:00", event_until: "2026-10-31T23:59" }, adm));
       const c2 = ok(await call("config", {})); assert.equal(c2.event_until, "2026-10-31T23:59"); assert(!("test_day_shift_ms" in c2));
       ok(await call("admin.settings.save", { cells_enabled: "0" }, adm));

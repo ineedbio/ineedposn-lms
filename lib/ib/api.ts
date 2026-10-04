@@ -47,8 +47,8 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   // Cells (study streaks → discount codes) and the seasonal theme; event_from/event_until = Thai time, "" = by the calendar
   cells_enabled: "1",
   event_mode: "auto",
-  event_from: "",
-  event_until: "",
+  event_from: "2026-10-04T00:00",
+  event_until: "2026-10-31T23:59",
   admin_emails: process.env.ADMIN_NOTIFICATION_EMAIL || "",
   terms_text: "",
   privacy_text: "",
@@ -124,6 +124,10 @@ function publicUser(u: User) {
 /** publicUser + what a teacher still has to fill in (name / photo / bank): the site keeps them on the profile page until done. */
 async function publicUserFull(u: User) {
   return { ...publicUser(u), profile_todo: await team.profileTodo(u) };
+}
+/** The signed-in user's own data (me / login / register / reset): + new_member while a new-member offer is on. */
+async function selfUser(u: User) {
+  return { ...(await publicUserFull(u)), ...(await shop.newMemberFlag(u)) };
 }
 const hashPw = (pw: string) => bcrypt.hash(pw, 10);
 /** Roles: several at once — User.roles = "admin,teacher" ("" = use the older single `role`; "student" = none).
@@ -329,7 +333,7 @@ async function registerVerify(d: Data, { p }: Ctx) {
   await checkOtp(u.id, "EMAIL_VERIFY", d.otp);
   let v = await prisma.user.update({ where: { id: u.id }, data: { emailVerified: true, lastLoginAt: new Date() } });
   v = await promoteIfBootstrap(v);
-  const out: Record<string, unknown> = { token: await newSession(v, p), user: await publicUserFull(v) };
+  const out: Record<string, unknown> = { token: await newSession(v, p), user: await selfUser(v) };
   try { out.legacy = await staff.legacyMatchUser(v, false); } catch (e) { console.error(e); }
   return out;
 }
@@ -342,7 +346,7 @@ async function login(d: Data, { p }: Ctx) {
   if (!u.emailVerified) throw err("EMAIL_NOT_VERIFIED", "อีเมลนี้ยังไม่ได้ยืนยัน กด “ลืมรหัสผ่าน” เพื่อรับรหัสทางอีเมลและตั้งรหัสผ่านใหม่");
   if (u.isBanned) throw err("BANNED", "บัญชีนี้ถูกระงับ ติดต่อแอดมินทาง IG");
   u = await promoteIfBootstrap(await prisma.user.update({ where: { id: u.id }, data: { lastLoginAt: new Date() } }));
-  return { token: await newSession(u, p), user: await publicUserFull(u) };
+  return { token: await newSession(u, p), user: await selfUser(u) };
 }
 
 async function logout(_d: Data, { p }: Ctx) {
@@ -371,7 +375,7 @@ async function passwordReset(d: Data, { p }: Ctx) {
   // Entering the emailed code also proves the address, so this verifies older unverified accounts.
   let v = await prisma.user.update({ where: { id: u.id }, data: { password: await hashPw(String(d.password)), emailVerified: true, lastLoginAt: new Date() } });
   v = await promoteIfBootstrap(v);
-  return { token: await newSession(v, p), user: await publicUserFull(v) };
+  return { token: await newSession(v, p), user: await selfUser(v) };
 }
 
 async function passwordChange(d: Data, { p }: Ctx) {
@@ -1053,7 +1057,7 @@ async function adminSettingsSave(d: Data, _c: Ctx, admin: User) {
 
 // ───────────────────────── Routes ─────────────────────────
 const ROUTES: Record<string, Handler> = {
-  config: () => publicSettings(),
+  config: async () => ({ ...(await publicSettings()), new_member_promo: await shop.newMemberPromo() }),
   "register.start": registerStart,
   "register.verify": registerVerify,
   login,
@@ -1065,7 +1069,7 @@ const ROUTES: Record<string, Handler> = {
   "bundles.list": () => shop.publicBundles(),
   "bundle.detail": (d) => shop.bundleDetail(d),
   "cart.quote": (d, c) => shop.cartQuote(d, c),
-  me: async (_d, { p }) => publicUserFull(await auth(p)),
+  me: async (_d, { p }) => selfUser(await auth(p)),
   logout,
   "profile.update": profileUpdate,
   "password.change": passwordChange,
@@ -1135,6 +1139,7 @@ const ROUTES: Record<string, Handler> = {
   "staff.lesson.file.delete": staffOnly(staff.lessonFileDelete),
   "staff.revoke": staffOnly(staff.staffRevoke),
   "staff.playlists.save": staffOnly(staff.playlistsSave),
+  "staff.playlist.preview": staffOnly(staff.playlistPreview),
   "staff.course.sync": staffOnly(staff.courseSync),
   "fin.summary": staffOnly(staff.finSummary),
   "fin.expense.save": staffOnly(staff.finExpenseSave),
@@ -1145,6 +1150,9 @@ const ROUTES: Record<string, Handler> = {
   "fin.rules.save": adminOnly(staff.finRulesSave),
   "fin.close": adminOnly(staff.finClose),
   "fin.reopen": adminOnly(staff.finReopen),
+  "fin.recut": adminOnly(staff.finRecut),
+  "fin.adjust.save": adminOnly(staff.finAdjustSave),
+  "fin.adjust.delete": adminOnly(staff.finAdjustDelete),
   "fin.payout.paid": adminOnly(staff.finPayoutPaid),
   "fin.payout.pay": adminOnly(staff.finPayoutPay),
   "fin.payout.slip": staffOnly(staff.finPayoutSlip),

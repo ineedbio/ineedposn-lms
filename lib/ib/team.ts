@@ -6,7 +6,7 @@ import { prisma } from "../prisma";
 import { subjectKey } from "./subjects";
 import { endSessions, getSetting, ig, isAdminUser, isStaffUser, isTeacherUser, log, rolePatch, rolesOf, siteUrlOf, teachSubjects, type Ctx, type Data } from "./api";
 import { sendTeacherInviteMail, teacherInviteHtml } from "./mail";
-import { saveSplitVersion, subjectSplits, periodClosed, periodOf, dateOfDay, type Split } from "./staff";
+import { saveSplitVersion, subjectSplits, dayLocked, dateOfDay, type Split } from "./staff";
 import { APP, clip, err, iso, lines, req, trim } from "./util";
 
 const csv = (s: unknown) => (Array.isArray(s) ? s : String(s || "").split(",")).map(trim).filter(Boolean);
@@ -167,7 +167,7 @@ function roundCourse(L: Split[], target: number) {
 async function teamFrom(d: Data) {
   const from = String(d.from || todayBkk()).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || isNaN(dateOfDay(from).getTime())) throw err("BAD_INPUT", "เลือกวันเริ่มมีผล");
-  if (await periodClosed(periodOf(dateOfDay(from)))) throw err("LOCKED", "งวดของวันที่เลือกปิดไปแล้ว");
+  if (await dayLocked(from)) throw err("LOCKED", "วันที่เลือกอยู่ก่อนเวลาตัดยอดของงวดที่ปิดแล้ว");
   return from;
 }
 /** admin.team.add { user_id | email, subject, from, course_ids? } — add the teacher role (other roles stay) and the

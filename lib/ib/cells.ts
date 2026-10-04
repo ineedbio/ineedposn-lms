@@ -17,7 +17,8 @@ export const CELLS = {
   BONUS: { 7: 5, 15: 10, 30: 30, 60: 50, 100: 100, 200: 150, 365: 365 } as Record<number, number>,
   THEMES: [["base", 0], ["petri", 15], ["scope", 30], ["reef", 60], ["forest", 100], ["nebula", 200], ["gold", 365]] as [string, number][],
   // Time-limited events: `need` study days (15+ minutes) between from–to = a limited skin, kept for good (counted from StudyDay).
-  EVENTS: [{ key: "halloween2569", name: "ฮาโลวีน 2569", skin: "spooky", from: "2026-10-01", to: "2026-10-31", need: 10 }],
+  // Halloween 2569 has no skin event (the owner took it out on 4 Oct) · shape: { key, name, skin, from: "YYYY-MM-DD", to, need }
+  EVENTS: [] as { key: string; name: string; skin: string; from: string; to: string; need: number }[],
 };
 
 // "Today" in Thai time. The test server (IB_TEST_HOOKS=1, never set in production) can move the clock by days
@@ -25,6 +26,13 @@ export const CELLS = {
 async function dayShift() {
   if (process.env.IB_TEST_HOOKS !== "1" || process.env.NODE_ENV === "production") return 0;
   return Number(await getSetting("test_day_shift_ms")) || 0;
+}
+type CellEvent = (typeof CELLS.EVENTS)[number];
+/** The skin events. The test server (IB_TEST_HOOKS=1) may add some through the test_events setting, like the
+ *  reference tests pushing into CELLS.EVENTS; production only ever uses CELLS.EVENTS. */
+async function cellEvents(): Promise<CellEvent[]> {
+  if (process.env.IB_TEST_HOOKS !== "1" || process.env.NODE_ENV === "production") return CELLS.EVENTS;
+  try { const x = JSON.parse((await getSetting("test_events")) || "[]"); return CELLS.EVENTS.concat(Array.isArray(x) ? x : []); } catch { return CELLS.EVENTS; }
 }
 const thDay = (ms: number) => new Date(ms + 7 * 36e5).toISOString().slice(0, 10);
 const today = async () => thDay(Date.now() + (await dayShift()));
@@ -50,12 +58,12 @@ async function ledgerSum(db: Tx | typeof prisma, userId: string) {
 }
 const ledgerAdd = (db: Tx | typeof prisma, userId: string, delta: number, reason: string, day = "", ref = "") =>
   db.cellLedger.create({ data: { userId, delta, reason, day, ref } });
-async function eventDays(userId: string, ev: (typeof CELLS.EVENTS)[number]) {
+async function eventDays(userId: string, ev: CellEvent) {
   return prisma.studyDay.count({ where: { userId, credited: true, day: { gte: ev.from, lte: ev.to } } });
 }
 async function themesFor(best: number, userId?: string) {
   const t = CELLS.THEMES.filter((x) => best >= x[1]).map((x) => x[0]);
-  if (userId) for (const ev of CELLS.EVENTS) if ((await eventDays(userId, ev)) >= ev.need) t.push(ev.skin);
+  if (userId) for (const ev of await cellEvents()) if ((await eventDays(userId, ev)) >= ev.need) t.push(ev.skin);
   return t;
 }
 
@@ -135,7 +143,7 @@ export async function cellsStatus(_d: Data, { p }: Ctx) {
     codes.push({ code: c.code, value: c.value || 0, ends_at: iso(c.endsAt), used: (await couponUses(c.code)) > 0 });
   const themes = await themesFor(best, u.id);
   const events = [];
-  for (const ev of CELLS.EVENTS) {
+  for (const ev of await cellEvents()) {
     const n = await eventDays(u.id, ev);
     events.push({ key: ev.key, name: ev.name, skin: ev.skin, from: ev.from, to: ev.to, need: ev.need, days: Math.min(n, ev.need), earned: n >= ev.need, active: day >= ev.from && day <= ev.to });
   }
