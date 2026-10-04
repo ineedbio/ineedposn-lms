@@ -5,6 +5,8 @@
 //     muted, so browsers (iOS Safari included) allow it — with a "แตะเพื่อเปิดเสียง" button. "ดูฟรี" buttons
 //     open the same player in a modal. The clip ids are taken out of the page's attributes.
 //     course.detail only sends the YouTube id of free episodes, so no enrollment check is involved.
+//     Signed in with cells on: a free episode counts as study time — study.ping { lesson_id, preview: 1, pos }
+//     once per 60 seconds of real play (sound on, page in front), like app.js's startStudyPing.
 //  2) Counts are removed from every public page: episode counts and total video time ("12 ตอน · 13 ชม.") on
 //     cards, the featured carousel, the course page (facts, syllabus, chapters, price box) and bundle page;
 //     and the catalogue size (home stats "N คอร์สที่เปิดอยู่", "N คอร์ส →" on the path buttons, "N คอร์ส"
@@ -94,7 +96,7 @@
 
   var players = [], seq = 0;
   function pauseOthers(keep) { players.forEach(function (p) { if (p !== keep && p.P && p.P.pauseVideo) try { p.P.pauseVideo(); } catch (e) {} }); }
-  function drop(p) { clearInterval(p.t); if (p.off) try { p.off(); } catch (e) {} try { p.P && p.P.destroy(); } catch (e) {} p.P = null; }
+  function drop(p) { clearInterval(p.t); clearInterval(p.ping); if (p.off) try { p.off(); } catch (e) {} try { p.P && p.P.destroy(); } catch (e) {} p.P = null; }
   function sweep() { players = players.filter(function (p) { if (document.body.contains(p.el)) return true; drop(p); return false; }); }
   // Only one video iframe on the page: before a new player starts, the others are destroyed. A destroyed player
   // still on the page (the hero, under the "ดูฟรี" modal) shows a play button that starts it again.
@@ -114,7 +116,7 @@
   function mount(el, vid, opt) {
     opt = opt || {};
     stopAll();
-    var me = { el: el, P: null, t: null, again: function () { mount(el, vid, { sound: true }); } };
+    var me = { el: el, P: null, t: null, ping: null, again: function () { mount(el, vid, { sound: true, lid: opt.lid }); } };
     players.push(me);
     var hand = isHandheld(), QS = YTQ.filter(function (q) { return !hand || q[0] <= 1080; });
     var host = 'ibp-host-' + (++seq);
@@ -229,6 +231,7 @@
               setTimeout(function () { if (P.getPlayerState && P.getPlayerState() !== 1 && P.getPlayerState() !== 3) { P.mute(); P.playVideo(); showPill(); } }, 1500);
             }
             tick(); me.t = setInterval(function () { if (!document.body.contains(el)) { sweep(); return; } tick(); }, 500);
+            if (opt.lid) studyPing(me, opt.lid);
           },
           onStateChange: function (e) {
             var s = e.data;
@@ -245,12 +248,37 @@
     return me;
   }
 
+  /** Free episode = study time for the cells (app.js: startStudyPing(lid, true)). Counted only while it really plays
+      with sound and the page is in front; muted autoplay in the hero doesn't count. Stops with the player (drop).
+      app.js runs in its own closure, so this posts to /api/ib itself with the signed-in token and device id;
+      the server answers { off: true } when the cells system is switched off. */
+  function studyPing(me, lid) {
+    var F = window.INEEDBIO_FEATURES, token = store('ib_token');
+    if (!lid || !token || (F && F.cells === false) || !window.INEEDBIO_API_URL) return;
+    clearInterval(me.ping); var acc = 0;
+    me.ping = setInterval(function () {
+      var P = me.P;
+      if (!P || !me.el.classList.contains('is-playing') || document.visibilityState !== 'visible' || (P.isMuted && P.isMuted())) return;
+      acc += 5; if (acc < 60) return; acc = 0;
+      var body = { action: 'study.ping', data: { lesson_id: lid, preview: 1, pos: P.getCurrentTime ? Math.floor(P.getCurrentTime() || 0) : 0 }, token: store('ib_token'), device_id: store('ib_device'), device_info: 'course-page' };
+      fetch(window.INEEDBIO_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
+        .then(function (x) { return x.json(); }).then(function (res) {
+          if (!res.ok) { if (/^(AUTH|SESSION_REPLACED|BANNED|NO_ACCESS)$/.test(res.error)) clearInterval(me.ping); return; }
+          var r = res.data;
+          if (!r || r.off) { clearInterval(me.ping); return; }
+          if (r.ignored || !r.credited) return;
+          var g = r.credited.gained || [];
+          toast(g.length > 1 ? 'เรียนครบวันนี้แล้ว +' + g.reduce(function (a, x) { return a + x.delta; }, 0) + ' เซลล์ (มีโบนัส)' : 'เรียนครบวันนี้แล้ว +1 เซลล์ ติดกัน ' + r.credited.streak + ' วัน');
+        }).catch(function () {});
+    }, 5000);
+  }
+
   // Free-episode buttons: keep the clip id out of the page (app.js puts it in data-preview).
   var clips = new WeakMap();
   function takeIds(root) {
     all(root, '[data-preview]').forEach(function (b) {
-      if (b.dataset.preview) clips.set(b, { id: b.dataset.preview, title: b.dataset.title || '' });
-      b.removeAttribute('data-preview'); b.removeAttribute('data-title');
+      if (b.dataset.preview) clips.set(b, { id: b.dataset.preview, title: b.dataset.title || '', lid: b.dataset.plid || '' });
+      b.removeAttribute('data-preview'); b.removeAttribute('data-title'); b.removeAttribute('data-plid');
       b.setAttribute('data-ibpv', clips.has(b) ? '1' : '0');
     });
   }
@@ -259,7 +287,7 @@
     m.innerHTML = '<div class="scrim" data-close="1"><div class="modal wide" role="dialog" aria-modal="true">' +
       '<div class="mx"><div class="stack" style="gap:4px"><h2>' + esc(c.title) + '</h2><p class="ink2 sm">ตอนตัวอย่าง ดูได้ฟรี</p></div><button class="x" data-close="1" aria-label="ปิด">×</button></div>' +
       '<div class="player"></div></div></div>';
-    mount(m.querySelector('.player'), c.id, { sound: true });
+    mount(m.querySelector('.player'), c.id, { sound: true, lid: c.lid });
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-ibpv]');
@@ -290,7 +318,7 @@
       box.parentNode.insertBefore(cap, box.nextSibling);
       var btn = hero.querySelector(':scope > [data-ibpv]'); if (btn) btn.remove();
     }
-    mount(box, c.id, { muted: true });
+    mount(box, c.id, { muted: true, lid: c.lid });
   }
 
   var css = document.createElement('style');
