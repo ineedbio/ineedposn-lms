@@ -111,13 +111,19 @@ t('free preview counts as study time (logged in only), other lessons still need 
   no(C2('study.ping', { lesson_id: 'LP', pos: 60 }), 'NO_ACCESS'); // ไม่ได้บอกว่าเป็นตัวอย่าง
   assert.equal(ok(C2('study.ping', { lesson_id: 'LP', preview: 1, pos: 60 })).today_min, 1);
 });
-t('halloween: 10 study days in Oct 2569 = limited skin, kept after the event', () => {
+t('halloween 2569: no skin event by default (owner removed it)', () => {
+  assert.equal(run('CELLS.EVENTS.length'), 0);
+  const S0 = reg('hw0@x.com', 'ไม่มี', 'สกิน'); const st = ok(call('cells.status', {}, S0.token, 'hw0@x.com'));
+  assert.equal(st.events.length, 0); assert(st.themes.indexOf('spooky') < 0);
+});
+t('event mechanism still works: 10 study days in window = limited skin, kept after the event', () => {
+  run("CELLS.EVENTS.push({ key: 'halloween2569', name: 'ฮาโลวีน 2569', skin: 'spooky', from: '2026-10-04', to: '2026-10-31', need: 10 })");
   const S3 = reg('hw@x.com', 'ฮาโล', 'วีน'), C3 = (a, d) => call(a, d, S3.token, 'hw@x.com'), u3 = S3.user.user_id;
   let P3 = 0;
   const dayAt = (iso) => run("DAY_SHIFT_MS = Date.parse('" + iso + "T05:00:00Z') - Date.now()");
   const studyDay = () => { for (let i = 0; i < 15; i++) { run("cache_().remove('cp:" + u3 + "')"); P3 += 60; ok(C3('study.ping', { lesson_id: 'LP', preview: 1, pos: P3 })); } };
-  dayAt('2026-09-30'); studyDay(); // ก่อนช่วงกิจกรรม ไม่นับ
-  for (let d = 1; d <= 9; d++) { dayAt('2026-10-' + String(d * 3).padStart(2, '0')); studyDay(); } // 9 วัน ไม่ต้องติดกัน
+  dayAt('2026-10-03'); studyDay(); // ก่อนช่วงกิจกรรม (เริ่ม 4 ต.ค.) ไม่นับ
+  [16, 17, 19, 20, 22, 24, 25, 27, 28].forEach(function (d) { dayAt('2026-10-' + d); studyDay(); }); // 9 วัน ไม่ต้องติดกัน
   let st = ok(C3('cells.status', {})), ev = st.events.find(e => e.key === 'halloween2569');
   assert.equal(ev.days, 9); assert.equal(ev.earned, false); assert(st.themes.indexOf('spooky') < 0);
   no(C3('cells.theme', { theme: 'spooky' }), 'BAD_INPUT');
@@ -127,6 +133,6 @@ t('halloween: 10 study days in Oct 2569 = limited skin, kept after the event', (
   ok(C3('cells.theme', { theme: 'spooky' }));
   dayAt('2026-12-15'); st = ok(C3('cells.status', {}));
   assert.equal(st.theme, 'spooky'); assert.equal(st.events[0].active, false); assert.equal(st.events[0].earned, true);
-  run('DAY_SHIFT_MS = 0');
+  run('DAY_SHIFT_MS = 0; CELLS.EVENTS.length = 0;');
 });
 console.log('\n' + n + ' tests passed');

@@ -41,12 +41,13 @@ var SCHEMA = {
   Results:     ['result_id','year','subject','nickname','school','center','review','photo_url','status','sort_order','created_at'],
   PayAccounts: ['account_id','label','method','promptpay_id','bank','account_no','account_name','qr_url','note','ig','subjects','status','sort_order','created_at','owner_id'],
   Bundles:     ['bundle_id','title','subtitle','course_ids','price','cover_url','status','sort_order','created_at'],
-  Coupons:     ['code','kind','value','max_discount','scope','targets','min_total','max_uses','per_user','starts_at','ends_at','status','note','created_at','owner_id'],
+  Coupons:     ['code','kind','value','max_discount','scope','targets','min_total','max_uses','per_user','starts_at','ends_at','status','note','created_at','owner_id','new_only'],
   Orders:      ['order_id','user_id','subtotal','discount','total','coupon_code','pay_terms_hash','terms_accepted_at','created_at','expires_at'],
   Bills:       ['bill_id','order_id','user_id','account_id','account','items','subtotal','discount','total','status','proof','slip_file_id','slip_hash',
                 'submitted_at','note','decided_by','decided_at','created_at','expires_at'],
   Expenses:    ['expense_id','date','subject','category','amount','note','receipt_file_id','status','created_by','created_at','decided_by','decided_at'],
-  Periods:     ['period','closed_at','closed_by','snapshot'],
+  Periods:     ['period','closed_at','closed_by','snapshot','cutoff'],
+  Adjustments: ['adj_id','period','user_id','subject','amount','note','source','created_by','created_at'],
   Payouts:     ['payout_id','period','user_id','subjects','share','held','amount','status','paid_at','paid_by','note','created_at','subject','slip_file_id','account'],
   TeacherProfiles: ['user_id','display_name','title','bio','photo_url','bank_name','account_name','account_no','updated_at'],
   LegacyStudents: ['legacy_id','first_name','last_name','nickname','norm','course_ids','batch','status','user_id','claimed_at','match','note','created_at'],
@@ -85,8 +86,8 @@ var DEFAULT_SETTINGS = {
   platform_pct: '{}',
   cells_enabled: '1',
   event_mode: 'auto',
-  event_from: '',
-  event_until: '',
+  event_from: '2026-10-04T00:00',
+  event_until: '2026-10-31T23:59',
   home_billboard: '',
   subject_splits: '{}'
 };
@@ -113,7 +114,7 @@ function doPost(e) {
 
 var ROUTES = {
   // สาธารณะ
-  'config':            function (d) { return publicSettings_(); },
+  'config':            function (d) { var o = publicSettings_(); o.new_member_promo = newMemberPromo_(); return o; },
   'register.start':    registerStart_,
   'register.verify':   registerVerify_,
   'login':             login_,
@@ -124,7 +125,7 @@ var ROUTES = {
   'bundle.detail':     bundleDetail_,
   'course.detail':     courseDetail_,
   // นักเรียน
-  'me':                function (d, p) { return publicUser_(auth_(p)); },
+  'me':                function (d, p) { return selfUser_(auth_(p)); },
   'logout':            logout_,
   'profile.update':    profileUpdate_,
   'password.change':   passwordChange_,
@@ -196,6 +197,7 @@ var ROUTES = {
   'learn.file':        learnFile_,
   'staff.revoke':      staffOnly_(staffRevoke_),
   'staff.playlists.save': staffOnly_(playlistsSave_),
+  'staff.playlist.preview': staffOnly_(playlistPreview_),
   'staff.course.sync': staffOnly_(courseSync_),
   'fin.summary':       staffOnly_(finSummary_),
   'fin.expense.save':  staffOnly_(finExpenseSave_),
@@ -206,6 +208,9 @@ var ROUTES = {
   'fin.rules.save':    adminOnly_(finRulesSave_),
   'fin.close':         adminOnly_(finClose_),
   'fin.reopen':        adminOnly_(finReopen_),
+  'fin.recut':         adminOnly_(finRecut_),
+  'fin.adjust.save':   adminOnly_(finAdjustSave_),
+  'fin.adjust.delete': adminOnly_(finAdjustDelete_),
   'fin.payout.paid':   adminOnly_(finPayoutPaid_),
   'fin.payout.pay':    adminOnly_(finPayoutPay_),
   'fin.payout.slip':   staffOnly_(finPayoutSlip_),
@@ -321,7 +326,7 @@ function registerVerify_(d, p) {
     };
     append_('Users', u);
     cache_().remove(key);
-    return { token: newSession_(u.user_id, p), user: publicUser_(u), _u: u };
+    return { token: newSession_(u.user_id, p), user: selfUser_(u), _u: u };
   });
   var r = res; delete r._u;
   try { r.legacy = legacyMatchUser_(res2u_(r.user), false); } catch (e) { console.error(e); }
@@ -337,7 +342,7 @@ function login_(d, p) {
   if (u.status !== 'active') throw err_('BANNED', 'บัญชีนี้ถูกระงับ ติดต่อแอดมินทาง IG');
   return withLock_(function () {
     update_('Users', u._row, { last_login_at: now_() });
-    return { token: newSession_(u.user_id, p), user: publicUser_(u) };
+    return { token: newSession_(u.user_id, p), user: selfUser_(u) };
   });
 }
 
@@ -371,7 +376,7 @@ function passwordReset_(d, p) {
     var salt = rand_(16);
     update_('Users', u._row, { salt: salt, password_hash: hashPw_(d.password, salt), last_login_at: now_() });
     cache_().remove('rst:' + email);
-    return { token: newSession_(u.user_id, p), user: publicUser_(u) };
+    return { token: newSession_(u.user_id, p), user: selfUser_(u) };
   });
 }
 
@@ -734,6 +739,43 @@ function couponUses_(code, uid) {
   read_('Bills').forEach(function (b) { if (BILL_LIVE.indexOf(billStatus_(b)) >= 0) orders[b.order_id] = 1; });
   return read_('Orders').filter(function (o) { return o.coupon_code === code && orders[o.order_id] && (!uid || o.user_id === uid); }).length;
 }
+function thShortDate_(iso) {
+  var d = new Date(new Date(iso).getTime() + 7 * 36e5), m = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  return d.getUTCDate() + ' ' + m[d.getUTCMonth()] + ' ' + (d.getUTCFullYear() + 543);
+}
+/** บัญชีนี้เคยซื้อคอร์ส (บิลยอด > 0 ที่ยังไม่ยกเลิก/หมดเวลา หรือสิทธิ์ที่จ่ายเงิน) หรือเป็นนักเรียนรุ่นเก่า */
+function boughtOrOld_(uid, en, bills, leg, lc) {
+  if (en.some(function (e) { return e.user_id === uid && ((e.status === 'approved' && Number(e.amount) > 0) || e.source === 'legacy'); })) return true;
+  if (bills.some(function (b) { return b.user_id === uid && Number(b.total) > 0 && BILL_LIVE.indexOf(billStatus_(b)) >= 0; })) return true;
+  if (leg.some(function (l) { return l.user_id === uid; })) return true;
+  return lc.some(function (c) { return c.user_id === uid && c.status !== 'rejected'; });
+}
+function phoneKey_(v) { var d = String(v || '').replace(/\D/g, ''); return d.length >= 9 ? d.slice(-9) : ''; }
+/** สมาชิกใหม่ = สมัครตั้งแต่วันเริ่มโค้ด ยังไม่เคยซื้อคอร์ส ไม่ใช่นักเรียนรุ่นเก่า และเบอร์โทรไม่ซ้ำกับบัญชีอื่นที่เคยซื้อ/เป็นรุ่นเก่า */
+function isNewMember_(u, since) {
+  if (!u || !u.user_id) return false;
+  if (since && (!u.created_at || new Date(u.created_at).getTime() < new Date(since).getTime())) return false;
+  var en = read_('Enrollments'), bills = read_('Bills'), leg = read_('LegacyStudents'), lc = read_('LegacyClaims');
+  if (boughtOrOld_(u.user_id, en, bills, leg, lc)) return false;
+  var pk = phoneKey_(u.phone);
+  if (pk && read_('Users').some(function (x) { return x.user_id !== u.user_id && phoneKey_(x.phone) === pk && boughtOrOld_(x.user_id, en, bills, leg, lc); })) return false;
+  return true;
+}
+function couponLive_(cp, t) {
+  return cp.status === 'active' && (!cp.starts_at || new Date(cp.starts_at).getTime() <= t) && (!cp.ends_at || new Date(cp.ends_at).getTime() >= t);
+}
+/** โปรสมาชิกใหม่ที่เปิดอยู่ (สำหรับแบนเนอร์หน้าแรก) หรือ null */
+function newMemberPromo_() {
+  var nm = newMemberCoupons_().sort(function (a, b) { return (b.kind === 'percent') - (a.kind === 'percent') || Number(b.value) - Number(a.value); })[0];
+  if (!nm) return null;
+  return { label: nm.kind === 'percent' ? Number(nm.value) + '%' : '฿' + Number(nm.value).toLocaleString(), each: nm.kind === 'each', all: nm.scope === 'all',
+    min_total: Number(nm.min_total) || 0, starts_at: nm.starts_at || '', ends_at: nm.ends_at || '' };
+}
+/** โค้ดสมาชิกใหม่ที่ใช้ได้ตอนนี้ (ใช้ให้อัตโนมัติ) */
+function newMemberCoupons_() {
+  var t = Date.now();
+  return read_('Coupons').filter(function (c) { return c.new_only === '1' && !c.owner_id && couponLive_(c, t); });
+}
 /** คืน { discount per course_id, total discount } หรือ throw ถ้าใช้ไม่ได้ */
 function applyCoupon_(code, items, u) {
   var cp = findOne_('Coupons', function (r) { return r.code === code; });
@@ -742,6 +784,10 @@ function applyCoupon_(code, items, u) {
   var t = Date.now();
   if (cp.starts_at && new Date(cp.starts_at).getTime() > t) throw err_('COUPON', 'โค้ดนี้ยังไม่เริ่มใช้');
   if (cp.ends_at && new Date(cp.ends_at).getTime() < t) throw err_('COUPON', 'โค้ดนี้หมดอายุแล้ว');
+  if (cp.new_only === '1') {
+    if (!u) throw err_('COUPON', 'ส่วนลดนี้สำหรับสมาชิกใหม่ เข้าสู่ระบบหรือสมัครสมาชิกก่อน');
+    if (!isNewMember_(u, cp.starts_at)) throw err_('COUPON', 'ส่วนลดนี้สำหรับสมาชิกใหม่ที่สมัครตั้งแต่ ' + thShortDate_(cp.starts_at) + ' และยังไม่เคยซื้อคอร์ส');
+  }
   var targets = csv_(cp.targets);
   var elig = items.filter(function (it) { return cp.scope === 'subject' ? targets.indexOf(it.subject) >= 0 : cp.scope === 'course' ? targets.indexOf(it.course_id) >= 0 : true; });
   if (!elig.length) throw err_('COUPON', 'โค้ดนี้ใช้กับคอร์สในตะกร้าไม่ได้');
@@ -782,13 +828,24 @@ function priceCart_(ids, code, u) {
   var ok = items.filter(function (it) { return !it.blocked; });
   var bd = applyBundles_(ok, u);
   ok.forEach(function (it) { it.base = it.price - it.bundle_discount; it.discount = it.bundle_discount; it.net = it.base; });
-  var coupon = null;
+  var coupon = null, promo = null;
   code = normCode_(code);
+  var typed = code, nm = newMemberCoupons_();
+  if (!code && ok.length && nm.length) {
+    // ไม่ได้ใส่โค้ด → ใช้ส่วนลดสมาชิกใหม่ให้อัตโนมัติ (เลือกอันที่ลดมากสุด) ถ้าใช้ได้
+    if (u && isNewMember_(u, '')) {
+      var best = null;
+      nm.forEach(function (c) { try { var r0 = applyCoupon_(c.code, ok, u); if (!best || r0.total > best.r.total) best = { c: c, r: r0 }; } catch (e) { if (e.code !== 'COUPON') throw e; } });
+      if (best && best.r.total > 0) code = best.c.code;
+    }
+    if (!code && !u) promo = { label: nm.map(function (c) { return c.kind === 'percent' ? c.value + '%' : '฿' + Number(c.value).toLocaleString(); })[0], ends_at: nm[0].ends_at, signed_in: !!u };
+  }
+  var auto = !!code && !typed;
   if (code && ok.length) {
     try {
       var r = applyCoupon_(code, ok, u);
       ok.forEach(function (it) { it.coupon_discount = r.per[it.course_id] || 0; it.discount = it.bundle_discount + it.coupon_discount; it.net = it.price - it.discount; });
-      coupon = { code: code, ok: true, label: r.label, discount: r.total };
+      coupon = { code: code, ok: true, label: r.label, discount: r.total, auto: !!auto, new_only: (findOne_('Coupons', function (x) { return x.code === code; }) || {}).new_only === '1' };
     } catch (e) { if (e.code !== 'COUPON') throw e; coupon = { code: code, ok: false, message: e.message }; }
   }
   var groups = {}, order = [];
@@ -802,7 +859,7 @@ function priceCart_(ids, code, u) {
     return { account: g.account, items: g.items, subtotal: sub, discount: dis, total: sub - dis };
   });
   var subtotal = ok.reduce(function (a, it) { return a + it.price; }, 0), discount = ok.reduce(function (a, it) { return a + it.discount; }, 0);
-  return { items: items, missing: missing, bills: bills, subtotal: subtotal, discount: discount, total: subtotal - discount, coupon: coupon,
+  return { items: items, missing: missing, bills: bills, subtotal: subtotal, discount: discount, total: subtotal - discount, coupon: coupon, promo: promo,
     bundles: bd.applied, bundle_discount: ok.reduce(function (a, it) { return a + it.bundle_discount; }, 0), suggest: bd.suggest };
 }
 
@@ -1256,8 +1313,8 @@ function adminBillDecide_(d, p, admin) {
 var CELLS = { MIN_PER_DAY: 15, PING_GAP_MS: 50000, MIN_ADVANCE: 30, REVIEW: 5, GRADES: 5, GRADES_PROOF: 5, COST: 100, VALUE: 100, CODE_DAYS: 60, REDEEM_GAP_DAYS: 30, FREEZE_EVERY: 7, FREEZE_MAX: 2,
   BONUS: { 7: 5, 15: 10, 30: 30, 60: 50, 100: 100, 200: 150, 365: 365 },
   THEMES: [['base', 0], ['petri', 15], ['scope', 30], ['reef', 60], ['forest', 100], ['nebula', 200], ['gold', 365]],
-  // กิจกรรมช่วงเวลา: เรียนครบ need วัน (วันที่นับ = เรียนครบ 15 นาที) ในช่วง from–to ได้สกินลิมิเต็ด เก็บไว้ถาวร (คิดจาก StudyDays ไม่ต้องมีตารางใหม่)
-  EVENTS: [{ key: 'halloween2569', name: 'ฮาโลวีน 2569', skin: 'spooky', from: '2026-10-01', to: '2026-10-31', need: 10 }] };
+  // กิจกรรมช่วงเวลา (ฮาโลวีน 4–31 ต.ค. 2569): เรียนครบ need วัน (วันที่นับ = เรียนครบ 15 นาที) ในช่วง from–to ได้สกินลิมิเต็ด เก็บไว้ถาวร (คิดจาก StudyDays ไม่ต้องมีตารางใหม่)
+  EVENTS: [] }; // ฮาโลวีน 2569 ไม่มีกิจกรรมสกิน (เจ้าของสั่งเอาออก 4 ต.ค.) · รูปแบบ: { key, name, skin, from: 'YYYY-MM-DD', to, need }
 var DAY_SHIFT_MS = 0; // ใช้เฉพาะเดโมเพื่อจำลองวันถัดไป ของจริงเป็น 0 เสมอ
 function thDay_(ms) { return new Date((ms == null ? Date.now() + DAY_SHIFT_MS : ms) + 7 * 36e5).toISOString().slice(0, 10); }
 function dayDiff_(a, b) { return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 864e5); }
@@ -1652,8 +1709,10 @@ function adminCouponSave_(d, p, admin) {
   var patch = { code: code, kind: kind, value: String(value), max_discount: kind === 'percent' && Number(d.max_discount) > 0 ? String(money_(d.max_discount)) : '',
     scope: scope, targets: targets.join(','), min_total: Number(d.min_total) > 0 ? String(money_(d.min_total)) : '',
     max_uses: Number(d.max_uses) > 0 ? String(money_(d.max_uses)) : '', per_user: Number(d.per_user) > 0 ? String(money_(d.per_user)) : '',
-    starts_at: dt(d.starts_at, 'วันเริ่ม'), ends_at: dt(d.ends_at, 'วันหมดอายุ'), status: d.status === 'inactive' ? 'inactive' : 'active', note: clip_(d.note, 200) };
+    starts_at: dt(d.starts_at, 'วันเริ่ม'), ends_at: dt(d.ends_at, 'วันหมดอายุ'), new_only: d.new_only === true || d.new_only === 'true' || d.new_only === '1' ? '1' : '', status: d.status === 'inactive' ? 'inactive' : 'active', note: clip_(d.note, 200) };
   if (patch.starts_at && patch.ends_at && patch.ends_at <= patch.starts_at) throw err_('BAD_INPUT', 'วันหมดอายุต้องหลังวันเริ่ม');
+  if (patch.new_only && !patch.starts_at) throw err_('BAD_INPUT', 'ส่วนลดสมาชิกใหม่ต้องใส่วันเริ่ม (นับคนที่สมัครตั้งแต่วันนั้น)');
+  if (patch.new_only && !patch.per_user) patch.per_user = '1';
   withLock_(function () {
     ensureCols_('Coupons');
     var orig = normCode_(d.orig_code);
@@ -1922,7 +1981,7 @@ function adminLessonsBulk_(d, p, admin) {
     var title = clip_(it.title, 160), chapter = clip_(it.chapter, 120);
     if (!title) throw err_('BAD_INPUT', n + 'ไม่มีชื่อตอน');
     if (!chapter) throw err_('BAD_INPUT', n + 'ไม่มีชื่อบท (ใส่บรรทัด # ชื่อบท ไว้ก่อน)');
-    return { chapter: chapter, title: title, youtube_id: yt, duration_min: String(Math.max(0, Math.round(Number(it.duration_min) || 0))), attachment_url: '', is_preview: it.is_preview ? 'TRUE' : 'FALSE' };
+    return { source_playlist: playlistId_(it.source_playlist || '') || '', chapter: chapter, title: title, youtube_id: yt, duration_min: String(Math.max(0, Math.round(Number(it.duration_min) || 0))), attachment_url: '', is_preview: it.is_preview ? 'TRUE' : 'FALSE' };
   });
   var n = withLock_(function () {
     if (!findOne_('Courses', function (r) { return r.course_id === d.course_id; })) throw err_('NOT_FOUND', 'ไม่พบคอร์ส');
@@ -2289,6 +2348,12 @@ function contacts_(d, out) {
   if (!out.facebook && !out.instagram && !out.line_id) throw err_('BAD_INPUT', 'กรอกช่องทางติดต่ออย่างน้อย 1 ช่องทาง (Facebook, IG หรือ LINE)');
   return out;
 }
+/** ข้อมูลของผู้ใช้เอง (me/login/register) + บอกว่าได้โปรสมาชิกใหม่ไหม (คิดเฉพาะตอนมีโปรเปิดอยู่) */
+function selfUser_(u) {
+  var o = publicUser_(u), nm = newMemberCoupons_();
+  if (nm.length) o.new_member = nm.some(function (c) { return isNewMember_(u, c.starts_at); });
+  return o;
+}
 function publicUser_(u) {
   return { user_id: u.user_id, email: u.email, first_name: u.first_name, last_name: u.last_name, nickname: u.nickname,
     school: u.school, grade: u.grade, phone: u.phone, role: u.role, status: u.status, created_at: u.created_at,
@@ -2431,6 +2496,30 @@ function periodOf_(iso) { var t = new Date(iso); if (isNaN(t)) return ''; var s 
 function periodEnded_(pr) { return pr < periodOf_(now_()); }
 function inPeriod_(iso, pr) { var q = periodOf_(iso); return pr.length === 7 ? q.slice(0, 7) === pr : q === pr; }
 function checkPeriod_(pr) { if (!/^\d{4}-(0[1-9]|1[0-2])(-[12])?$/.test(String(pr || ''))) throw err_('BAD_INPUT', 'เลือกงวด'); return String(pr); }
+/** งวดถัดไป (ครึ่งเดือน) */
+function prNext_(pr) { if (pr.length === 7) pr += '-2'; if (pr.slice(-1) === '1') return pr.slice(0, 8) + '2'; var y = +pr.slice(0, 4), m = +pr.slice(5, 7) + 1; if (m > 12) { m = 1; y++; } return y + '-' + ('0' + m).slice(-2) + '-1'; }
+function isoN_(v) { var t = new Date(v); return isNaN(t) ? '' : t.toISOString(); }
+/** เวลาตัดยอดของงวดที่ปิดแล้ว { 'YYYY-MM-1': iso } · งวดรายเดือนแบบเก่าใช้กับทั้งสองครึ่ง · over = แทนค่าชั่วคราว (ตอนปิด/แก้เวลาตัดยอด) */
+function cutoffMap_(over) {
+  var o = {};
+  read_('Periods').forEach(function (r) { var c = isoN_(r.cutoff || r.closed_at) || '9999'; if (String(r.period).length === 7) { o[r.period + '-1'] = o[r.period + '-1'] || c; o[r.period + '-2'] = o[r.period + '-2'] || c; } else o[r.period] = c; });
+  Object.keys(over || {}).forEach(function (k) { o[k] = over[k]; });
+  return o;
+}
+/** งวดที่รายการนี้ตกอยู่จริง: งวดตามวันที่ ถ้างวดนั้นปิดยอดไปก่อนรายการเข้า → ยกไปงวดถัดไปที่ยังเปิดอยู่ (หรือที่ตัดยอดหลังรายการ) */
+function assignPeriod_(natural, recorded, CM) {
+  var q = natural, r = isoN_(recorded);
+  for (var i = 0; i < 72; i++) { var c = CM[q]; if (!c || !r || r <= c) return q; q = prNext_(q); }
+  return q;
+}
+function inAssigned_(a, pr) { return pr.length === 7 ? a.slice(0, 7) === pr : a === pr; }
+function expensePeriod_(x, CM) { return assignPeriod_(periodOf_(x.date + 'T12:00:00+07:00'), x.created_at || '', CM || cutoffMap_()); }
+/** งวดที่เปิดอยู่งวดแรก นับจากงวดปัจจุบัน (ถ้าปิดยอดงวดนี้ไปก่อนกำหนด = งวดถัดไป) */
+/** วันนี้ (เริ่ม 00:00 เวลาไทย) อยู่ก่อนเวลาตัดยอดของงวดที่ปิดแล้วไหม → ห้ามตั้งส่วนแบ่งย้อนไปถึงวันนั้น */
+function dayLocked_(day) { var c = cutoffMap_()[periodOf_(day + 'T12:00:00+07:00')]; return !!c && new Date(day + 'T00:00:00+07:00').toISOString() < c; }
+function openPeriod_() { var q = periodOf_(now_()); for (var i = 0; i < 24 && isClosed_(q); i++) q = prNext_(q); return q; }
+/** งวดที่ปิดล่าสุด (แก้เวลาตัดยอดได้เฉพาะงวดนี้) */
+function lastClosed_() { var L = read_('Periods').map(function (r) { return String(r.period).length === 7 ? r.period + '-2' : r.period; }).sort(); return L[L.length - 1] || ''; }
 /** ไม่มีค่าแพลตฟอร์มแล้ว: ยอดสุทธิของวิชาเป็นของผู้สอนของวิชานั้นทั้งหมด */
 function platformPct_() { var out = {}; Object.keys(APP.SUBJECTS).forEach(function (k) { out[k] = 0; }); return out; }
 function periodRow_(pr) { return findOne_('Periods', function (r) { return r.period === pr; }); }
@@ -2466,13 +2555,15 @@ function splitOf_(c, teachers) {
   return { custom: false, parts: ts.map(function (t) { return { user_id: t.user_id, w: 1 / ts.length }; }) };
 }
 /** คำนวณทั้งเดือน (ทุกวิชา) — แยกกรองตามสิทธิ์ผู้ดูทีหลัง */
-function finCompute_(pr) {
+function finCompute_(pr, opt) {
+  opt = opt || {};
+  var CM = opt.cutoff ? (function () { var o = {}; o[pr] = opt.cutoff; return cutoffMap_(o); })() : cutoffMap_();
   var users = read_('Users'), courses = read_('Courses'), bills = read_('Bills'), accs = read_('PayAccounts'), teachers = teachersAll_(), pct = platformPct_(), SS = subjectSplits_();
   var uname = function (id) { var u = users.filter(function (x) { return x.user_id === id; })[0]; return u ? (u.nickname ? u.nickname + ' ' : '') + '(' + (u.first_name || '') + ' ' + (u.last_name || '') + ')' : ''; };
   var income = [], free = { grant: 0, legacy: 0, test: 0, bill0: 0 };
   read_('Enrollments').forEach(function (e) {
     var c = courses.filter(function (x) { return x.course_id === e.course_id; })[0]; if (!c) return;
-    var when = e.decided_at || e.created_at; if (!inPeriod_(when, pr)) return;
+    var when = e.decided_at || e.created_at, nat = periodOf_(when), asg = assignPeriod_(nat, when, CM); if (!inAssigned_(asg, pr)) return;
     var amt = Number(e.amount) || 0, src = sourceOf_(e);
     if (amt <= 0 || (e.status !== 'approved' && e.status !== 'revoked')) { if (e.status === 'approved') { if (src === 'bill') free.bill0++; else if (free[src] != null) free[src]++; } return; }
     var bid = e.bill_id || ((e.note || '').match(/^บิล (\S+)/) || [])[1] || '';
@@ -2481,10 +2572,11 @@ function finCompute_(pr) {
     var u = users.filter(function (x) { return x.user_id === e.user_id; })[0] || {};
     income.push({ enroll_id: e.enroll_id, date: when, course_id: c.course_id, course_title: c.title, subject: c.subject, amount: amt, source: src, source_label: SOURCE_LABEL[src] || src,
       student: (u.first_name || '') + ' ' + (u.last_name || ''), nickname: u.nickname || '', bill_id: bid, has_slip: !!e.slip_file_id,
-      account_label: acc ? acc.label : b ? 'บัญชีหลัก' : '—', held_by: acc && acc.owner_id ? acc.owner_id : '', revoked: e.status === 'revoked' });
+      account_label: acc ? acc.label : b ? 'บัญชีหลัก' : '—', held_by: acc && acc.owner_id ? acc.owner_id : '', revoked: e.status === 'revoked', rolled_from: asg !== nat ? nat : '' });
   });
-  var expenses = read_('Expenses').filter(function (x) { return inPeriod_(x.date + 'T12:00:00+07:00', pr); }).map(function (x) {
-    return { expense_id: x.expense_id, date: x.date, subject: x.subject, subject_name: APP.SUBJECTS[x.subject] || 'ส่วนกลาง', category: x.category, amount: Number(x.amount) || 0,
+  var expenses = read_('Expenses').filter(function (x) { return inAssigned_(expensePeriod_(x, CM), pr); }).map(function (x) {
+    var nat = periodOf_(x.date + 'T12:00:00+07:00'), asg = expensePeriod_(x, CM);
+    return { rolled_from: asg !== nat ? nat : '', expense_id: x.expense_id, date: x.date, subject: x.subject, subject_name: APP.SUBJECTS[x.subject] || 'ส่วนกลาง', category: x.category, amount: Number(x.amount) || 0,
       note: x.note, status: x.status, has_receipt: !!x.receipt_file_id, created_by: x.created_by, created_by_name: uname(x.created_by) };
   }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
   var subj = {}, tt = {};
@@ -2536,14 +2628,28 @@ function finCompute_(pr) {
       pays.push({ subject: k, user_id: uid, name: uname(uid), pct: r2_(totW > 0 ? tw[k][uid] / totW * 100 : 0), share: share, held: held, settle: r2_(share - held), courses: ((tc[k] || {})[uid] || []) });
     });
   });
-  var tlist = Object.keys(tt).map(function (k) { var t = tt[k]; t.share = r2_(t.share); t.held = r2_(t.held); t.settle = r2_(t.share - t.held); return t; })
+  // ปรับปรุงยอด (แก้ย้อนหลัง/ยอดที่เปลี่ยนหลังโอนไปแล้ว) บวก/ลบเข้ายอดโอนของงวดนี้
+  var adjs = read_('Adjustments').filter(function (a) { return inAssigned_(String(a.period), pr); }).map(function (a) {
+    return { adj_id: a.adj_id, period: a.period, user_id: a.user_id, name: uname(a.user_id), subject: a.subject, amount: r2_(a.amount), note: a.note || '', source: a.source || 'manual', created_at: a.created_at };
+  });
+  adjs.forEach(function (a) {
+    var x = pays.filter(function (y) { return y.user_id === a.user_id && y.subject === a.subject; })[0];
+    if (!x) { x = { subject: a.subject, user_id: a.user_id, name: a.name, pct: 0, share: 0, held: 0, settle: 0, courses: [] }; pays.push(x); }
+    x.adjust = r2_((x.adjust || 0) + a.amount); x.settle = r2_(x.settle + a.amount);
+    (x.adjust_notes = x.adjust_notes || []).push((a.amount > 0 ? '+' : '−') + Math.abs(a.amount) + ' ' + a.note);
+    tt[a.user_id] = tt[a.user_id] || { user_id: a.user_id, name: a.name, subjects: [], share: 0, held: 0 };
+    tt[a.user_id].adjust = (tt[a.user_id].adjust || 0) + a.amount; if (tt[a.user_id].subjects.indexOf(a.subject) < 0) tt[a.user_id].subjects.push(a.subject);
+    if (subj[a.subject]) { subj[a.subject].pool = r2_(subj[a.subject].pool + a.amount); subj[a.subject].platform = r2_(subj[a.subject].platform - a.amount); subj[a.subject].adjust = r2_((subj[a.subject].adjust || 0) + a.amount); }
+  });
+  var tlist = Object.keys(tt).map(function (k) { var t = tt[k]; t.share = r2_(t.share); t.held = r2_(t.held); t.adjust = r2_(t.adjust || 0); t.settle = r2_(t.share - t.held + t.adjust); return t; })
     .sort(function (a, b) { return b.share - a.share; });
   var totals = { income: 0, expense: 0, platform: 0, teachers: 0, kept: 0 };
   Object.keys(subj).forEach(function (k) { if (subj[k].pool_all == null) { subj[k].pool_all = subj[k].pool; subj[k].others = []; subj[k].kept = 0; } totals.income += subj[k].income; totals.expense += subj[k].expense; totals.platform += subj[k].platform; totals.teachers += subj[k].pool; totals.kept += subj[k].kept; });
   totals.expense += shared; totals.platform -= shared;
   Object.keys(totals).forEach(function (k) { totals[k] = r2_(totals[k]); });
   totals.shared = r2_(shared); totals.net = r2_(totals.income - totals.expense);
-  return { income: income, expenses: expenses, by_subject: Object.keys(subj).map(function (k) { return subj[k]; }), teachers: tlist, pays: pays, totals: totals, free: free };
+  totals.adjust = r2_(adjs.reduce(function (a, x) { return a + x.amount; }, 0));
+  return { income: income, expenses: expenses, by_subject: Object.keys(subj).map(function (k) { return subj[k]; }), teachers: tlist, pays: pays, totals: totals, free: free, adjustments: adjs };
 }
 /** ตัดข้อมูลให้เหลือเฉพาะที่ผู้ดูมีสิทธิ์เห็น */
 function finScope_(r, me, subject) {
@@ -2556,6 +2662,7 @@ function finScope_(r, me, subject) {
     by_subject: r.by_subject.filter(function (x) { return want.indexOf(x.subject) >= 0; }),
     teachers: admin ? r.teachers.filter(function (t) { return allSubj || t.subjects.some(function (s) { return want.indexOf(s) >= 0; }); }) : r.teachers.filter(function (t) { return t.user_id === me.user_id; }),
     pays: (r.pays || []).filter(function (x) { return (allSubj || want.indexOf(x.subject) >= 0) && (admin || x.user_id === me.user_id); }),
+    adjustments: (r.adjustments || []).filter(function (x) { return (allSubj || want.indexOf(x.subject) >= 0) && (admin || x.user_id === me.user_id); }),
     free: r.free
   };
   if (allSubj) out.totals = r.totals;
@@ -2568,12 +2675,16 @@ function finScope_(r, me, subject) {
   return out;
 }
 function finSummary_(d, p, me) {
-  var pr = d.period ? checkPeriod_(d.period) : periodOf_(now_());
+  var pr = d.period ? checkPeriod_(d.period) : openPeriod_();
   var row = periodRow_(pr), live = finCompute_(pr);
   if (!row && /-[12]$/.test(pr) && periodEnded_(pr) && !live.expenses.some(function (x) { return x.status === 'pending'; })) { closePeriod_(pr, live, 'auto'); row = periodRow_(pr); }
   if (row) { var snap = jsonParse_(row.snapshot, null); if (snap) { live.by_subject = snap.by_subject; live.teachers = snap.teachers; live.totals = snap.totals; if (snap.pays) live.pays = snap.pays; } }
   var out = finScope_(live, me, d.subject);
-  out.period = pr; out.closed = !!row; out.closed_at = row ? row.closed_at : '';
+  out.period = pr; out.closed = !!row; out.closed_at = row ? row.closed_at : ''; out.cutoff = row ? isoN_(row.cutoff || row.closed_at) : '';
+  out.open_period = openPeriod_(); out.max_period = prNext_(out.open_period);
+  out.can_close = isAdmin_(me) && !row && pr <= prNext_(periodOf_(now_()));
+  out.can_recut = isAdmin_(me) && !!row && pr.length > 7 && lastClosed_() === pr;
+  out.rolled_in = live.income.filter(function (x) { return x.rolled_from; }).length;
   out.subjects = subjectsOf_(me); out.admin = isAdmin_(me); out.categories = EXPENSE_CATS;
   out.payouts = read_('Payouts').filter(function (x) { return x.period === pr && (isAdmin_(me) || x.user_id === me.user_id); }).map(function (x) {
     return { payout_id: x.payout_id, user_id: x.user_id, subject: x.subject || '', amount: Number(x.amount) || 0, share: Number(x.share) || 0, held: Number(x.held) || 0, status: x.status, paid_at: x.paid_at, note: x.note, has_slip: !!x.slip_file_id };
@@ -2592,7 +2703,6 @@ function finExpenseSave_(d, p, me) {
   if (!isAdmin_(me) && !canSubject_(me, subject)) throw err_('FORBIDDEN', 'บันทึกรายจ่ายได้เฉพาะวิชาที่คุณดูแล');
   var amount = r2_(d.amount);
   if (!(amount > 0)) throw err_('BAD_INPUT', 'ใส่ยอดเงินมากกว่า 0');
-  if (isClosed_(periodOf_(date + 'T12:00:00+07:00'))) throw err_('LOCKED', 'งวดนี้ปิดแล้ว ลงรายจ่ายในเดือนถัดไปแทน');
   var patch = { date: date, subject: subject, category: EXPENSE_CATS.indexOf(d.category) >= 0 ? d.category : 'อื่นๆ', amount: String(amount), note: clip_(d.note, 300) };
   if (d.receipt && d.receipt.base64) {
     if (!/^image\/(jpeg|png|webp)$|^application\/pdf$/.test(d.receipt.mime || '')) throw err_('BAD_INPUT', 'ใบเสร็จต้องเป็นรูปหรือ PDF');
@@ -2604,7 +2714,7 @@ function finExpenseSave_(d, p, me) {
     if (d.expense_id) {
       var x = findOne_('Expenses', function (r) { return r.expense_id === d.expense_id; });
       if (!x) throw err_('NOT_FOUND', 'ไม่พบรายการนี้');
-      if (isClosed_(periodOf_(x.date + 'T12:00:00+07:00'))) throw err_('LOCKED', 'รายการนี้อยู่ในงวดที่ปิดแล้ว แก้ไม่ได้');
+      if (isClosed_(expensePeriod_(x))) throw err_('LOCKED', 'รายการนี้อยู่ในงวดที่ปิดแล้ว แก้ไม่ได้');
       if (!isAdmin_(me) && (x.created_by !== me.user_id || x.status !== 'pending')) throw err_('FORBIDDEN', 'แก้ได้เฉพาะรายการของคุณที่ยังรอแอดมินอนุมัติ');
       update_('Expenses', x._row, patch); log_(me, 'expense.edit', x.expense_id + ' ฿' + amount); return x.expense_id;
     }
@@ -2620,7 +2730,7 @@ function finExpenseDecide_(d, p, me) {
   withLock_(function () {
     var x = findOne_('Expenses', function (r) { return r.expense_id === d.expense_id; });
     if (!x) throw err_('NOT_FOUND', 'ไม่พบรายการนี้');
-    if (isClosed_(periodOf_(x.date + 'T12:00:00+07:00'))) throw err_('LOCKED', 'งวดนี้ปิดแล้ว');
+    if (isClosed_(expensePeriod_(x))) throw err_('LOCKED', 'งวดนี้ปิดแล้ว');
     update_('Expenses', x._row, { status: st, decided_by: me.user_id, decided_at: now_() }); log_(me, 'expense.' + st, x.expense_id);
   });
   return true;
@@ -2629,7 +2739,7 @@ function finExpenseDelete_(d, p, me) {
   withLock_(function () {
     var x = findOne_('Expenses', function (r) { return r.expense_id === d.expense_id; });
     if (!x) throw err_('NOT_FOUND', 'ไม่พบรายการนี้');
-    if (isClosed_(periodOf_(x.date + 'T12:00:00+07:00'))) throw err_('LOCKED', 'งวดนี้ปิดแล้ว ลบไม่ได้');
+    if (isClosed_(expensePeriod_(x))) throw err_('LOCKED', 'งวดนี้ปิดแล้ว ลบไม่ได้');
     if (!isAdmin_(me) && (x.created_by !== me.user_id || x.status !== 'pending')) throw err_('FORBIDDEN', 'ลบได้เฉพาะรายการของคุณที่ยังรออนุมัติ');
     deleteRows_('Expenses', [x]); log_(me, 'expense.delete', x.expense_id + ' ฿' + x.amount);
   });
@@ -2671,20 +2781,82 @@ function finRulesSave_(d, p, me) {
   cache_().remove('settings');
   return finRules_();
 }
+/** แอดมินปิดยอดเองได้ทุกเมื่อ ไม่ต้องรอสิ้นงวด · ใส่เวลาตัดยอดย้อนหลังได้ (เช่น เวลาที่โอนจริง) ยอดที่เข้าหลังเวลานั้นยกไปงวดถัดไปเอง */
 function finClose_(d, p, me) {
   var pr = checkPeriod_(d.period);
-  if (pr > periodOf_(now_())) throw err_('BAD_INPUT', 'ปิดงวดล่วงหน้าไม่ได้');
-  var r = finCompute_(pr);
+  if (pr.length === 7) throw err_('BAD_INPUT', 'ปิดยอดได้เป็นรายงวด (ครึ่งเดือน)');
+  if (pr > prNext_(periodOf_(now_()))) throw err_('BAD_INPUT', 'ปิดงวดล่วงหน้าเกิน 1 งวดไม่ได้');
+  if (isClosed_(pr)) throw err_('ALREADY', 'งวดนี้ปิดยอดแล้ว');
+  var cut = cutoffIn_(d.cutoff);
+  var r = finCompute_(pr, { cutoff: cut });
   if (r.expenses.some(function (x) { return x.status === 'pending'; })) throw err_('BAD_INPUT', 'ยังมีรายจ่ายรออนุมัติในงวดนี้ อนุมัติหรือไม่อนุมัติก่อนปิดงวด');
-  closePeriod_(pr, r, me.user_id);
-  log_(me, 'finance.close', pr + ' รายรับ ฿' + r.totals.income);
+  closePeriod_(pr, r, me.user_id, cut);
+  log_(me, 'finance.close', pr + ' ตัดยอด ' + cut + ' รายรับ ฿' + r.totals.income);
+  return finSummary_({ period: pr }, p, me);
+}
+function cutoffIn_(v) {
+  var now = now_(); if (!v) return now;
+  var c = isoN_(v); if (!c) throw err_('BAD_INPUT', 'เวลาตัดยอดไม่ถูกต้อง');
+  if (c > now) throw err_('BAD_INPUT', 'เวลาตัดยอดต้องไม่เกินตอนนี้');
+  return c;
+}
+/** แก้เวลาตัดยอดของงวดที่ปิดล่าสุด (แก้ย้อนหลัง): คิดใหม่ ยอดที่เข้าหลังเวลาตัดยอดไปงวดถัดไป
+ *  ผู้สอนที่ยังไม่โอน → แก้ยอดรอโอน · ที่โอนไปแล้ว → ส่วนต่างลงเป็น "ปรับปรุงยอด" ในงวดถัดไป (ไม่แก้ตัวเลขที่โอนไปแล้ว) */
+function finRecut_(d, p, me) {
+  var pr = checkPeriod_(d.period), cut = cutoffIn_(d.cutoff);
+  withLock_(function () {
+    ensureCols_('Periods'); ensureCols_('Adjustments');
+    var row = periodRow_(pr); if (!row) throw err_('NOT_FOUND', 'งวดนี้ยังไม่ได้ปิดยอด');
+    if (lastClosed_() !== pr) throw err_('LOCKED', 'แก้เวลาตัดยอดได้เฉพาะงวดที่ปิดล่าสุด');
+    var r = finCompute_(pr, { cutoff: cut });
+    if (r.expenses.some(function (x) { return x.status === 'pending'; })) throw err_('BAD_INPUT', 'ยังมีรายจ่ายรออนุมัติในช่วงนี้ อนุมัติหรือไม่อนุมัติก่อน');
+    update_('Periods', row._row, { cutoff: cut, snapshot: JSON.stringify({ by_subject: r.by_subject, teachers: r.teachers, pays: r.pays, totals: r.totals }) });
+    var nxt = prNext_(pr), pos = read_('Payouts').filter(function (x) { return x.period === pr; }), seen = {};
+    var adj = function (uid, sj, amt, why) { if (Math.abs(amt) < 0.005) return; append_('Adjustments', { adj_id: 'AJ' + id_().slice(-8), period: nxt, user_id: uid, subject: sj, amount: String(r2_(amt)), note: why, source: 'recut', created_by: me.user_id, created_at: now_() }); };
+    (r.pays || []).forEach(function (t) {
+      var po = pos.filter(function (x) { return x.user_id === t.user_id && (x.subject || '') === t.subject; })[0];
+      if (po) seen[po.payout_id] = 1;
+      if (!po) append_('Payouts', { payout_id: 'PO' + id_().slice(-8), period: pr, user_id: t.user_id, subject: t.subject, subjects: t.subject, share: t.share, held: t.held, amount: t.settle, status: t.settle === 0 ? 'paid' : 'pending', paid_at: t.settle === 0 ? now_() : '', paid_by: '', note: '', created_at: now_() });
+      else if (po.status !== 'paid' || (!Number(po.amount) && !po.slip_file_id)) update_('Payouts', po._row, { share: t.share, held: t.held, amount: t.settle, status: t.settle === 0 ? 'paid' : 'pending', paid_at: t.settle === 0 ? now_() : '' });
+      else adj(t.user_id, t.subject, t.settle - Number(po.amount), 'ปรับจากงวด ' + periodLabel_(pr) + ' (แก้เวลาตัดยอด)');
+    });
+    pos.forEach(function (po) {
+      if (seen[po.payout_id]) return;
+      if (po.status === 'paid' && Number(po.amount)) adj(po.user_id, po.subject || '', -Number(po.amount), 'ปรับจากงวด ' + periodLabel_(pr) + ' (แก้เวลาตัดยอด)');
+      else deleteRows_('Payouts', [po]);
+    });
+    log_(me, 'finance.recut', pr + ' ตัดยอดใหม่ ' + cut);
+  });
+  return finSummary_({ period: pr }, p, me);
+}
+/** ปรับปรุงยอดเอง: บวก/ลบเงินให้ผู้สอนในงวดที่ยังเปิด (เช่น แก้ยอดที่ผิดของงวดก่อน) */
+function finAdjustSave_(d, p, me) {
+  var pr = checkPeriod_(d.period); if (pr.length === 7) throw err_('BAD_INPUT', 'เลือกงวด');
+  if (isClosed_(pr)) throw err_('LOCKED', 'งวดนี้ปิดยอดแล้ว ลงปรับปรุงในงวดที่ยังเปิดอยู่');
+  var amt = r2_(d.amount); if (!amt) throw err_('BAD_INPUT', 'ใส่ยอด (ติดลบได้ ถ้าจะหักคืน)');
+  var sj = String(d.subject || ''); if (!APP.SUBJECTS[sj]) throw err_('BAD_INPUT', 'เลือกวิชา');
+  var u = findOne_('Users', function (r) { return r.user_id === d.user_id; }); if (!u || !isStaff_(u)) throw err_('BAD_INPUT', 'เลือกผู้สอน');
+  var note = clip_(d.note, 200); if (!note) throw err_('BAD_INPUT', 'ใส่เหตุผลด้วย ผู้สอนจะเห็นข้อความนี้');
+  var id = 'AJ' + id_().slice(-8);
+  withLock_(function () { ensureCols_('Adjustments'); append_('Adjustments', { adj_id: id, period: pr, user_id: u.user_id, subject: sj, amount: String(amt), note: note, source: 'manual', created_by: me.user_id, created_at: now_() }); log_(me, 'finance.adjust', pr + ' ' + u.user_id + ' ' + sj + ' ' + amt + ' ' + note); });
+  return finSummary_({ period: pr }, p, me);
+}
+function finAdjustDelete_(d, p, me) {
+  var pr;
+  withLock_(function () {
+    var a = findOne_('Adjustments', function (r) { return r.adj_id === d.adj_id; }); if (!a) throw err_('NOT_FOUND', 'ไม่พบรายการ');
+    if (isClosed_(a.period)) throw err_('LOCKED', 'งวดนี้ปิดยอดแล้ว ลบไม่ได้');
+    if (a.source === 'recut') throw err_('LOCKED', 'รายการนี้มาจากการแก้เวลาตัดยอด ลบไม่ได้ ใช้ปรับปรุงยอดเพิ่มแทน');
+    pr = a.period; deleteRows_('Adjustments', [a]); log_(me, 'finance.adjust.delete', a.adj_id + ' ' + a.amount);
+  });
   return finSummary_({ period: pr }, p, me);
 }
 /** ปิดงวด: ล็อกตัวเลข และสร้างรายการโอนแยกวิชา × ผู้สอน (ปิดเองอัตโนมัติเมื่อครบงวด หรือแอดมินกดปิด) */
-function closePeriod_(pr, r, by) {
+function closePeriod_(pr, r, by, cutoff) {
   withLock_(function () {
     if (isClosed_(pr)) return;
-    append_('Periods', { period: pr, closed_at: now_(), closed_by: by, snapshot: JSON.stringify({ by_subject: r.by_subject, teachers: r.teachers, pays: r.pays, totals: r.totals }) });
+    ensureCols_('Periods');
+    append_('Periods', { period: pr, closed_at: now_(), cutoff: cutoff || now_(), closed_by: by, snapshot: JSON.stringify({ by_subject: r.by_subject, teachers: r.teachers, pays: r.pays, totals: r.totals }) });
     (r.pays || []).forEach(function (t) {
       append_('Payouts', { payout_id: 'PO' + id_().slice(-8), period: pr, user_id: t.user_id, subject: t.subject, subjects: t.subject, share: t.share, held: t.held, amount: t.settle,
         status: t.settle === 0 ? 'paid' : 'pending', paid_at: t.settle === 0 ? now_() : '', paid_by: '', note: '', created_at: now_() });
@@ -2709,6 +2881,7 @@ function finReopen_(d, p, me) {
   var pr = checkPeriod_(d.period);
   withLock_(function () {
     var row = periodRow_(pr); if (!row) throw err_('NOT_FOUND', 'เดือนนี้ยังไม่ได้ปิดงวด');
+    if (pr.length > 7 && lastClosed_() !== pr) throw err_('LOCKED', 'เปิดใหม่ได้เฉพาะงวดที่ปิดล่าสุด');
     var pays = read_('Payouts').filter(function (x) { return x.period === pr; });
     if (pays.some(function (x) { return x.status === 'paid' && Number(x.amount) !== 0; })) throw err_('LOCKED', 'มีการจ่ายเงินผู้สอนของเดือนนี้แล้ว เปิดงวดใหม่ไม่ได้ ลงรายการปรับปรุงในเดือนถัดไปแทน');
     deleteRows_('Payouts', pays); deleteRows_('Periods', [row]); log_(me, 'finance.reopen', pr);
@@ -2771,7 +2944,7 @@ function finSplitsSave_(d, p, me) {
   var from = String(d.from || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw err_('BAD_INPUT', 'เลือกวันเริ่มมีผล');
   var staff = read_('Users').filter(isStaff_).map(function (u) { return u.user_id; });
   var firstOpen = periodOf_(from + 'T12:00:00+07:00');
-  if (isClosed_(firstOpen)) throw err_('LOCKED', 'งวดของวันที่เลือกปิดไปแล้ว เลือกวันเริ่มมีผลในงวดที่ยังไม่ปิด');
+  if (dayLocked_(from)) throw err_('LOCKED', 'วันที่เลือกอยู่ก่อนเวลาตัดยอดของงวดที่ปิดแล้ว เลือกวันเริ่มมีผลหลังจากนั้น');
   var ver = null;
   if (!d.remove) {
     if (d.courses || d.others) ver = checkVersion_(sj, from, d.others, d.courses, staff);
@@ -2882,7 +3055,7 @@ function saveVersion_(sj, from, ver, me) {
 function teamFrom_(d) {
   var from = String(d.from || new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10)).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw err_('BAD_INPUT', 'เลือกวันเริ่มมีผล');
-  if (isClosed_(periodOf_(from + 'T12:00:00+07:00'))) throw err_('LOCKED', 'งวดของวันที่เลือกปิดไปแล้ว');
+  if (dayLocked_(from)) throw err_('LOCKED', 'วันที่เลือกอยู่ก่อนเวลาตัดยอดของงวดที่ปิดแล้ว');
   return from;
 }
 /** เพิ่มผู้สอนเข้าวิชา: เพิ่มยศผู้สอน (ยศเดิมยังอยู่) เพิ่มวิชา แล้วส่งอีเมลให้เข้ามากรอกโปรไฟล์
@@ -3237,6 +3410,59 @@ function cleanTitle_(t, strip) {
   if (strip) s = s.split(strip).join('');
   return s.replace(/^[\s|·\-–—:]+|[\s|·\-–—:]+$/g, '').replace(/\s{2,}/g, ' ').slice(0, 160) || String(t || '').slice(0, 160);
 }
+// ── ตั้งชื่อตอนจากคลิปให้เหมือนตอนก่อนหน้า (แต่ละวิชามีแบบของตัวเอง) ──
+var NUM_RE = /^(EP\.?\s?|Ep\.?\s?|ep\.?\s?|ตอนที่\s?|ตอน\s?|คลิปที่\s?|Part\s?|#)(\d+)(\s*[.:\-–|·]?\s*)/;
+var NUM_ANY = /(?:^|\s)(?:EP|Ep|ep)\.?\s*(\d+)(?:\s*[.:\-–|·])?|ตอนที่\s*(\d+)|ตอน\s*(\d+)(?=\s)|คลิปที่\s*(\d+)|Part\s*(\d+)|#(\d+)|^(\d+)\s*[.)]\s/;
+/** แบบชื่อของคอร์ส: ดูจากตอนที่มีอยู่ (ถ้าคอร์สยังว่าง ดูคอร์สอื่นในวิชาเดียวกัน) · คืน { pre, sep, next, example } หรือ null */
+function titleStyle_(c) {
+  var all = read_('Lessons'), cids = read_('Courses').filter(function (x) { return x.subject === c.subject; }).map(function (x) { return x.course_id; });
+  var mine = all.filter(function (l) { return l.course_id === c.course_id; }), src = mine.filter(function (l) { return NUM_RE.test(l.title); }).length ? mine : all.filter(function (l) { return cids.indexOf(l.course_id) >= 0; });
+  var cnt = {}, best = null, max = 0;
+  src.forEach(function (l) { var m = String(l.title).match(NUM_RE); if (!m) return; var k = m[1] + '\u0000' + m[3]; cnt[k] = (cnt[k] || 0) + 1; if (!best || cnt[k] > cnt[best]) best = k; });
+  mine.forEach(function (l) { var m = String(l.title).match(NUM_RE); if (m) max = Math.max(max, Number(m[2])); });
+  if (!best) return null;
+  var p = best.split('\u0000'), ex = src.filter(function (l) { var m = String(l.title).match(NUM_RE); return m && m[1] === p[0] && m[3] === p[1]; }).slice(-1)[0];
+  return { pre: p[0], sep: p[1] || ' ', next: max + 1, example: ex ? ex.title : '' };
+}
+/** ตัดคำที่ซ้ำทุกคลิปในเพลย์ลิสต์ (ชื่อคอร์ส ชื่อช่อง) ออกจากหัว/ท้ายชื่อ · ต้องมีอย่างน้อย 2 คลิป */
+function commonCut_(titles) {
+  if (titles.length < 2) return { pre: '', suf: '' };
+  var tk = titles.map(function (t) { return String(t).split(/\s+/).filter(String); }), pre = [], suf = [], i;
+  for (i = 0; tk.every(function (a) { return a.length > i + 1 && a[i] === tk[0][i]; }); i++) pre.push(tk[0][i]);
+  for (i = 1; tk.every(function (a) { return a.length > pre.length + i && a[a.length - i] === tk[0][tk[0].length - i]; }); i++) suf.unshift(tk[0][tk[0].length - i]);
+  // คำที่มีเลขตอนอยู่ ห้ามตัด (เช่น "Ep.1")
+  while (pre.length && (/^(EP|Ep|ep)\.?$|^ตอนที่$|^ตอน$|^คลิปที่$|^Part$|^#$/.test(pre[pre.length - 1]) || (/\d/.test(pre[pre.length - 1]) && NUM_ANY.test(' ' + pre[pre.length - 1])))) pre.pop();
+  return { pre: pre.join(' '), suf: suf.join(' ') };
+}
+/** ชื่อแนะนำของแต่ละคลิป: ตัดคำซ้ำ + คำที่ตั้งให้ตัด → ถ้าคอร์สมีแบบเลขตอน ใช้เลขในคลิป (หรือนับต่อ) แล้วเขียนแบบเดียวกับตอนก่อนหน้า */
+function suggestTitles_(c, raw, strip, all) {
+  var st = titleStyle_(c), cut = commonCut_(all && all.length > 1 ? all : raw), next = st ? st.next : 0;
+  return raw.map(function (t) {
+    var s = String(t || '');
+    if (cut.pre && s.indexOf(cut.pre) === 0) s = s.slice(cut.pre.length);
+    if (cut.suf && s.lastIndexOf(cut.suf) === s.length - cut.suf.length) s = s.slice(0, s.length - cut.suf.length);
+    s = cleanTitle_(s, strip);
+    if (!st) return s;
+    var m = s.match(NUM_ANY), n = 0;
+    if (m) { n = Number(m.slice(1).filter(Boolean)[0]); s = cleanTitle_(s.replace(m[0], ' ')); }
+    if (!n) n = next;
+    next = Math.max(next, n + 1);
+    return (st.pre + n + st.sep + s).replace(/\s{2,}/g, ' ').trim().slice(0, 160);
+  });
+}
+/** ดูตัวอย่างก่อนเพิ่ม: ดึงคลิปทั้งเพลย์ลิสต์ ชื่อแนะนำ ความยาว และบอกว่าคลิปไหนมีในคอร์สแล้ว (ยังไม่บันทึกอะไร) */
+function playlistPreview_(d, p, me) {
+  var c = courseFor_(me, d.course_id), id = playlistId_(d.url || d.id);
+  if (!id) throw err_('BAD_INPUT', 'ลิงก์เพลย์ลิสต์ไม่ถูกต้อง (ต้องมี list=...)');
+  rate_('plp:' + me.user_id, 20, 600, 'ดึงเพลย์ลิสต์บ่อยเกินไป รอสักครู่');
+  var data = ytItems_(id), items = data.items.filter(function (x) { return x.ok; });
+  if (!items.length) throw err_('NOT_FOUND', 'ไม่เจอคลิปที่ดูได้ในเพลย์ลิสต์นี้ (เพลย์ลิสต์ต้องเป็นสาธารณะหรือไม่เป็นสาธารณะ ห้ามเป็นส่วนตัว)');
+  var have = {}; read_('Lessons').forEach(function (l) { if (l.course_id === c.course_id) have[l.youtube_id] = l.title; });
+  var fresh = items.filter(function (x) { return !have[x.id]; }), mins = ytMinutes_(items.map(function (x) { return x.id; }));
+  var sug = suggestTitles_(c, fresh.map(function (x) { return x.title; }), d.strip, items.map(function (x) { return x.title; })), k = 0, st = titleStyle_(c);
+  return { id: id, title: data.title, style: st ? { example: st.example, next: st.next, format: st.pre + 'N' + st.sep } : null,
+    items: items.map(function (x) { var ex = have[x.id]; return { youtube_id: x.id, yt_title: x.title, title: ex || sug[k++], duration_min: mins[x.id] || 0, exists: !!ex }; }) };
+}
 function syncCourse_(c) {
   var pls = jsonParse_(c.playlists, []) || [];
   if (!pls.length) throw err_('BAD_INPUT', 'คอร์สนี้ยังไม่ได้ผูกเพลย์ลิสต์');
@@ -3264,10 +3490,11 @@ function syncCourse_(c) {
       result.playlists.push({ id: f.pl.id, title: f.pl.title, count: f.pl.last_count });
     });
     if (newOnes.length) {
-      var mins = ytMinutes_(newOnes.map(function (x) { return x.it.id; }));
+      var mins = ytMinutes_(newOnes.map(function (x) { return x.it.id; })), sugBy = {};
+      fetched.forEach(function (f) { var mineN = newOnes.filter(function (x) { return x.pl.id === f.pl.id; }); var sg = suggestTitles_(c, mineN.map(function (x) { return x.it.title; }), f.pl.strip, f.data.items.filter(function (x) { return x.ok; }).map(function (x) { return x.title; })); mineN.forEach(function (x, i) { sugBy[x.it.id] = sg[i]; }); });
       var sh = sheet_('Lessons'), head = colsFor_('Lessons', { hidden: 1, source_playlist: 1 });
       var vals = newOnes.map(function (x, i) {
-        var o = { lesson_id: 'L' + id_() + i, course_id: c.course_id, chapter: x.pl.chapter || lastChap, title: cleanTitle_(x.it.title, x.pl.strip), youtube_id: x.it.id,
+        var o = { lesson_id: 'L' + id_() + i, course_id: c.course_id, chapter: x.pl.chapter || lastChap, title: sugBy[x.it.id] || cleanTitle_(x.it.title, x.pl.strip), youtube_id: x.it.id,
           duration_min: String(mins[x.it.id] || 0), attachment_url: '', is_preview: 'FALSE', sort_order: String(max + (i + 1) * 10), hidden: 'FALSE', source_playlist: x.pl.id };
         result.titles.push(o.title);
         return head.map(function (h) { return o[h] == null ? '' : String(o[h]); });

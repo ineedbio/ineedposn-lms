@@ -157,7 +157,11 @@ t('finance: half-month periods, no platform fee, subject splits with date, held 
   // ปิดงวด → รายการโอนแยกวิชา × คน
   const closed = ok(call('fin.close', { period: P }, adm));
   assert.equal(closed.closed, true); assert.equal(closed.payouts.length, 5);
-  no(call('fin.expense.save', { date: today, subject: 'chem', amount: 10 }, adm), 'LOCKED');
+  // ปิดยอดแล้ว รายจ่ายที่ลงทีหลัง (วันที่อยู่ในงวดที่ปิด) ยกไปงวดถัดไปเอง ไม่ถูกล็อก
+  const late = ok(call('fin.expense.save', { date: today, subject: 'chem', amount: 10, note: 'ลงหลังปิดยอด' }, adm));
+  assert(!ok(call('fin.summary', { period: P }, adm)).expenses.some(x => x.expense_id === late.expense_id));
+  const nx = ok(call('fin.summary', {}, adm)); assert.notEqual(nx.period, P); assert.equal(nx.expenses.find(x => x.expense_id === late.expense_id).rolled_from, P);
+  ok(call('fin.expense.delete', { expense_id: late.expense_id }, adm));
   const po = closed.payouts.find(x => x.user_id === chemT.user.user_id);
   assert.equal(po.subject, 'chem'); assert.equal(po.amount, 560);
   no(call('fin.payout.pay', { payout_id: po.payout_id }, adm), 'BAD_INPUT');
@@ -276,6 +280,28 @@ t('team: multi-role, per-course ticks, other parts (not teachers), invite email 
   assert.equal(String(c2.price), '590'); assert.equal(c2.pending_change, '');
 });
 
+t('playlist preview: pull titles + durations, follow the course naming pattern', () => {
+  const MC = courses.find(c => c.course_id === 'MATH-M5-T1').course_id, PL2 = 'PL30fRiKuDivTESTTEST02';
+  run("append_('Lessons', { lesson_id: 'LX1', course_id: '" + MC + "', chapter: 'บทที่ 1', title: 'EP.1 ลำดับ', youtube_id: 'bbbbbbbbbb1', duration_min: '30', sort_order: '10' })");
+  run("append_('Lessons', { lesson_id: 'LX2', course_id: '" + MC + "', chapter: 'บทที่ 1', title: 'EP.2 อนุกรม', youtube_id: 'bbbbbbbbbb2', duration_min: '30', sort_order: '20' })");
+  ctx.__yt.titles[PL2] = 'คณิต ม.5 เทอม 1';
+  ctx.__yt.playlists[PL2] = [{ id: 'bbbbbbbbbb2', title: 'คณิต ม.5 | ตอนที่ 2 อนุกรม | INeedBio', dur: 30 }, { id: 'bbbbbbbbbb3', title: 'คณิต ม.5 | ตอนที่ 3 ลิมิต | INeedBio', dur: 42 },
+    { id: 'bbbbbbbbbb4', title: 'คณิต ม.5 | สรุปท้ายบท | INeedBio', dur: 18 }, { id: 'bbbbbbbbbb5', title: 'Private video', dur: 1, priv: 'private' }];
+  no(call('staff.playlist.preview', { course_id: MC, url: 'https://youtu.be/x' }, adm), 'BAD_INPUT');
+  const r = ok(call('staff.playlist.preview', { course_id: MC, url: 'https://www.youtube.com/playlist?list=' + PL2 }, adm));
+  assert.equal(r.style.format, 'EP.N ');
+  assert.deepEqual(r.items.map(x => [x.title, x.duration_min, x.exists]), [['EP.2 อนุกรม', 30, true], ['EP.3 ลิมิต', 42, false], ['EP.4 สรุปท้ายบท', 18, false]]);
+  // ยังไม่บันทึกอะไร → เพิ่มด้วย bulk พร้อมผูกเพลย์ลิสต์
+  ok(call('admin.lessons.bulk', { course_id: MC, items: r.items.filter(x => !x.exists).map(x => ({ chapter: 'บทที่ 2', title: x.title, youtube: 'https://youtu.be/' + x.youtube_id, duration_min: x.duration_min, source_playlist: PL2 })) }, adm));
+  const ls = ok(call('admin.lessons', { course_id: MC }, adm));
+  assert.equal(ls.find(l => l.youtube_id === 'bbbbbbbbbb3').title, 'EP.3 ลิมิต');
+  // ซิงก์อัตโนมัติ: คลิปใหม่ได้ชื่อตามแบบเดียวกัน นับเลขต่อ
+  ok(call('staff.playlists.save', { course_id: MC, playlists: [{ url: PL2, chapter: 'บทที่ 2' }] }, adm));
+  ctx.__yt.playlists[PL2].push({ id: 'bbbbbbbbbb6', title: 'คณิต ม.5 | ตอนที่ 5 อนุพันธ์ | INeedBio', dur: 50 });
+  const s2 = ok(call('staff.course.sync', { course_id: MC }, adm));
+  assert.deepEqual(s2.titles, ['EP.5 อนุพันธ์']);
+});
+
 // ── นักเรียนรุ่นเก่า ──
 t('legacy: import, auto match by name, duplicates go to queue, release', () => {
   const early = reg('early@x.com', 'มานี', 'มีนา'); // สมัครก่อนนำเข้า
@@ -312,7 +338,7 @@ t('legacy: import, auto match by name, duplicates go to queue, release', () => {
   assert(ok(call('learn.get', { course_id: BIO }, fake.token, 'fake@x.com')));
   no(call('learn.get', { course_id: BIO }, piti.token, 'piti@x.com'), 'NO_ACCESS');
   // ไม่นับเป็นรายรับ
-  const s = ok(call('fin.summary', { period: P }, adm));
+  const s = ok(call('fin.summary', {}, adm)); // งวด P ปิดยอดไปแล้ว สิทธิ์ที่เกิดหลังจากนั้นอยู่งวดที่เปิดอยู่
   assert(s.income.every(x => x.source !== 'legacy')); assert(s.free.legacy >= 3);
   // ปล่อยรายชื่อ
   const rec = ok(call('admin.legacy', { status: 'claimed' }, adm)).list.find(x => x.user && x.user.email === 'early@x.com');
