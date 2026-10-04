@@ -905,13 +905,36 @@ details[open]::details-content{block-size:auto}
 @media (prefers-reduced-motion:reduce){#ct-fx{display:none}.ct-scope main h1,.ct-gold .h2x h1 em{animation:none}}
 
 /* ธีมเทศกาล: ทับธีมที่เลือกไว้ชั่วคราวตามช่วงวัน น้องปิดเองได้ในหน้าเซลล์ */
-:root.fe-halloween{color-scheme:dark;--bg:#120d18;--bg2:#1b1424;--bg3:#251c31;--ink:#f6efff;--ink2:#c6b8d8;--muted:#8f82a3;--line:#2e2440;--inv:#f6efff;--inv-ink:#120d18;--acc:#ff7a1a;--acc-soft:#3a2212;--on-acc:#1a0d02;
+:root.fe-halloween,:root.ct-spooky{color-scheme:dark;--bg:#0e0b14;--bg2:#17111f;--bg3:#2a1840;--ink:#f5efe6;--ink2:#cbbfd6;--muted:#9686a8;--line:#2f2342;--inv:#f5efe6;--inv-ink:#0e0b14;--acc:#ff7a1a;--acc-soft:#3a2212;--on-acc:#1a0d02;
   --hero-a:#2a1840;--hero-b:#3a2212;--foot-bg:#0a070e;--ok:#6fcf9b;--ok-soft:#14261c;--wait:#e8b85c;--wait-soft:#2a2213;--no:#f08a82;--no-soft:#2d1817;--shadow:0 30px 80px rgba(0,0,0,.6);
   --c-bio:#5ad49a;--c-bio-soft:#12281d;--c-chem:#ff9a66;--c-chem-soft:#2e1a10;--c-phys:#7fa9ff;--c-phys-soft:#131f36;--c-math:#bf98ff;--c-math-soft:#231935;--foot-ink:#fff;--foot-ink2:rgba(255,255,255,.72);--foot-line:rgba(255,255,255,.15);
-  --cell1:#ffc58a;--cell2:#ff7a1a;--cnuc:#7b3fc4;--dish1:#1b1226;--dish2:#3a2352}
-.fe-halloween body{background:radial-gradient(700px 360px at 90% -6%,rgba(255,122,26,.16),transparent 70%),radial-gradient(800px 420px at 0% 30%,rgba(123,63,196,.16),transparent 70%),var(--bg)}
-.fe-halloween .h2x h1 em{color:#ff7a1a;text-shadow:0 0 30px rgba(255,122,26,.45)}
-.fe-halloween .hdr{border-bottom:1px solid #3a2352}
+  --cell1:#ffc58a;--cell2:#ff7a1a;--cnuc:#7b3fc4;--dish1:#1b1226;--dish2:#2a1840;--hw-glow:rgba(255,122,26,.16);--hw-mist:rgba(123,63,196,.16)}
+/* ฮาโลวีนโหมดสว่าง: ครีมอุ่น ม่วง ส้มเข้มขึ้นให้อ่านออกบนพื้นขาว */
+:root.fe-halloween[data-theme="light"],:root.ct-spooky[data-theme="light"]{color-scheme:light;--bg:#fffaf3;--bg2:#f6eee4;--bg3:#ece0d1;--ink:#1d1428;--ink2:#4d4060;--muted:#7a6d88;--line:#e6d9c8;--inv:#1d1428;--inv-ink:#fffaf3;--acc:#c2410c;--acc-soft:#ffe6d2;--on-acc:#fff;
+  --hero-a:#ede2ff;--hero-b:#ffe2cc;--foot-bg:#2a1840;--ok:#1f7a4d;--ok-soft:#e7f3ec;--wait:#8a5a00;--wait-soft:#fbf2df;--no:#a3261e;--no-soft:#fbe8e6;--shadow:0 30px 80px rgba(42,24,64,.18);
+  --c-bio:#16875a;--c-bio-soft:#e3f4ea;--c-chem:#d4541c;--c-chem-soft:#fdeadf;--c-phys:#2563d6;--c-phys-soft:#e5eefc;--c-math:#8246d4;--c-math-soft:#f0e8fb;--dish1:#f5eeff;--dish2:#e3d3f7;--hw-glow:rgba(255,122,26,.14);--hw-mist:rgba(123,63,196,.10)}
+@media (prefers-color-scheme:light){:root.fe-halloween:not([data-theme="dark"]),:root.ct-spooky:not([data-theme="dark"]){color-scheme:light;--bg:#fffaf3;--bg2:#f6eee4;--bg3:#ece0d1;--ink:#1d1428;--ink2:#4d4060;--muted:#7a6d88;--line:#e6d9c8;--inv:#1d1428;--inv-ink:#fffaf3;--acc:#c2410c;--acc-soft:#ffe6d2;--on-acc:#fff;
+  --hero-a:#ede2ff;--hero-b:#ffe2cc;--foot-bg:#2a1840;--ok:#1f7a4d;--ok-soft:#e7f3ec;--wait:#8a5a00;--wait-soft:#fbf2df;--no:#a3261e;--no-soft:#fbe8e6;--shadow:0 30px 80px rgba(42,24,64,.18);
+  --c-bio:#16875a;--c-bio-soft:#e3f4ea;--c-chem:#d4541c;--c-chem-soft:#fdeadf;--c-phys:#2563d6;--c-phys-soft:#e5eefc;--c-math:#8246d4;--c-math-soft:#f0e8fb;--dish1:#f5eeff;--dish2:#e3d3f7;--hw-glow:rgba(255,122,26,.14);--hw-mist:rgba(123,63,196,.10)}}
+.fe-halloween body,.ct-spooky body{background:radial-gradient(700px 360px at 90% -6%,var(--hw-glow),transparent 70%),radial-gradient(800px 420px at 0% 30%,var(--hw-mist),transparent 70%),var(--bg)}
+.fe-halloween .h2x h1 em,.ct-spooky .h2x h1 em{color:var(--acc);text-shadow:0 0 30px var(--hw-glow)}
+.fe-halloween .hdr,.ct-spooky .hdr{border-bottom:1px solid var(--line)}
+/* หน้าเรียน: ใส่ได้แค่สี ห้ามมีลูกเล่นเคลื่อนไหวลอยทับเครื่องเล่น · แท็บถูกซ่อนแล้วหยุดแอนิเมชัน */
+.in-learn #ct-fx{display:none}
+.fx-hidden #ct-fx *,.fx-hidden .cl-cell{animation-play-state:paused!important}
+/* แบนเนอร์แคมเปญฮาโลวีนบนบิลบอร์ด */
+.bbd-s.bb-camp{background:radial-gradient(90% 120% at 85% 50%,#3a2212 0%,#2a1840 45%,#0e0b14 100%)}
+.bbd-s.bb-camp::before{background:linear-gradient(90deg,rgba(14,11,20,.85) 0%,rgba(14,11,20,.35) 55%,transparent 100%)}
+.bb-camp .bbd-k i{background:#ff7a1a}.bb-camp h2 em{font-style:normal;color:#ff9a4a}
+.bb-camp .bbtn.pri{background:#ff7a1a;color:#1a0d02;border-color:#ff7a1a}
+.bb-camp .bbd-art{aspect-ratio:16/9;overflow:visible;box-shadow:none;transform:none;background:none}
+.bb-camp .bbd-art:hover{transform:translateY(-4px)}
+.bb-art3{display:flex;gap:3%;align-items:center;justify-content:center;width:100%;height:100%}
+.bb-art3 svg{display:block;width:28%;height:auto;aspect-ratio:120/112;overflow:visible;filter:drop-shadow(0 18px 30px rgba(0,0,0,.5))}
+.bb-art3 svg:nth-child(2){width:36%;margin-top:-8%}
+.cl-ev{border-color:#ff7a1a55;background:linear-gradient(135deg,rgba(255,122,26,.12),rgba(123,63,196,.12))}
+.cl-ev .cl-bar i{background:linear-gradient(90deg,#7b3fc4,#ff7a1a)}
+.cl-th .lim{font-size:11.5px;font-weight:700;color:#ff7a1a;letter-spacing:.04em}
 :root.fe-christmas{color-scheme:light;--bg:#fbfaf6;--bg2:#f1efe6;--bg3:#e6e2d4;--ink:#14231b;--ink2:#46574d;--muted:#7f8c84;--line:#e3dfd0;--inv:#14231b;--inv-ink:#fbfaf6;--acc:#c8102e;--acc-soft:#fbe1e5;--on-acc:#fff;
   --hero-a:#e1f0e6;--hero-b:#fbe1e5;--foot-bg:#0f3b26;--ok:#1f7a4d;--ok-soft:#e7f3ec;--wait:#8a5a00;--wait-soft:#fbf2df;--no:#a3261e;--no-soft:#fbe8e6;--shadow:0 30px 80px rgba(0,0,0,.18);
   --c-bio:#16875a;--c-bio-soft:#e3f4ea;--c-chem:#d4541c;--c-chem-soft:#fdeadf;--c-phys:#2563d6;--c-phys-soft:#e5eefc;--c-math:#8246d4;--c-math-soft:#f0e8fb;--foot-ink:#fff;--foot-ink2:rgba(255,255,255,.72);--foot-line:rgba(255,255,255,.15);
@@ -1279,10 +1302,10 @@ button[disabled].pill{opacity:.4;cursor:default}
   .v2ui .hdr{padding-top:6px}.v2ui .hdr>.w{margin-inline:8px;padding-inline:6px 6px;gap:6px}
   .v2ui .hdr .logo>span{font-size:17px}.v2ui .hdr .thm button{width:24px}.v2ui .hdr .hr{gap:6px}.v2ui .hdr .hr .pill{padding:5px 11px;font-size:13px}
 }
-.bbtn.gh,.v2ui .yt-bar .yt-row{-webkit-backdrop-filter:blur(16px) saturate(170%);backdrop-filter:blur(16px) saturate(170%)}
+.bbtn.gh{-webkit-backdrop-filter:blur(16px) saturate(170%);backdrop-filter:blur(16px) saturate(170%)}
 .bbtn.gh{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 8px 20px -10px rgba(0,0,0,.5)}
 .v2ui .yt-bar{background:none;padding:0 10px 10px}
-.v2ui .yt-bar .yt-row{background:rgba(20,22,26,.38);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:2px 8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 10px 24px -12px rgba(0,0,0,.7)}
+.v2ui .yt-bar .yt-row{background:rgba(20,22,26,.72);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:2px 8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 10px 24px -12px rgba(0,0,0,.7)}
 .v2ui .yt-bar .yt-seek{margin:0 14px 4px;width:calc(100% - 28px)}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.v2ui .hdr>.w,.v2ui .mnav{background:var(--bg)}}
 @media (prefers-reduced-transparency:reduce){.v2ui .hdr>.w,.v2ui .mnav{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}.v2ui .yt-bar .yt-row{background:rgba(20,22,26,.85);backdrop-filter:none}}

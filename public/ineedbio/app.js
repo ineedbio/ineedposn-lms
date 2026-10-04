@@ -1,4 +1,4 @@
-/* INeedBio UI v2 รอบ 5 (r5b) · ยศหลายยศ ติ๊กส่วนแบ่งแยกคอร์ส ส่วนที่ไม่ใช่ผู้สอน อีเมลเชิญผู้สอน · ประวัติผู้สอนแก้ในบรรทัดและลากวางได้ */
+/* INeedBio UI v2 รอบ 7 (r7) · ธีมฮาโลวีน แบนเนอร์แคมเปญ สกินลิมิเต็ด ตอนตัวอย่างนับเวลาเรียน (รวม hotfix เครื่องเล่น r6) */
 /* ═══════════ ตั้งค่า: วาง URL ของ Apps Script Web App ที่นี่ ═══════════ */
 var API_URL = window.INEEDBIO_API_URL || 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 /* ฟีเจอร์ที่ยังไม่เปิดบนเว็บจริง (ต้องมี route ฝั่ง backend ก่อน) — เปิดทีหลังได้ใน app/page.tsx โดยตั้ง window.INEEDBIO_FEATURES ก่อนโหลดไฟล์นี้ */
@@ -594,14 +594,15 @@ function viewHome2() {
         (list.length ? '<div class="v2-grid">' + list.map(function (c) { return ncCard(c, mine, S.mem.prog); }).join('') + '</div>' : '<div class="empty"><p>ไม่เจอคอร์สที่ตรงกับที่ค้นหา</p><button class="pill ghost" data-clear="all">ดูคอร์สทั้งหมด</button></div>');
       page('home', html + '</div>'); return;
     }
-    var feat = billboardCourses(cs);
-    html += '<section class="bbd" id="bbd" aria-roledescription="carousel" aria-label="คอร์สแนะนำ">' + feat.map(function (c, i) {
+    var feat = billboardCourses(cs), camp = campSlide(), off = camp ? 1 : 0;
+    html += '<section class="bbd" id="bbd" aria-roledescription="carousel" aria-label="คอร์สแนะนำ">' + (camp ? camp.html : '') + feat.map(function (c, i) {
+      i += off;
       return '<div class="bbd-s' + sc(c.subject) + (i === 0 ? ' on' : '') + '"' + accStyle(c.accent) + ' aria-hidden="' + (i !== 0) + '">' + (c.cover_url ? '<div class="bbd-bg" style="--img:url(\'' + esc(imgSrc(c.cover_url)) + '\')"></div>' : '') +
         '<div class="bbd-in"><div><span class="bbd-k"><i></i>' + esc(c.subject_name) + (c.level ? ' · ' + esc(c.level) : '') + '</span><h2>' + esc(c.title) + '</h2>' + (c.subtitle ? '<p class="sub">' + esc(c.subtitle) + '</p>' : '') +
         '<div class="bbd-f"><span>' + c.lesson_count + ' ตอน</span><span>' + hm(c.total_min) + '</span><span>ดูได้ตลอดชีพ</span><span>' + baht(c.price) + '</span></div>' +
         '<div class="bbd-cta">' + (mine[c.course_id] === 'approved' ? '<a class="bbtn pri" href="#/learn/' + encodeURIComponent(c.course_id) + '">▶ เรียนต่อ</a>' : '<a class="bbtn pri" href="#/course/' + encodeURIComponent(c.course_id) + '">▶ ดูตอนตัวอย่างฟรี</a><button class="bbtn gh" type="button" data-cart-add="' + esc(c.course_id) + '">+ ใส่ตะกร้า</button>') + '</div></div>' +
         (c.cover_url ? '<a class="bbd-art" href="#/course/' + encodeURIComponent(c.course_id) + '" tabindex="-1"><img src="' + esc(imgSrc(c.cover_url)) + '" alt=""></a>' : '') + '</div></div>';
-    }).join('') + (feat.length > 1 ? '<div class="bbd-dots">' + feat.map(function (c, i) { return '<button type="button" data-bb="' + i + '" class="' + (i === 0 ? 'on' : '') + '" aria-label="' + esc(c.title) + '"></button>'; }).join('') + '</div>' : '') + '</section>';
+    }).join('') + (feat.length + off > 1 ? '<div class="bbd-dots">' + (camp ? [camp.label] : []).concat(feat.map(function (c) { return c.title; })).map(function (t, i) { return '<button type="button" data-bb="' + i + '" class="' + (i === 0 ? 'on' : '') + '" aria-label="' + esc(t) + '"></button>'; }).join('') + '</div>' : '') + '</section>';
     var prog = S.mem.prog || {};
     var cont = cs.filter(function (c) { return mine[c.course_id] === 'approved'; });
     if (cont.length) html += rowHtml('cont', 'ห้องเรียนของฉัน', 'เรียนต่อจากที่ค้างไว้', cont.map(function (c) { return ncCard(c, mine, prog); }).join(''), '<a class="link sm" href="#/my">คอร์สของฉัน</a>');
@@ -629,6 +630,16 @@ function viewHome2() {
   if (S.user) jobs.push(api('my.courses').then(function (m) { var o = {}, pg = {}; m.forEach(function (x) { o[x.course_id] = x.enrollment; pg[x.course_id] = { pct: x.percent || 0, done: x.done_count || 0, last: x.last_lesson_id || '' }; }); S.mem.mine = o; S.mem.prog = pg; }).catch(function () {}));
   Promise.all(jobs).then(render).catch(function (e) { failed('home', e); });
   S.homeRender = render;
+}
+/** แบนเนอร์แคมเปญ (ช่องแรกของบิลบอร์ด) ตอนธีมฮาโลวีนเปิดและระบบเซลล์เปิด */
+function campSlide() {
+  if (festActive() !== 'halloween' || !cellsPromoOn()) return null;
+  var u = function (id) { return '<svg viewBox="-60 -56 120 112" aria-hidden="true"><use href="#' + id + '"/></svg>'; };
+  return { label: 'ฮาโลวีน: เรียนครบ 10 วัน รับสกินลิมิเต็ด', html: '<div class="bbd-s bb-camp on" aria-hidden="false"><div class="bbd-in"><div><span class="bbd-k"><i></i>ฮาโลวีน · ถึง 31 ต.ค.</span>' +
+    '<h2>เรียนครบ 10 วัน<br>รับสกินเซลล์<em>ผีลิมิเต็ด</em></h2><p class="sub">ดูคลิปวันละ 15 นาที นับเป็น 1 วัน ไม่ต้องติดกัน ตอนตัวอย่างฟรีก็นับ เก็บสกินไว้ได้ถาวร</p>' +
+    '<div class="bbd-f"><span>🎃 ฟักทอง</span><span>👻 ผี</span><span>🦇 ค้างคาว</span></div>' +
+    '<div class="bbd-cta">' + (S.user ? '<a class="bbtn pri" href="#/cells">ดูเซลล์ของฉัน</a>' : '<button class="bbtn pri" data-act="signup">สมัครฟรี แล้วเริ่มเก็บ</button>') + '</div></div>' +
+    '<a class="bbd-art" href="#/cells" tabindex="-1"><span class="bb-art3">' + u('fs-ghost') + u('fs-pumpkin') + u('fs-bat') + '</span></a></div></div>' };
 }
 /** คอร์สบนแบนเนอร์ใหญ่: ตามที่แอดมินเลือกและเรียงไว้ (ตั้งค่า home_billboard) ถ้าไม่ได้เลือกใช้ 5 คอร์สแรก */
 function billboardCourses(cs) {
@@ -849,8 +860,8 @@ function viewCourse(id) {
       '<div style="padding-top:24px"><a class="back" href="#/">← คอร์สทั้งหมด</a></div><div class="cd"><div>' +
       '<section class="chero" id="sec-overview"><span class="mono sj">' + esc(c.subject_name) + '</span><h1>' + esc(c.title) + '</h1>' + (c.subtitle ? '<p class="ink2 lead">' + esc(c.subtitle) + '</p>' : '') +
       '<div class="facts"><span><b>' + total + '</b> ตอน</span><span><b>' + hm(c.total_min) + '</b> วิดีโอ</span><span><b>ดูได้ตลอด</b> ไม่มีวันหมดอายุ</span>' + (c.trial ? '<span title="จาก ' + c.trial.n + ' คนที่ลองดูตอนฟรี"><b>' + c.trial.clear_pct + '%</b> ของคนที่ลองเรียนฟรีบอกว่าเข้าใจ</span>' : '') + '</div>' +
-      (c.trailer_id ? '<div class="player trailer">' + playerInner(c.trailer_id, '') + '</div>' : (c.cover_url ? '<div class="cover trailer" style="border-radius:16px;aspect-ratio:16/8"><img src="' + esc(imgSrc(c.cover_url)) + '" alt="" style="object-fit:contain"></div>' : '')) +
-      (!c.trailer_id && previews.length ? '<button class="pill ghost s" style="justify-self:start" data-preview="' + esc(previews[0].youtube_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(previews[0].title) + '">▶ ดูตอนตัวอย่างฟรี</button>' : '') + '</section>' +
+      (c.trailer_id ? '<div class="player trailer" data-tid="' + esc(c.trailer_id) + '">' + playerInner(c.trailer_id, '') + '</div>' : (c.cover_url ? '<div class="cover trailer" style="border-radius:16px;aspect-ratio:16/8"><img src="' + esc(imgSrc(c.cover_url)) + '" alt="" style="object-fit:contain"></div>' : '')) +
+      (!c.trailer_id && previews.length ? '<button class="pill ghost s" style="justify-self:start" data-preview="' + esc(previews[0].youtube_id) + '" data-plid="' + esc(previews[0].lesson_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(previews[0].title) + '">▶ ดูตอนตัวอย่างฟรี</button>' : '') + '</section>' +
       '<nav class="jump" aria-label="ส่วนของหน้า">' + jumps.map(function (j) { return '<button data-jump="' + j[0] + '">' + j[1] + '</button>'; }).join('') + '</nav>' +
       (c.highlights && c.highlights.length ? '<section class="sec"><h2>จุดเด่นของคอร์ส</h2><div class="hl">' + c.highlights.map(function (h) { return '<div><span class="ic">' + CK + '</span><span>' + esc(h) + '</span></div>'; }).join('') + '</div></section>' : '') +
       (c.audience && c.audience.length ? '<section class="sec"><h2>คอร์สนี้เหมาะกับ</h2><ul class="aud">' + c.audience.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></section>' : '') +
@@ -860,7 +871,7 @@ function viewCourse(id) {
         return (sec.name ? '<div class="secth"><span>' + esc(sec.name) + '</span><small>' + sl.length + ' ตอน · ' + hm(sl.reduce(function (a, l) { return a + l.duration_min; }, 0)) + '</small></div>' : '') + sec.chs.map(function (x) { var ch = x.ch, i = k++;
         var mins = ch.lessons.reduce(function (a, l) { return a + l.duration_min; }, 0);
         return '<details' + (i === 0 ? ' open' : '') + '><summary><span>' + esc(x.sub || ch.title) + '</span><span class="n">' + ch.lessons.length + ' ตอน · ' + hm(mins) + '</span></summary><ul>' + ch.lessons.map(function (l) {
-          return '<li><span>' + esc(l.title) + (l.is_preview ? ' <button class="pill s ghost" style="margin-left:6px" data-preview="' + esc(l.youtube_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(l.title) + '">ดูฟรี</button>' : '') + '</span><span class="d">' + l.duration_min + ' นาที</span></li>';
+          return '<li><span>' + esc(l.title) + (l.is_preview ? ' <button class="pill s ghost" style="margin-left:6px" data-preview="' + esc(l.youtube_id) + '" data-plid="' + esc(l.lesson_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(l.title) + '">ดูฟรี</button>' : '') + '</span><span class="d">' + l.duration_min + ' นาที</span></li>';
         }).join('') + '</ul></details>';
       }).join(''); }).join(''); })() + '</div></section>' +
       (c.instructor ? '<section class="sec" id="sec-instructor"><h2>ผู้สอน</h2>' + (c.instructors || [c.instructor]).map(instBlock).join('') + '</section>' : '') +
@@ -918,10 +929,17 @@ function promptpay(id, amount) {
   for (var i = 0; i < s.length; i++) { crc ^= s.charCodeAt(i) << 8; for (var j = 0; j < 8; j++) crc = (crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1) & 0xFFFF; }
   return s + ('000' + crc.toString(16).toUpperCase()).slice(-4);
 }
-function previewVideo(id, title, cid) {
-  openModal(mhead(esc(title), 'ตอนตัวอย่าง ดูได้ฟรี') + '<div class="player">' + playerInner(id, '') + '</div>' +
+function previewVideo(id, title, cid, lid) {
+  // วิดีโอได้ทีละตัว: ปิดคลิปแนะนำคอร์สก่อน (กดเล่นใหม่ได้)
+  var tr = $('.player.trailer'); if (tr && !DEMO && $('iframe', tr)) tr.innerHTML = '<div class="ph"><button class="play" data-trplay="1" aria-label="เล่นคลิปแนะนำคอร์ส"><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></button><span>คลิปแนะนำคอร์ส</span></div>';
+  openModal(mhead(esc(title), 'ตอนตัวอย่าง ดูได้ฟรี' + (S.user && cellsOn() ? ' · นับเป็นเวลาเรียนของเซลล์ด้วย' : '')) + '<div class="player" id="player">' + (DEMO ? playerInner(id, '') : '') + '</div>' +
     (cid && feat('reviews') ? '<div class="tfb" id="tfb"><b>ลองเรียนฟรีแล้ว เข้าใจไหม?</b><div class="rowx" role="group" aria-label="เข้าใจแค่ไหน">' + [['clear', 'เข้าใจ'], ['partly', 'เข้าใจบางส่วน'], ['lost', 'ยังไม่เข้าใจ']].map(function (x) { return '<button class="pill ghost s" data-tf="' + x[0] + '" aria-pressed="false">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div id="tf-more" hidden class="stack" style="gap:8px"><textarea class="i" id="tf-text" rows="2" maxlength="500" placeholder="อยากบอกอะไรเพิ่มไหม เช่น ตรงไหนงง หรือชอบตรงไหน (ไม่ใส่ก็ได้)"></textarea><button class="pill s" id="tf-send" style="justify-self:start">ส่งความเห็น</button></div></div>' : ''), true);
+  if (!DEMO) {
+    safePlayer($('#player'), id, '', {});
+    if (lid && S.user) startStudyPing(lid, true);
+    S.modalClose = function () { stopPlayer(); };
+  }
   if (!cid) return;
   var lv = '';
   $$('[data-tf]').forEach(function (b) { b.onclick = function () { lv = b.dataset.tf; $$('[data-tf]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); x.classList.toggle('ghost', x !== b); }); $('#tf-more').hidden = false; }; });
@@ -1178,17 +1196,30 @@ function loadYT() {
 }
 function fmtT(s) { s = Math.max(0, Math.floor(s || 0)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + pad2(m) : m) + ':' + pad2(x); }
 function stopPlayer() {
+  S.ytGen = (S.ytGen || 0) + 1; // ตัวที่กำลังโหลดอยู่จะไม่ถูกสร้างต่อ
   if (S.ytT) { clearInterval(S.ytT); S.ytT = null; }
   clearInterval(S.studyT);
-  if (S.yt) { try { S.yt.destroy(); } catch (e) {} S.yt = null; }
+  if (S.ytOff) { try { S.ytOff(); } catch (e) {} S.ytOff = null; }
+  var p = S.yt || S.ytPend; S.yt = null; S.ytPend = null;
+  if (p) { try { p.destroy(); } catch (e) {} }
   S.ytCtl = null; document.body.classList.remove('fake-fs-on');
+}
+/** มือถือ/แท็บเล็ต (รวม iPad ที่แจ้งตัวเป็น Mac) · คอมจอสัมผัสที่มีเมาส์ไม่นับ */
+function isHandheld() {
+  var ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;
+  if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return true;
+  return !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches);
 }
 /** el = กล่อง .player · opt.onEnd เรียกเมื่อดูจบ · opt.key ใช้จำตำแหน่งที่ดูค้างไว้ */
 var YTRATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
-var YTQ = [[2160, 'ชัดสุด', 'highres'], [1080, '1080p', 'hd1080'], [720, '720p', 'hd720'], [480, '480p', 'large'], [360, '360p', 'medium']];
+/* ความชัด: 0 = อัตโนมัติ (กรอบเท่าจอ ไม่ย่อ ให้ YouTube เลือกตามจอเอง) · มือถือ/แท็บเล็ตไม่มี 1440p/4K */
+var YTQ = [[0, 'อัตโนมัติ', ''], [2160, '4K', 'highres'], [1440, '1440p', 'hd1440'], [1080, '1080p', 'hd1080'], [720, '720p', 'hd720'], [480, '480p', 'large'], [360, '360p', 'medium']];
+var YTQ_KEY = 'ib_q2';
 function safePlayer(el, vid, wm, opt) {
   opt = opt || {};
   stopPlayer();
+  var gen = S.ytGen, hand = isHandheld(), QS = YTQ.filter(function (q) { return !hand || q[0] <= 1080; });
   el.classList.add('sp', 'is-idle');
   el.innerHTML = '<div class="yt-crop"><div id="yt-host"></div></div><div class="yt-shield"></div>' +
     (wm ? '<span class="wm" id="wm" style="top:12%;left:8%">' + esc(wm) + '</span>' : '') +
@@ -1196,7 +1227,7 @@ function safePlayer(el, vid, wm, opt) {
     '<div class="yt-bar"><input type="range" class="yt-seek" min="0" max="1000" value="0" step="1" aria-label="เลื่อนเวลา">' +
     '<div class="yt-row"><button class="yt-b" data-y="toggle" aria-label="เล่น/หยุด">' + PI.play + '</button><button class="yt-b" data-y="back" aria-label="ย้อน 10 วินาที">' + PI.back + '</button><button class="yt-b" data-y="fwd" aria-label="ข้าม 10 วินาที">' + PI.fwd + '</button>' +
     '<button class="yt-b" data-y="mute" aria-label="เปิด/ปิดเสียง">' + PI.vol + '</button><span class="yt-time">0:00 / 0:00</span><span style="flex:1"></span>' +
-    '<select class="yt-q" aria-label="ความชัด">' + YTQ.map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('') + '</select>' +
+    '<select class="yt-q" aria-label="ความชัด">' + QS.map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('') + '</select>' +
     '<select class="yt-rate" aria-label="ความเร็ว">' + YTRATES.map(function (r) { return '<option value="' + r + '"' + (r === 1 ? ' selected' : '') + '>' + r + 'x</option>'; }).join('') + '</select>' +
     '<button class="yt-b" data-y="fs" aria-label="เต็มจอ">' + PI.fs + '</button></div></div>';
   var P = null, dur = 0, drag = false, hideT = null, ended = false, posKey = opt.key ? 'ib_pos_' + opt.key : '';
@@ -1238,28 +1269,36 @@ function safePlayer(el, vid, wm, opt) {
   };
   rateSel.onchange = function () { setRate(Number(this.value)); store('ib_rate', this.value); wake(); };
   var savedRate = Number(store('ib_rate')) || 1; rateSel.value = String(savedRate);
-  // ความชัด: YouTube เลือกความละเอียดตามขนาดกรอบ เลยวาดกรอบคลิปให้ใหญ่ตามความชัดที่เลือกแล้วย่อลงให้พอดีจอ
-  var qH = Number(store('ib_q')) || YTQ[0][0]; qSel.value = String(qH);
+  // ความชัด: อัตโนมัติ = iframe เท่ากรอบ ไม่ย่อ · เลือกเอง = วาดให้ได้พิกเซลจริงเท่าความชัดนั้น (หาร devicePixelRatio) แล้วย่อลง
+  // มือถือ/แท็บเล็ต: พิกเซลจริงของภาพไม่เกิน 1920×1080 · ค่าเดิม ib_q (เคยตั้ง "ชัดสุด") เลิกใช้
+  store('ib_q', null);
+  var qH = Number(store(YTQ_KEY)) || 0; if (!QS.some(function (q) { return q[0] === qH; })) qH = 0; qSel.value = String(qH);
+  var qOf = function () { return (YTQ.filter(function (q) { return q[0] === qH; })[0] || YTQ[0])[2]; };
   var crop = $('.yt-crop', el);
   var fit = function () {
     var ifr = $('iframe', crop); if (!ifr) return;
     var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
-    var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, sc = Math.min(1, vh / qH);
+    var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, dpr = window.devicePixelRatio || 1, sc = 1;
+    if (qH) sc = Math.min(1, vh * dpr / qH);
+    if (hand) sc = Math.min(1, Math.max(sc, vh * dpr / 1080, vw * dpr / 1920));
     var st = ifr.style;
-    st.setProperty('width', (vw / sc) + 'px', 'important'); st.setProperty('height', ((vh + 140) / sc) + 'px', 'important');
-    st.setProperty('left', ((W - vw) / 2) + 'px', 'important'); st.setProperty('top', ((H - vh) / 2 - 70) + 'px', 'important');
-    st.setProperty('transform', 'scale(' + sc + ')', 'important'); st.setProperty('transform-origin', '0 0', 'important');
+    st.setProperty('width', (vw / sc) + 'px', 'important'); st.setProperty('height', (vh / sc + 140) + 'px', 'important');
+    st.setProperty('left', ((W - vw) / 2) + 'px', 'important'); st.setProperty('top', ((H - vh) / 2 - 70 * sc) + 'px', 'important');
+    st.setProperty('transform', sc < 1 ? 'scale(' + sc + ')' : 'none', 'important'); st.setProperty('transform-origin', '0 0', 'important');
   };
-  qSel.onchange = function () { qH = Number(this.value); store('ib_q', this.value); fit(); if (P && P.setPlaybackQuality) try { P.setPlaybackQuality(YTQ.filter(function (q) { return q[0] === qH; })[0][2]); } catch (e) {} wake(); };
-  if (window.ResizeObserver) new ResizeObserver(fit).observe(crop); else window.addEventListener('resize', fit);
+  qSel.onchange = function () { qH = Number(this.value); store(YTQ_KEY, qH ? this.value : null); fit(); if (qH && P && P.setPlaybackQuality) try { P.setPlaybackQuality(qOf()); } catch (e) {} wake(); };
+  var ro = window.ResizeObserver ? new ResizeObserver(fit) : null;
+  if (ro) ro.observe(crop); else window.addEventListener('resize', fit);
+  S.ytOff = function () { if (ro) ro.disconnect(); else window.removeEventListener('resize', fit); clearTimeout(hideT); };
   loadYT().then(function () {
-    if (!document.body.contains(el)) return;
+    if (gen !== S.ytGen || !document.body.contains(el)) return;
     P = new YT.Player('yt-host', {
       videoId: vid, host: 'https://www.youtube-nocookie.com',
-      playerVars: (function () { var v = { vq: (YTQ.filter(function (q) { return q[0] === qH; })[0] || YTQ[0])[2], controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0 }; if (/^https?:/.test(location.origin)) v.origin = location.origin; return v; })(),
+      playerVars: (function () { var v = { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0 }; if (qH) v.vq = qOf(); if (/^https?:/.test(location.origin)) v.origin = location.origin; return v; })(),
       events: {
         onReady: function () {
-          S.yt = P; dur = P.getDuration() || 0; fit(); if (savedRate !== 1) setRate(savedRate);
+          if (gen !== S.ytGen) { try { P.destroy(); } catch (e) {} return; }
+          S.yt = P; S.ytPend = null; dur = P.getDuration() || 0; fit(); if (savedRate !== 1) setRate(savedRate);
           var ifr = P.getIframe && P.getIframe(); if (ifr) { ifr.setAttribute('tabindex', '-1'); ifr.setAttribute('title', 'คลิปเรียน'); }
           var sv = posKey ? Number(store(posKey)) : 0;
           if (sv > 10 && (!dur || sv < dur - 20)) { P.cueVideoById({ videoId: vid, startSeconds: sv }); msg.textContent = 'ดูค้างไว้ที่ ' + fmtT(sv) + ' · กดเล่นเพื่อดูต่อ'; }
@@ -1276,6 +1315,7 @@ function safePlayer(el, vid, wm, opt) {
         onError: function (e) { fail(e.data === 101 || e.data === 150 ? 'คลิปนี้ไม่ได้เปิดให้ฝังในเว็บ แจ้งแอดมินให้เปิด "อนุญาตการฝัง" ใน YouTube Studio' : 'เล่นคลิปนี้ไม่ได้ ลองรีเฟรชหน้า หรือแจ้งแอดมินทาง IG'); }
       }
     });
+    S.ytPend = P;
   }).catch(function () { fail('โหลดเครื่องเล่นวิดีโอไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วรีเฟรชหน้า'); });
 }
 document.addEventListener('keydown', function (e) {
@@ -1316,6 +1356,7 @@ var CELL_THEMES = [
   { k: 'forest', d: 100, name: 'ป่าดิบชื้น', desc: 'เขียวมอส เส้นใบไม้ แสงแดดสีทอง', m: ['#0f1a14', '#eef3e6', '#d9a441', '#15241b', 'linear-gradient(135deg,#2e6b3c,#16351f 55%,#d9a44155)'] },
   { k: 'nebula', d: 200, name: 'เนบิวลา', desc: 'อวกาศลึก ดาว แสงม่วงชมพู ปุ่มไล่สี', m: ['#0b0a1a', '#f1eeff', '#9d8cff', '#141230', 'radial-gradient(circle at 20% 30%,#fff 0 1px,transparent 2px),radial-gradient(circle at 70% 70%,#fff 0 1px,transparent 2px),linear-gradient(135deg,#4b2fa8,#c2378f)'] },
   { k: 'gold', d: 365, name: 'เกลียวทองคำ', desc: 'งาช้าง หมึกดำ ทองคำ ลายเกลียว DNA', m: ['#fcfaf4', '#16130b', '#a87b14', '#ffffff', 'repeating-linear-gradient(60deg,#e9cf7e 0 5px,#fbf3dc 5px 13px)'] }];
+CELL_THEMES.push({ k: 'spooky', d: 0, lim: 'halloween2569', name: 'ผีน้อยฮาโลวีน', desc: 'ลิมิเต็ด · เรียนครบ 10 วันในเดือน ต.ค. 2569 เซลล์กลายเป็นฟักทอง ผี และค้างคาว เก็บไว้ได้ถาวร', m: ['#0e0b14', '#f5efe6', '#ff7a1a', '#2a1840', 'radial-gradient(circle at 70% 30%,#ff7a1a55,transparent 50%),#2a1840'] });
 var CELL_POS = { 1: [[200, 198, 150, 0]], 2: [[152, 204, 124, -8], [252, 190, 124, 14]],
   4: [[148, 150, 104, 10], [256, 142, 98, -12], [146, 256, 98, 24], [254, 250, 106, -4]],
   8: [[196, 94, 86, 0], [118, 138, 80, 30], [282, 132, 84, -20], [98, 226, 84, 12], [306, 222, 80, 40], [142, 304, 82, -14], [258, 306, 86, 8], [202, 200, 90, -30]] };
@@ -1332,6 +1373,14 @@ var FEST_DEFS = '<svg class="cl-defs" aria-hidden="true" focusable="false"><defs
   '<g fill="none" stroke="#a8420a" stroke-width="1.6" opacity=".55"><path d="M-12-30c-6 12-6 60 0 72"/><path d="M12-30c6 12 6 60 0 72"/></g>' +
   '<g fill="url(#fs-glow)" class="fs-lit"><path d="M-22-6l10-2-4 12z"/><path d="M22-6l-10-2 4 12z"/><path d="M-4 4h8l-4 7z"/><path d="M-24 18l6 5 6-5 6 5 6-5 6 5 6-5 6 5c-4 11-18 16-24 16s-20-5-24-16z"/></g></symbol>' +
   // ลูกอมห่อกระดาษ
+  // ผีน้อย
+  '<symbol id="fs-ghost" viewBox="-60 -56 120 112"><path d="M-32 44V-6a32 32 0 0 1 64 0v50l-10.7-8-10.6 8-10.7-8-10.7 8-10.6-8z" fill="#f6f0ff" stroke="#c9b8e8" stroke-width="2.5" stroke-linejoin="round"/>' +
+  '<path d="M-22-14a24 24 0 0 1 16-16" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".8"/><ellipse cx="-11" cy="0" rx="5.5" ry="8" fill="#2a1840"/><ellipse cx="11" cy="0" rx="5.5" ry="8" fill="#2a1840"/>' +
+  '<circle cx="-9" cy="-3" r="1.8" fill="#fff"/><circle cx="13" cy="-3" r="1.8" fill="#fff"/><ellipse cx="0" cy="14" rx="4.5" ry="5.5" fill="#2a1840"/><ellipse cx="-20" cy="10" rx="5" ry="3" fill="#ff9ec7" opacity=".55"/><ellipse cx="20" cy="10" rx="5" ry="3" fill="#ff9ec7" opacity=".55"/></symbol>' +
+  // ค้างคาว
+  '<symbol id="fs-bat" viewBox="-60 -56 120 112"><path d="M-14-6C-24-22-44-26-56-16c8 2 12 8 10 16 6-4 12-4 16 2 2-6 8-8 14-6zM14-6c10-16 30-20 42-10-8 2-12 8-10 16-6-4-12-4-16 2-2-6-8-8-14-6z" fill="#3b2456" stroke="#24143a" stroke-width="2" stroke-linejoin="round"/>' +
+  '<path d="M-12-22l4 10h16l4-10-6 5h-12z" fill="#3b2456"/><ellipse cx="0" cy="2" rx="18" ry="20" fill="#4a2e6b"/><ellipse cx="0" cy="8" rx="10" ry="11" fill="#5d3c84"/>' +
+  '<circle cx="-7" cy="-4" r="4.5" fill="#ff7a1a"/><circle cx="7" cy="-4" r="4.5" fill="#ff7a1a"/><circle cx="-6" cy="-5" r="1.6" fill="#fff"/><circle cx="8" cy="-5" r="1.6" fill="#fff"/><path d="M-4 8l2 4 2-4 2 4 2-4" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></symbol>' +
   '<symbol id="fs-candy" viewBox="-60 -56 120 112"><path d="M-26 0l-26-20 6 20-6 20z" fill="#8a4fd6"/><path d="M26 0l26-20-6 20 6 20z" fill="#8a4fd6"/><g stroke="#5b2ba0" stroke-width="1.5" opacity=".6"><path d="M-44-12l14 8M-44 12l14-8M44-12l-14 8M44 12l-14-8"/></g>' +
   '<circle r="28" fill="#ff8a1f"/><g fill="#fff" opacity=".85"><path d="M-20-19c10 10 10 28 0 38l6 4c12-12 12-34 0-46z"/><path d="M0-28c10 12 10 44 0 56l7 0c10-14 10-42 0-56z"/></g><circle r="28" fill="none" stroke="#c9560c" stroke-width="2"/><path d="M-16-18c6-6 16-8 24-4" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".6"/></symbol>' +
   // คุกกี้ขิงรูปคน
@@ -1346,8 +1395,8 @@ var FEST_DEFS = '<svg class="cl-defs" aria-hidden="true" focusable="false"><defs
   '<symbol id="fs-gift" viewBox="-60 -56 120 112"><rect x="-34" y="-10" width="68" height="58" rx="5" fill="url(#fs-gf)"/><rect x="-40" y="-24" width="80" height="18" rx="4" fill="#c8102e"/><rect x="-6" y="-24" width="12" height="72" fill="#f2c14e"/><rect x="-40" y="-18" width="80" height="6" fill="#f2c14e" opacity=".0"/>' +
   '<path d="M0-24c-6-18-26-22-26-10 0 8 14 10 26 10zM0-24c6-18 26-22 26-10 0 8-14 10-26 10z" fill="#f2c14e" stroke="#c9961f" stroke-width="1.5"/><rect x="-34" y="-6" width="68" height="4" fill="#000" opacity=".12"/></symbol>' +
   '</defs></svg>';
-var FEST_KINDS = { halloween: [['fs-pumpkin', 'roll'], ['fs-candy', 'twirl']], christmas: [['fs-cookie', 'walk'], ['fs-cane', 'swing'], ['fs-gift', 'bounce']] };
-function festKind(i) { var f = festOn(), ks = f && FEST_KINDS[f]; return ks ? ks[i % ks.length] : null; }
+var FEST_KINDS = { halloween: [['fs-pumpkin', 'roll'], ['fs-ghost', 'swing'], ['fs-bat', 'bounce']], christmas: [['fs-cookie', 'walk'], ['fs-cane', 'swing'], ['fs-gift', 'bounce']] };
+function festKind(i) { var f = festOn() || (cellsOn() && S.cells && S.cells.theme === 'spooky' ? 'halloween' : ''), ks = f && FEST_KINDS[f]; return ks ? ks[i % ks.length] : null; }
 /** สวิตช์ฟีเจอร์ใหม่ต่อเว็บ: window.INEEDBIO_FEATURES = { cells, reviews, fest } ไม่ตั้ง = เปิดทั้งหมด (เดโม) */
 function feat(k) { var f = window.INEEDBIO_FEATURES; return !f || f[k] !== false; }
 function cellsPromoOn() { return feat('cells') && S.cfg.cells_enabled === '1'; }
@@ -1378,6 +1427,10 @@ function festActive() {
   if (S.festPreview !== undefined) return S.festPreview;
   var m = S.cfg.event_mode || 'off';
   if (m === 'off') return '';
+  // แอดมินตั้งช่วงวันเวลาเองได้ (เวลาไทย) ว่าง = ไม่จำกัด
+  var nowTh = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 16);
+  if (S.cfg.event_from && nowTh < String(S.cfg.event_from).slice(0, 16)) return '';
+  if (S.cfg.event_until && nowTh > String(S.cfg.event_until).slice(0, 16)) return '';
   if (FESTS[m]) return m;
   if (m !== 'auto') return '';
   var md = new Date(Date.now() + 7 * 36e5).toISOString().slice(5, 10);
@@ -1445,8 +1498,9 @@ function applyCellTheme() {
   CELL_THEMES.forEach(function (t) { if (t.k !== 'base') h.classList.toggle('ct-' + t.k, t.k === th); });
   Object.keys(FESTS).forEach(function (k) { h.classList.toggle('fe-' + k, k === fe); });
   h.classList.toggle('v2ui', UI2());
-  applyFx(fe || th);
+  applyFx(fe || (th === 'spooky' ? 'halloween' : th));
 }
+document.addEventListener('visibilitychange', function () { document.documentElement.classList.toggle('fx-hidden', document.hidden); });
 function loadCells(then) {
   if (!cellsOn() || S.cellsBusy) return;
   S.cellsBusy = true;
@@ -1457,14 +1511,14 @@ function loadCells(then) {
   }).catch(function () { S.cellsBusy = false; });
 }
 /** นับเวลาดูคลิปจริง: ทุก 5 วินาทีที่คลิปกำลังเล่นและหน้าจอเปิดอยู่ สะสมครบ 60 วินาทีส่ง study.ping 1 ครั้ง */
-function startStudyPing(lid) {
+function startStudyPing(lid, preview) {
   if (!cellsOn()) return;
   clearInterval(S.studyT); var acc = 0;
   S.studyT = setInterval(function () {
     var pl = $('#player');
     if (!pl || !pl.classList.contains('is-playing') || document.visibilityState !== 'visible') return;
     acc += 5; if (acc < 60) return; acc = 0;
-    api('study.ping', { lesson_id: lid, pos: S.yt && S.yt.getCurrentTime ? Math.floor(S.yt.getCurrentTime() || 0) : 0 }).then(function (r) {
+    api('study.ping', { lesson_id: lid, preview: preview ? 1 : undefined, pos: S.yt && S.yt.getCurrentTime ? Math.floor(S.yt.getCurrentTime() || 0) : 0 }).then(function (r) {
       if (!r || r.ignored || r.off) return;
       if (S.cells) { S.cells.today_min = r.today_min; var ch = $('#cell-chip'); if (ch) ch.outerHTML = cellChip(); }
       if (r.credited) { toast(r.credited.gained.length > 1 ? 'เรียนครบวันนี้แล้ว +' + r.credited.gained.reduce(function (a, g) { return a + g.delta; }, 0) + ' เซลล์ (มีโบนัส)' : 'เรียนครบวันนี้แล้ว +1 เซลล์ ติดกัน ' + r.credited.streak + ' วัน'); S.cells = null; loadCells(); }
@@ -1494,6 +1548,10 @@ function viewCells() {
       '<div class="cl-box dash"><div class="spread"><b>แลกโค้ดลด ' + baht(c.value) + '</b><span class="sm ink2">' + toCost + ' / ' + c.cost + ' เซลล์</span></div><div class="cl-bar"><i style="width:' + Math.round(toCost / c.cost * 100) + '%"></i></div>' +
       '<div class="rowx"><button class="pill s" id="cl-redeem"' + (c.can_redeem ? '' : ' disabled') + '>แลก ' + c.cost + ' เซลล์</button><span class="sm ink2">' + (c.next_redeem_at ? 'แลกครั้งถัดไปได้ ' + thDate(c.next_redeem_at) : 'ใช้กับคอร์สใหม่ 1 ครั้ง อายุ 60 วัน') + '</span></div>' +
       (c.codes.length ? '<div class="stack" style="gap:6px">' + c.codes.map(function (x) { return '<div class="spread"><span class="mono-n"><b>' + esc(x.code) + '</b></span><span class="sm ink2">' + (x.used ? 'ใช้แล้ว' : 'ลด ' + baht(x.value) + ' · ถึง ' + thDate(x.ends_at)) + '</span>' + (x.used ? '' : '<button class="pill quiet s" data-copy="' + esc(x.code) + '">คัดลอก</button>') + '</div>'; }).join('') + '</div>' : '') + '</div>' +
+      (c.events || []).filter(function (e) { return e.active || e.earned; }).map(function (e) {
+        return '<div class="cl-box cl-ev"><div class="spread"><b>🎃 ' + esc(e.name) + '</b><span class="sm ink2">' + (e.earned ? 'ได้สกินแล้ว' : 'เรียนแล้ว ' + e.days + ' / ' + e.need + ' วัน') + '</span></div><div class="cl-bar"><i style="width:' + Math.round(e.days / e.need * 100) + '%"></i></div>' +
+          '<p class="sm ink2">' + (e.earned ? 'สกินเซลล์ "ผีน้อยฮาโลวีน" เป็นของน้องถาวรแล้ว เลือกใช้ได้ที่ ธีมเว็บ ด้านล่าง' : 'เรียนครบ ' + e.need + ' วันภายใน ' + thDate(e.to + 'T23:59:00+07:00') + ' รับสกินเซลล์ลิมิเต็ด เก็บไว้ได้ถาวร (วันที่นับ = ดูคลิปครบ 15 นาที ไม่ต้องติดกัน ตอนตัวอย่างฟรีก็นับ)') + '</p></div>';
+      }).join('') +
       (festActive() ? '<div class="cl-box"><div class="spread"><b>ธีมเทศกาล' + esc(FESTS[festActive()].name) + '</b><button class="pill ghost s" data-fest="toggle">' + (festOn() ? 'ใช้ธีมของฉันแทน' : 'ใช้ธีมเทศกาล') + '</button></div><p class="sm ink2">ช่วงเทศกาลเว็บจะเปลี่ยนเป็นธีมพิเศษให้ทุกคน ถ้าชอบธีมที่ปลดล็อกไว้มากกว่า กดใช้ธีมของตัวเองได้</p></div>' : '') +
       (DEMO ? '<div class="cl-demo"><b>เดโม: ลองธีมเทศกาล</b><div class="rowx"><button class="pill ghost s" data-fest="halloween">ฮาโลวีน</button><button class="pill ghost s" data-fest="christmas">คริสต์มาส</button><button class="pill ghost s" data-fest="none">ไม่มีเทศกาล</button></div></div>' : '') +
       (DEMO ? '<div class="cl-demo"><b>เดโม: จำลองการเรียน</b><p class="sm ink2">ของจริงนับจากเวลาที่คลิปเล่นจริงในห้องเรียน ปุ่มนี้มีเฉพาะในเดโม</p><div class="rowx"><button class="pill s" id="cl-sim-study"' + (c.today_done ? ' disabled' : '') + '>เรียนวันนี้ 15 นาที</button><button class="pill ghost s" id="cl-sim-day">ข้ามไปวันถัดไป</button><button class="pill ghost s" id="cl-sim-skip">ขาดเรียน 2 วัน</button></div></div>' : '') +
@@ -1502,9 +1560,10 @@ function viewCells() {
       '<section class="blk"><div class="sec-h"><div><small>28 วันล่าสุด</small><h2>ปฏิทินการเรียน</h2></div></div><div class="cl-cal">' + cal + '</div><p class="sm ink2" style="margin-top:8px">สีเข้ม = เรียนครบ 15 นาที · สีอ่อน = เรียนแต่ยังไม่ครบ</p></section>' +
       '<section class="blk"><div class="sec-h"><div><small>เส้นทาง</small><h2>เซลล์โตตามวันที่เรียนติดกัน</h2></div></div><div class="cl-road">' + road.map(function (r) { return '<div class="' + (c.best >= r[0] ? 'done' : '') + '"><span class="d">' + r[0] + ' วัน</span><b>' + r[1] + '</b><span class="sm">' + r[2] + '</span></div>'; }).join('') + '</div></section>' +
       '<section class="blk"><div class="sec-h"><div><small>ปลดล็อกตามสถิติสูงสุด เก็บไว้ถาวร</small><h2>ธีมเว็บ</h2></div></div><div class="cl-themes">' + CELL_THEMES.map(function (t) {
-        var locked = c.best < t.d, on = c.theme === t.k;
+        var locked = t.lim ? (c.themes || []).indexOf(t.k) < 0 : c.best < t.d, on = c.theme === t.k;
+        if (t.lim && locked && !(c.events || []).some(function (e) { return e.skin === t.k && e.active; })) return ''; // หมดช่วงกิจกรรมแล้วไม่ได้ ก็ไม่ต้องโชว์
         return '<div class="cl-th' + (on ? ' on' : '') + '"><div class="cl-mock" style="--m-bg:' + t.m[0] + ';--m-ink:' + t.m[1] + ';--m-acc:' + t.m[2] + ';--m-card:' + t.m[3] + ';--m-pat:' + t.m[4] + '"><div class="hd"><span>INeed<em>Bio</em></span><em>' + (t.d || '') + '</em></div><div class="tl"><i></i><b>ชีววิทยา สอวน. ค่าย 1</b><s>฿790</s></div>' + (locked ? '<div class="lk">ปลดล็อกที่ ' + t.d + ' วัน</div>' : '') + '</div>' +
-          '<div class="cp"><span class="d">' + (t.d ? t.d + ' วัน' : 'เริ่มต้น') + '</span><b>' + esc(t.name) + '</b><p>' + esc(t.desc) + '</p>' + (locked ? '' : '<button class="pill ' + (on ? 'quiet' : 'ghost') + ' s" data-cth="' + t.k + '" style="justify-self:start"' + (on ? ' disabled' : '') + '>' + (on ? 'ใช้อยู่' : 'ใช้ธีมนี้') + '</button>') + '</div></div>';
+          '<div class="cp">' + (t.lim ? '<span class="lim">LIMITED · ฮาโลวีน</span>' : '<span class="d">' + (t.d ? t.d + ' วัน' : 'เริ่มต้น') + '</span>') + '<b>' + esc(t.name) + '</b><p>' + esc(t.desc) + '</p>' + (locked ? '' : '<button class="pill ' + (on ? 'quiet' : 'ghost') + ' s" data-cth="' + t.k + '" style="justify-self:start"' + (on ? ' disabled' : '') + '>' + (on ? 'ใช้อยู่' : 'ใช้ธีมนี้') + '</button>') + '</div></div>';
       }).join('') + '</div></section>' +
       '<section class="blk"><div class="sec-h"><div><small>กติกา</small><h2>นับจากการเรียนจริงเท่านั้น</h2></div></div><div class="cl-rules">' +
       '<div><b>วันที่นับ</b><p>คลิปต้องเล่นจริงรวม 15 นาทีในวันนั้น (ตัดวันตามเวลาไทย) กดติ๊กดูจบอย่างเดียวไม่นับ</p></div>' +
@@ -1681,17 +1740,22 @@ function viewLearn(cid, lid) {
       api('progress.set', { lesson_id: cur.lesson_id, done: nv }).then(function () {
         cur.done = nv; S.mem.mine = null;
         if (nv && all[i + 1]) toast('เยี่ยม! ไปตอนถัดไปได้เลย');
-        draw(c);
+        busy(b, false); markDone(nv);
       }).catch(function (e) { busy(b, false); toast(e.message, true); });
+    };
+    // อัปเดตเฉพาะปุ่ม เครื่องหมายในรายการตอน และแถบความคืบหน้า · ไม่วาดหน้าใหม่ เครื่องเล่นจึงเล่นต่อได้
+    var markDone = function (nv) {
+      var b = $('#done-btn'); if (b) { b.textContent = nv ? '✓ ดูจบแล้ว' : 'ทำเครื่องหมายว่าดูจบ'; b.classList.toggle('ghost', nv); }
+      var ep = $('.ep.on'); if (ep) { ep.classList.toggle('done', nv); $('.ck', ep).textContent = nv ? '✓' : ''; }
+      var dn = all.filter(function (l) { return l.done; }).length, pg = $('.lside .prog');
+      if (pg) { var t = $('.sm', pg), bi = $('.bar i', pg); if (t) t.textContent = 'เรียนไปแล้ว ' + dn + ' จาก ' + all.length + ' ตอน'; if (bi) bi.style.width = Math.round(dn / all.length * 100) + '%'; }
     };
     if (!DEMO) safePlayer($('#player'), cur.youtube_id, c.watermark, { poster: c.cover_url, key: cur.lesson_id, onEnd: function (msg) {
       var nx = all[i + 1];
       msg.innerHTML = 'ดูจบตอนนี้แล้ว' + (nx ? '<br><a class="pill" style="margin-top:12px" href="#/learn/' + encodeURIComponent(cid) + '/' + nx.lesson_id + '">ตอนถัดไป: ' + esc(nx.title) + ' →</a>' : '<br>จบคอร์สแล้ว เก่งมาก!');
       if (cur.done || c.preview) return;
       api('progress.set', { lesson_id: cur.lesson_id, done: true }).then(function () {
-        cur.done = true; S.mem.mine = null;
-        var b = $('#done-btn'); if (b) { b.textContent = '✓ ดูจบแล้ว'; b.classList.add('ghost'); }
-        var ep = $('.ep.on'); if (ep) { ep.classList.add('done'); $('.ck', ep).textContent = '✓'; }
+        cur.done = true; S.mem.mine = null; markDone(true);
       }).catch(function () {});
     } });
     if (!DEMO && !c.preview) startStudyPing(cur.lesson_id);
@@ -2324,7 +2388,8 @@ function aSettings(shell) {
       '<input type="hidden" name="home_billboard" id="f-home_billboard" value="' + esc(s.home_billboard || '') + '"><div class="bbset" id="bbset"><p class="hint">กำลังโหลดคอร์ส…</p></div>' +
       '<h3 style="font-size:16px;margin-top:6px">ทั่วไป</h3>' + field('announcement', 'ประกาศบนหัวเว็บ (เว้นว่างเพื่อซ่อน)', s.announcement, { ph: 'เช่น เปิดรับสมัครคอร์สชีววิทยา สอวน. รอบ 2027 แล้ว' }) +
       (feat('cells') ? field('cells_enabled', 'ระบบเซลล์แบ่งตัว (สะสมวันเรียนต่อเนื่อง แลกโค้ดลด)', s.cells_enabled || '1', { options: [['1', 'เปิด'], ['0', 'ปิด']] }) : '') +
-      (feat('fest') ? field('event_mode', 'ธีมเทศกาล (ทับธีมของทุกคนชั่วคราว น้องกดกลับไปใช้ธีมตัวเองได้)', s.event_mode || 'auto', { options: [['auto', 'อัตโนมัติตามปฏิทิน · ฮาโลวีน 1–31 ต.ค. · คริสต์มาส 1–31 ธ.ค.'], ['off', 'ปิด'], ['halloween', 'ฮาโลวีน ตั้งแต่ตอนนี้'], ['christmas', 'คริสต์มาส ตั้งแต่ตอนนี้']] }) : '') +
+      (feat('fest') ? field('event_mode', 'ธีมเทศกาล (ทับธีมของทุกคนชั่วคราว น้องกดกลับไปใช้ธีมตัวเองได้)', s.event_mode || 'auto', { options: [['auto', 'อัตโนมัติตามปฏิทิน · ฮาโลวีน 1–31 ต.ค. · คริสต์มาส 1–31 ธ.ค.'], ['off', 'ปิด'], ['halloween', 'ฮาโลวีน ตั้งแต่ตอนนี้'], ['christmas', 'คริสต์มาส ตั้งแต่ตอนนี้']] }) +
+        '<div class="row2">' + field('event_from', 'เริ่ม (เวลาไทย ว่าง = ตามปฏิทิน)', s.event_from || '', { type: 'datetime-local' }) + field('event_until', 'สิ้นสุด (เวลาไทย ว่าง = ตามปฏิทิน)', s.event_until || '', { type: 'datetime-local', hint: 'เช่น ฮาโลวีนจบ 31 ต.ค. 23:59' }) + '</div>' : '') +
       '<h3 style="font-size:16px;margin-top:6px">การชำระเงิน</h3><p class="hint">บัญชีแยกตามวิชาตั้งได้ที่เมนู <a href="#/admin/accounts">บัญชีรับเงิน</a> ส่วนนี้คือบัญชีหลัก ใช้กับวิชาที่ยังไม่ได้ผูกบัญชี</p>' +
       '<div class="row2">' + field('promptpay_id', 'บัญชีหลัก: เบอร์หรือเลขบัตรพร้อมเพย์', s.promptpay_id, { mode: 'numeric' }) + field('promptpay_name', 'บัญชีหลัก: ชื่อบัญชี', s.promptpay_name) + '</div>' +
       field('order_expire_hours', 'ต้องส่งหลักฐานภายในกี่ชั่วโมงหลังสั่งซื้อ (เลยแล้วบิลยกเลิกเอง)', s.order_expire_hours || '48', { mode: 'numeric' }) +
@@ -2812,7 +2877,7 @@ var LMODE = store('ib_lmode') || 'auto';
 var MQD = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
 function applyLearnMode(on) {
   var r = document.documentElement;
-  S.inLearn = !!on;
+  S.inLearn = !!on; r.classList.toggle('in-learn', !!on);
   if (!on || !UI2()) { r.classList.remove('theater'); applyTheme(); return; }
   var dark = LMODE === 'dark' || (LMODE === 'auto' && MQD && MQD.matches);
   r.classList.toggle('theater', dark);
@@ -3343,7 +3408,9 @@ document.addEventListener('click', function (e) {
   if (bc) { var bid = bc.dataset.billCancel; confirmBox('ยกเลิกบิล ' + bid + '?', 'ถ้าโอนเงินไปแล้ว อย่ายกเลิก ให้แนบสลิปแทน คอร์สในบิลนี้จะกลับมาซื้อใหม่ได้', 'ยกเลิกบิล', true).then(function (y) { if (!y) return; api('bill.cancel', { bill_id: bid }).then(function () { toast('ยกเลิกบิลแล้ว'); route(); }).catch(function (e) { toast(e.message, true); }); }); return; }
   if (t.closest('[data-uisw]')) { store('ib_ui', UI2() ? '1' : null); S.fresh = true; route(); return; }
   var pv = t.closest('[data-preview]');
-  if (pv) { previewVideo(pv.dataset.preview, pv.dataset.title, pv.dataset.cid); return; }
+  if (pv) { previewVideo(pv.dataset.preview, pv.dataset.title, pv.dataset.cid, pv.dataset.plid); return; }
+  var tp = t.closest('[data-trplay]');
+  if (tp) { var tb = tp.closest('.player.trailer'); if (tb) tb.innerHTML = playerInner(tb.dataset.tid, ''); return; }
   var dm = t.closest('[data-demo]');
   if (dm && window.__DEMO) { var r = window.__DEMO.login(dm.dataset.demo); setSession(r); closeModal(); toast('สวัสดี ' + r.user.nickname); if (dm.dataset.demo !== 'student') go('/admin'); else route(); }
 });
