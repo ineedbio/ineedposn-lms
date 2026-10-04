@@ -1,0 +1,7 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://ineedbio.shop/sitemap.xml
+Sitemap: https://www.ineedbio.shop/sitemap.xml
