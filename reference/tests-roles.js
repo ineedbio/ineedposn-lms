@@ -157,7 +157,11 @@ t('finance: half-month periods, no platform fee, subject splits with date, held 
   // ปิดงวด → รายการโอนแยกวิชา × คน
   const closed = ok(call('fin.close', { period: P }, adm));
   assert.equal(closed.closed, true); assert.equal(closed.payouts.length, 5);
-  no(call('fin.expense.save', { date: today, subject: 'chem', amount: 10 }, adm), 'LOCKED');
+  // ปิดยอดแล้ว รายจ่ายที่ลงทีหลัง (วันที่อยู่ในงวดที่ปิด) ยกไปงวดถัดไปเอง ไม่ถูกล็อก
+  const late = ok(call('fin.expense.save', { date: today, subject: 'chem', amount: 10, note: 'ลงหลังปิดยอด' }, adm));
+  assert(!ok(call('fin.summary', { period: P }, adm)).expenses.some(x => x.expense_id === late.expense_id));
+  const nx = ok(call('fin.summary', {}, adm)); assert.notEqual(nx.period, P); assert.equal(nx.expenses.find(x => x.expense_id === late.expense_id).rolled_from, P);
+  ok(call('fin.expense.delete', { expense_id: late.expense_id }, adm));
   const po = closed.payouts.find(x => x.user_id === chemT.user.user_id);
   assert.equal(po.subject, 'chem'); assert.equal(po.amount, 560);
   no(call('fin.payout.pay', { payout_id: po.payout_id }, adm), 'BAD_INPUT');
@@ -195,29 +199,74 @@ t('teacher profiles: auto from role, edit, used on course pages', () => {
   assert.equal(ok(call('course.detail', { course_id: CHEM })).instructors[0].name, 'พี่หมีลี่');
 });
 
-t('team: add/remove teacher auto-rebalances %, invite email, forced profile, course color and price requests', () => {
+t('team: multi-role, per-course ticks, other parts (not teachers), invite email with status', () => {
   const NX = new Date(Date.now() + (7 + 17 * 24) * 36e5).toISOString().slice(0, 10);
   const nt = reg('newt@x.com', 'ครู', 'ใหม่', 'พี่ใหม่');
   const before = M.outbox.length;
   no(call('admin.team.add', { email: 'nobody@x.com', subject: 'phys', from: NX }, adm), 'NOT_FOUND');
   const r = ok(call('admin.team.add', { email: 'newt@x.com', subject: 'phys', from: NX }, adm));
-  assert.equal(r.parts.length, 2); assert.equal(r.parts.reduce((a, x) => a + x.pct, 0), 100); assert.equal(r.parts[0].pct, 50);
-  assert.equal(M.outbox.length, before + 1); assert(/tprofile/.test(M.outbox[M.outbox.length - 1].htmlBody));
+  assert.equal(r.invite.ok, true); assert.equal(M.outbox.length, before + 1);
+  const mail = M.outbox[M.outbox.length - 1];
+  assert(/tprofile/.test(mail.htmlBody)); assert(/ยังขาด/.test(mail.htmlBody)); assert(/ฟิสิกส์/.test(mail.subject));
   no(call('admin.team.add', { email: 'newt@x.com', subject: 'phys', from: NX }, adm), 'ALREADY');
   no(C('admin.team.add', { email: 'newt@x.com', subject: 'chem', from: NX }, chem, 'chem@x.com'), 'FORBIDDEN');
   // ต้องล็อกอินใหม่ แล้วต้องกรอกโปรไฟล์ให้ครบ
   const nts = login('newt@x.com');
   assert.deepEqual(ok(call('me', {}, nts, 'newt@x.com')).profile_todo, ['name', 'photo', 'bank']);
+  // ดูตัวอย่างอีเมล (ไม่ส่งจริง) · ส่งอีกครั้ง · ส่งไม่สำเร็จต้องบอกและบันทึกไว้
+  const n0 = M.outbox.length;
+  const pv = ok(call('admin.teacher.invite', { user_id: nt.user.user_id, preview: true }, adm));
+  assert(/กรอกโปรไฟล์ผู้สอน/.test(pv.html)); assert.equal(pv.to, 'newt@x.com'); assert.equal(M.outbox.length, n0);
+  assert.equal(ok(call('admin.teacher.invite', { user_id: nt.user.user_id }, adm)).ok, true); assert.equal(M.outbox.length, n0 + 1);
+  run('var __q = MailApp.getRemainingDailyQuota; MailApp.getRemainingDailyQuota = function () { return 0; };');
+  const bad = ok(call('admin.teacher.invite', { user_id: nt.user.user_id }, adm));
+  assert.equal(bad.ok, false); assert(bad.error);
+  assert(ok(call('admin.teachers', {}, adm)).find(x => x.user_id === nt.user.user_id).invite_error);
+  run('MailApp.getRemainingDailyQuota = __q;');
+  ok(call('admin.teacher.invite', { user_id: nt.user.user_id }, adm));
+  const tl = ok(call('admin.teachers', {}, adm)).find(x => x.user_id === nt.user.user_id);
+  assert.equal(tl.invite_error, ''); assert(tl.invited_at); assert.deepEqual(tl.profile_todo, ['name', 'photo', 'bank']);
   ok(call('teacher.profile.save', { display_name: 'พี่ใหม่', photo_url: 'https://x/a.jpg', bank_name: 'กสิกร', account_name: 'ครู ใหม่', account_no: '1234567890' }, nts, 'newt@x.com'));
   assert.deepEqual(ok(call('me', {}, nts, 'newt@x.com')).profile_todo, []);
-  // เพิ่มคนที่ 3 → แบ่งเท่ากัน
-  const t3 = reg('t3@x.com', 'ครู', 'สาม', 'พี่สาม');
-  const r3 = ok(call('admin.team.add', { email: 't3@x.com', subject: 'phys', from: NX }, adm));
-  assert.equal(r3.parts.length, 3); assert.equal(r3.parts.reduce((a, x) => a + x.pct, 0), 100);
-  // นำออก → คนที่เหลือได้ตามสัดส่วน · ถ้าไม่เหลือวิชาก็กลับเป็นนักเรียน
-  const rr = ok(call('admin.team.remove', { user_id: t3.user.user_id, subject: 'phys', from: NX }, adm));
-  assert.equal(rr.parts.length, 2); assert.equal(rr.parts[0].pct, 50);
-  assert.equal(ok(call('login', { email: 't3@x.com', password: 'secret123' }, null, 't3b')).user.role, 'student');
+  // ยศหลายยศพร้อมกัน: แอดมิน + ผู้สอนชีวะ
+  const both = reg('both@x.com', 'ทั้ง', 'สอง', 'พี่สอง');
+  const ru = ok(call('admin.user.update', { user_id: both.user.user_id, roles: ['admin', 'teacher'], subjects: ['bio'] }, adm));
+  assert.equal(ru.invite.ok, true);
+  let bs = login('both@x.com'), me = ok(call('me', {}, bs, 'both@x.com'));
+  assert.deepEqual(me.roles, ['admin', 'teacher']); assert.equal(me.role, 'admin'); assert.deepEqual(me.subjects, ['bio']);
+  ok(call('admin.users', { q: '' }, bs, 'both@x.com'));
+  assert(ok(call('admin.teachers', {}, adm)).find(x => x.user_id === both.user.user_id).subjects.indexOf('bio') >= 0);
+  ok(call('admin.user.update', { user_id: both.user.user_id, roles: ['admin'] }, adm));
+  bs = login('both@x.com'); me = ok(call('me', {}, bs, 'both@x.com'));
+  assert.deepEqual(me.roles, ['admin']); assert.deepEqual(me.subjects, []); assert.deepEqual(me.profile_todo, []);
+  ok(call('admin.user.update', { user_id: both.user.user_id, roles: [] }, adm));
+  assert.equal(ok(call('login', { email: 'both@x.com', password: 'secret123' }, null, 'both2')).user.role, 'student');
+  // ติ๊กแยกคอร์ส: ผู้สอนได้ 70% ที่เหลือ 30% เป็นค่าหลังบ้าน (ไม่ใช่ผู้สอน ไม่ต้องมียศ)
+  const MC = courses.filter(c => c.subject === 'math').map(c => c.course_id), A_ = mathA.user.user_id, B_ = mathB.user.user_id;
+  no(call('fin.splits.save', { subject: 'math', from: NX, others: [{ label: 'ค่าหลังบ้าน', pct: 30 }], courses: { [MC[0]]: [{ user_id: A_, pct: 80 }] } }, adm), 'BAD_INPUT');
+  no(call('fin.splits.save', { subject: 'math', from: NX, others: [{ label: '', pct: 30 }], courses: {} }, adm), 'BAD_INPUT');
+  no(call('fin.splits.save', { subject: 'math', from: NX, others: [], courses: { [MC[0]]: [{ user_id: nt.user.user_id === 'x' ? '' : 'U_STUDENT', pct: 100 }] } }, adm), 'BAD_INPUT');
+  const sv = ok(call('fin.splits.save', { subject: 'math', from: NX, others: [{ label: 'ค่าหลังบ้าน', pct: 30 }], courses: { [MC[0]]: [{ user_id: A_, pct: 70 }], [MC[1]]: [{ user_id: A_, pct: 35 }, { user_id: B_, pct: 35 }] } }, adm));
+  assert(sv.courses.length >= MC.length);
+  const sf = (cid) => JSON.parse(run(`JSON.stringify(splitFor_(findOne_('Courses', function (c) { return c.course_id === '${cid}'; }), '${NX}T12:00:00+07:00', teachersAll_()))`));
+  let s0 = sf(MC[0]); assert.deepEqual(s0.parts.map(x => [x.user_id, Math.round(x.w * 100)]), [[A_, 70], ['o:ค่าหลังบ้าน', 30]]);
+  assert.equal(sf(MC[2]).parts.length, 0); // ไม่ได้ติ๊ก = ยังไม่มีผู้รับ
+  // เพิ่มพี่บีเข้าคอร์สแรก → ผู้สอนในคอร์สนั้นแบ่ง 70% เท่ากัน ค่าหลังบ้านคงเดิม
+  ok(call('admin.team.add', { user_id: B_, subject: 'math', from: NX, course_ids: [MC[0]] }, adm));
+  let v = ok(call('fin.splits', {}, adm)).splits.math.find(x => x.from === NX);
+  assert.deepEqual(v.courses[MC[0]].map(x => x.pct), [35, 35]); assert.equal(v.others[0].pct, 30);
+  // เงินจริง: ขายคอร์สแรก ฿1000 → พี่เอ 350 พี่บี 350 ค่าหลังบ้าน 300 เข้าสถาบัน
+  run(`append_('Enrollments', { enroll_id: 'EMX1', user_id: '${nt.user.user_id}', course_id: '${MC[0]}', status: 'approved', amount: '1000', source: 'bill', created_at: '${NX}T05:00:00.000Z', decided_at: '${NX}T05:00:00.000Z' })`);
+  const f = JSON.parse(run(`JSON.stringify(finCompute_(periodOf_('${NX}T12:00:00+07:00')))`));
+  const bm = f.by_subject.find(x => x.subject === 'math');
+  assert.equal(bm.pool_all, 1000); assert.equal(bm.kept, 300); assert.equal(bm.pool, 700); assert.equal(bm.others[0].label, 'ค่าหลังบ้าน');
+  const pm = f.pays.filter(x => x.subject === 'math');
+  assert.deepEqual(pm.map(x => x.share).sort(), [350, 350]); assert(!pm.some(x => /^o:/.test(x.user_id)));
+  // นำพี่เอออก → ส่วนของพี่เอในแต่ละคอร์สไปที่ผู้สอนที่เหลือของคอร์สนั้น
+  ok(call('admin.team.remove', { user_id: A_, subject: 'math', from: NX }, adm));
+  v = ok(call('fin.splits', {}, adm)).splits.math.find(x => x.from === NX);
+  assert.deepEqual(v.courses[MC[0]], [{ user_id: B_, pct: 70 }]); assert.deepEqual(v.courses[MC[1]], [{ user_id: B_, pct: 70 }]);
+  run(`deleteRows_('Enrollments', read_('Enrollments').filter(function (e) { return e.enroll_id === 'EMX1'; }))`);
   // สีประจำคอร์สและคำขอเปลี่ยนราคา
   const c = ok(call('admin.courses', {}, adm)).find(x => x.course_id === CHEM);
   no(C('admin.course.save', Object.assign({}, c, { accent: 'red' }), chem, 'chem@x.com'), 'BAD_INPUT');
@@ -229,6 +278,28 @@ t('team: add/remove teacher auto-rebalances %, invite email, forced profile, cou
   ok(call('admin.course.request', { course_id: CHEM, decision: 'approve' }, adm));
   c2 = ok(call('admin.courses', {}, adm)).find(x => x.course_id === CHEM);
   assert.equal(String(c2.price), '590'); assert.equal(c2.pending_change, '');
+});
+
+t('playlist preview: pull titles + durations, follow the course naming pattern', () => {
+  const MC = courses.find(c => c.course_id === 'MATH-M5-T1').course_id, PL2 = 'PL30fRiKuDivTESTTEST02';
+  run("append_('Lessons', { lesson_id: 'LX1', course_id: '" + MC + "', chapter: 'บทที่ 1', title: 'EP.1 ลำดับ', youtube_id: 'bbbbbbbbbb1', duration_min: '30', sort_order: '10' })");
+  run("append_('Lessons', { lesson_id: 'LX2', course_id: '" + MC + "', chapter: 'บทที่ 1', title: 'EP.2 อนุกรม', youtube_id: 'bbbbbbbbbb2', duration_min: '30', sort_order: '20' })");
+  ctx.__yt.titles[PL2] = 'คณิต ม.5 เทอม 1';
+  ctx.__yt.playlists[PL2] = [{ id: 'bbbbbbbbbb2', title: 'คณิต ม.5 | ตอนที่ 2 อนุกรม | INeedBio', dur: 30 }, { id: 'bbbbbbbbbb3', title: 'คณิต ม.5 | ตอนที่ 3 ลิมิต | INeedBio', dur: 42 },
+    { id: 'bbbbbbbbbb4', title: 'คณิต ม.5 | สรุปท้ายบท | INeedBio', dur: 18 }, { id: 'bbbbbbbbbb5', title: 'Private video', dur: 1, priv: 'private' }];
+  no(call('staff.playlist.preview', { course_id: MC, url: 'https://youtu.be/x' }, adm), 'BAD_INPUT');
+  const r = ok(call('staff.playlist.preview', { course_id: MC, url: 'https://www.youtube.com/playlist?list=' + PL2 }, adm));
+  assert.equal(r.style.format, 'EP.N ');
+  assert.deepEqual(r.items.map(x => [x.title, x.duration_min, x.exists]), [['EP.2 อนุกรม', 30, true], ['EP.3 ลิมิต', 42, false], ['EP.4 สรุปท้ายบท', 18, false]]);
+  // ยังไม่บันทึกอะไร → เพิ่มด้วย bulk พร้อมผูกเพลย์ลิสต์
+  ok(call('admin.lessons.bulk', { course_id: MC, items: r.items.filter(x => !x.exists).map(x => ({ chapter: 'บทที่ 2', title: x.title, youtube: 'https://youtu.be/' + x.youtube_id, duration_min: x.duration_min, source_playlist: PL2 })) }, adm));
+  const ls = ok(call('admin.lessons', { course_id: MC }, adm));
+  assert.equal(ls.find(l => l.youtube_id === 'bbbbbbbbbb3').title, 'EP.3 ลิมิต');
+  // ซิงก์อัตโนมัติ: คลิปใหม่ได้ชื่อตามแบบเดียวกัน นับเลขต่อ
+  ok(call('staff.playlists.save', { course_id: MC, playlists: [{ url: PL2, chapter: 'บทที่ 2' }] }, adm));
+  ctx.__yt.playlists[PL2].push({ id: 'bbbbbbbbbb6', title: 'คณิต ม.5 | ตอนที่ 5 อนุพันธ์ | INeedBio', dur: 50 });
+  const s2 = ok(call('staff.course.sync', { course_id: MC }, adm));
+  assert.deepEqual(s2.titles, ['EP.5 อนุพันธ์']);
 });
 
 // ── นักเรียนรุ่นเก่า ──
@@ -267,7 +338,7 @@ t('legacy: import, auto match by name, duplicates go to queue, release', () => {
   assert(ok(call('learn.get', { course_id: BIO }, fake.token, 'fake@x.com')));
   no(call('learn.get', { course_id: BIO }, piti.token, 'piti@x.com'), 'NO_ACCESS');
   // ไม่นับเป็นรายรับ
-  const s = ok(call('fin.summary', { period: P }, adm));
+  const s = ok(call('fin.summary', {}, adm)); // งวด P ปิดยอดไปแล้ว สิทธิ์ที่เกิดหลังจากนั้นอยู่งวดที่เปิดอยู่
   assert(s.income.every(x => x.source !== 'legacy')); assert(s.free.legacy >= 3);
   // ปล่อยรายชื่อ
   const rec = ok(call('admin.legacy', { status: 'claimed' }, adm)).list.find(x => x.user && x.user.email === 'early@x.com');

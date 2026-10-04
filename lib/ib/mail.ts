@@ -290,14 +290,25 @@ export async function sendPayoutEmail(
   await send(to, "โอนส่วนแบ่งแล้ว " + baht(x.amount) + " · " + x.subject + " " + x.label, shell("โอนส่วนแบ่งแล้ว", inner, ig), [{ filename: slip.name, content: slip.data, contentType: slip.mime }]);
 }
 
-/** Code.gs sendTeacherInvite_: someone became a teacher — sign in and fill in the teacher profile first. */
-export async function sendTeacherInvite(to: string, name: string, subject: string, site: string, ig: string) {
-  if (!to || (await remainingQuota()) < 1) return;
-  const href = site.replace(/\/+$/, "") + "/#/admin/tprofile";
+/** Code.gs teacherInviteMail_: the invite to fill in the teacher profile — subjects taught, what is still missing,
+ *  a button to /#/admin/tprofile and the email to sign in with. */
+export function teacherInviteHtml(x: { name: string; subjects: string; todo: string[]; link: string; email: string }, ig: string) {
+  const P = (t: string) => '<p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#525252;">' + t + "</p>";
   const inner =
-    '<tr><td style="padding:0 32px 26px;"><p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc(name) + "<br>" +
-    'คุณได้รับบทบาท <b style="color:#0c0c0c;">ผู้สอนวิชา' + esc(subject) + "</b> บน INeedBio แล้ว</p>" +
-    '<p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#525252;">ก่อนเริ่มใช้งาน กรุณาเข้าสู่ระบบแล้วกรอกโปรไฟล์ผู้สอนให้ครบ: รูปโปรไฟล์ ชื่อที่แสดง ประวัติ และบัญชีรับส่วนแบ่ง (ชื่อบัญชี ธนาคาร เลขที่บัญชี) รูปและประวัติจะขึ้นในทุกคอร์สที่คุณสอน</p>' +
-    '<p style="margin:0;"><a href="' + esc(href) + '" style="display:inline-block;background:#0c0c0c;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-size:14px;">กรอกโปรไฟล์ผู้สอน</a></p></td></tr>';
-  await send(to, "ยินดีต้อนรับผู้สอนวิชา" + subject + " · กรอกโปรไฟล์ให้ครบก่อนเริ่ม", shell("คุณเป็นผู้สอนแล้ว", inner, ig));
+    '<tr><td style="padding:0 32px 26px;">' +
+    P("สวัสดี " + esc(x.name) + '<br>คุณได้รับบทบาท <b style="color:#0c0c0c;">ผู้สอนวิชา' + esc(x.subjects) + "</b> บน INeedBio แล้ว") +
+    P("ก่อนเริ่มใช้หลังบ้าน กรุณากรอกโปรไฟล์ผู้สอนให้ครบ รูปและประวัติจะขึ้นในหน้ารายละเอียดของทุกคอร์สที่คุณสอน และบัญชีใช้สำหรับโอนส่วนแบ่งทุกวันที่ 1 และ 16") +
+    (x.todo.length
+      ? '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;background:#fafaf9;border:1px solid #efefed;border-radius:12px;"><tr><td style="padding:14px 18px;font-size:14px;line-height:1.9;color:#0c0c0c;"><b>ยังขาด</b><br>' +
+        x.todo.map((t) => "• " + esc(t)).join("<br>") + "</td></tr></table>"
+      : "") +
+    '<p style="margin:0 0 16px;"><a href="' + esc(x.link) + '" style="display:inline-block;background:#0c0c0c;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-size:15px;font-weight:600;">กรอกโปรไฟล์ผู้สอน</a></p>' +
+    '<p style="margin:0;font-size:13px;line-height:1.7;color:#8a8a8a;">เข้าสู่ระบบด้วยอีเมล ' + esc(x.email) + " ระบบจะพาไปหน้าโปรไฟล์ให้เอง</p></td></tr>";
+  return shell("คุณเป็นผู้สอนแล้ว", inner, ig);
+}
+/** Send the teacher invite through the same channel as the sign-up OTP. Throws when it cannot go out
+ *  (daily quota used up, no SMTP / Resend configured, the provider refused it) so the caller can report it. */
+export async function sendTeacherInviteMail(to: string, subject: string, html: string) {
+  if ((await remainingQuota()) < 1) throw new Error("โควตาส่งอีเมลของวันนี้หมดแล้ว");
+  await send(to, subject, html);
 }

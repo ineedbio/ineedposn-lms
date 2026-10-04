@@ -20,8 +20,9 @@ export default function Home() {
       <div id="modal" />
       <div className="toasts" id="toasts" aria-live="polite" />
 
+      {/* INEEDBIO_FEATURES: เซลล์ รีวิว ธีมเทศกาล — มี route หลังบ้านครบแล้ว (lib/ib/cells.ts) */}
       <Script id="ineedbio-config" strategy="beforeInteractive">
-        {`window.INEEDBIO_API_URL = ${JSON.stringify(API_URL)}; window.INEEDBIO_GA_ID = ${JSON.stringify(GA_ID)}; window.INEEDBIO_PIXEL_ID = ${JSON.stringify(PIXEL_ID)};`}
+        {`window.INEEDBIO_API_URL = ${JSON.stringify(API_URL)}; window.INEEDBIO_GA_ID = ${JSON.stringify(GA_ID)}; window.INEEDBIO_PIXEL_ID = ${JSON.stringify(PIXEL_ID)}; window.INEEDBIO_FEATURES = { cells: true, reviews: true, fest: true };`}
       </Script>
       {/* สีประจำวิชา (ชีวะเขียว · เคมีม่วง · ฟิสิกส์แดง · คณิตส้ม) ทั้งเว็บ — ก่อนวาดหน้า จะได้ไม่กระพริบ */}
       <Script src="/ineedbio/subject-colors.js" strategy="beforeInteractive" />

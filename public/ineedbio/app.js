@@ -1,4 +1,4 @@
-/* INeedBio UI v2 รอบ 4 + hotfix เครื่องเล่น (r4h) · ความชัดอัตโนมัติ เพดาน 1080p บนมือถือ ไม่มีกระจกในเครื่องเล่น iframe ตัวเดียว */
+/* INeedBio UI v2 รอบ 7 (r7b) · ธีมฮาโลวีน 16–31 ต.ค. ลูกเล่นและเสียงสังเคราะห์ แบนเนอร์แคมเปญ สกินลิมิเต็ด ตอนตัวอย่างนับเวลาเรียน (รวม hotfix เครื่องเล่น r6) */
 /* ═══════════ ตั้งค่า: วาง URL ของ Apps Script Web App ที่นี่ ═══════════ */
 var API_URL = window.INEEDBIO_API_URL || 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 /* ฟีเจอร์ที่ยังไม่เปิดบนเว็บจริง (ต้องมี route ฝั่ง backend ก่อน) — เปิดทีหลังได้ใน app/page.tsx โดยตั้ง window.INEEDBIO_FEATURES ก่อนโหลดไฟล์นี้ */
@@ -30,14 +30,26 @@ function applyTheme() {
 if (!window.__hostTheme && document.documentElement.getAttribute('data-theme')) window.__hostTheme = document.documentElement.getAttribute('data-theme');
 applyTheme();
 var ICON = {
+  bank: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-6 9 6"/><path d="M5 10v8M10 10v8M14 10v8M19 10v8"/><path d="M3 20h18"/></svg>',
   auto: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
   light: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
-  dark: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>'
+  dark: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>',
+  pumpkin: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-1.2-1.6-4.6-2-6.8 0C2.6 9.4 2.6 16 5.2 18.6c2 2 4.6 1.6 6.8.4 2.2 1.2 4.8 1.6 6.8-.4 2.6-2.6 2.6-9.2 0-11.6-2.2-2-5.6-1.6-6.8 0z"/><path d="M12 7c0-1.6.6-3 2-4"/><path d="M8.5 11.5l1.5 1.2M15.5 11.5L14 12.7M9 16c1 .8 5 .8 6 0"/></svg>'
 };
 function themeSwitch() {
-  return '<div class="thm" role="group" aria-label="ธีม">' + [['auto', 'ตามเครื่อง'], ['light', 'ธีมสว่าง'], ['dark', 'ธีมมืด']].map(function (t) {
-    return '<button data-theme-set="' + t[0] + '" aria-pressed="' + (THEME === t[0]) + '" title="' + t[1] + '" aria-label="' + t[1] + '">' + ICON[t[0]] + '</button>';
+  // ช่วงเทศกาลมีปุ่มที่ 4 (ฟักทอง = ธีมฮาโลวีน เป็นค่าเริ่มต้น) · กดสว่าง/มืด/ตามเครื่อง = ปิดธีมเทศกาลกลับเป็นธีมเดิม
+  var fa = festActive(), fo = !!festOn(), opts = [['auto', 'ตามเครื่อง'], ['light', 'ธีมสว่าง'], ['dark', 'ธีมมืด']];
+  if (fa === 'halloween') opts.push(['fest', 'ธีมฮาโลวีน']);
+  return '<div class="thm' + (fa === 'halloween' ? ' thm4' : '') + '" role="group" aria-label="ธีม">' + opts.map(function (t) {
+    var on = t[0] === 'fest' ? fo : THEME === t[0] && !fo;
+    return '<button data-theme-set="' + t[0] + '" aria-pressed="' + on + '" title="' + t[1] + '" aria-label="' + t[1] + '"' + (t[0] === 'fest' ? ' class="thm-fest"' : '') + '>' + ICON[t[0] === 'fest' ? 'pumpkin' : t[0]] + '</button>';
   }).join('') + '</div>';
+}
+function festThemePick(on) {
+  var f = festActive(); if (!f) return;
+  store('ib_fest_off', on ? null : f); S.fxKey = null; applyCellTheme();
+  if (on) { if (hwSoundOn()) hwMusic(true); } else hwMusic(false);
+  route();
 }
 
 /* ─── state ─── */
@@ -77,8 +89,10 @@ function api(action, data) {
     var e = new Error(res.message || 'เกิดข้อผิดพลาด'); e.code = res.error; throw e;
   });
 }
-function isStaff() { return !!S.user && (S.user.role === 'admin' || S.user.role === 'teacher'); }
-function isAdm() { return !!S.user && S.user.role === 'admin'; }
+function uRoles(u) { return u ? (u.roles || (u.role === 'admin' || u.role === 'teacher' ? [u.role] : [])) : []; }
+function hasRole(k) { return uRoles(S.user).indexOf(k) >= 0; }
+function isStaff() { return !!S.user && uRoles(S.user).length > 0; }
+function isAdm() { return hasRole('admin'); }
 function mySubj() { var all = Object.keys(S.cfg.subjects || {}); return isAdm() ? all : all.filter(function (k) { return (S.user.subjects || []).indexOf(k) >= 0; }); }
 function setSession(r) { S.cells = null; S.token = r.token; S.user = r.user; S.photo = null; if (!DEMO) store('ib_token', r.token); S.mem = {}; }
 function signOut(silent) {
@@ -352,7 +366,7 @@ function header(active) {
   var mnav = '<nav class="mnav" aria-label="เมนู">' + nav.map(function (n) { return '<a href="#' + n[0] + '" class="' + (active === n[2] ? 'on' : '') + '">' + n[1] + '</a>'; }).join('') + (u ? '<a href="#/profile" class="' + (active === 'profile' ? 'on' : '') + '">บัญชี</a>' : '') + '</nav>';
   document.body.classList.toggle('has-mnav', !!u);
   var fe = festOn();
-  return (fe ? '<div class="fest-bar">' + esc(FESTS[fe].bar) + '</div>' : S.cfg.announcement ? '<div class="ann">' + esc(S.cfg.announcement) + '</div>' : '') +
+  return (fe ? '<div class="fest-bar">' + esc(FESTS[fe].bar) + (fe === 'halloween' ? '<button type="button" class="hw-snd" data-hwsnd="1" aria-pressed="' + hwSoundOn() + '" aria-label="เพลงและเสียงฮาโลวีน">' + (hwSoundOn() ? '🔊 เพลงเปิด' : '🔇 เปิดเพลง') + '</button>' : '') + '</div>' : S.cfg.announcement ? '<div class="ann">' + esc(S.cfg.announcement) + '</div>' : '') +
     '<header class="hdr gut"><div class="w"><a class="logo" href="#/"><img src="' + CATSRC + '" alt=""><span>INeed<span>Bio</span></span></a><nav class="nav">' +
     nav.map(function (n) { return '<a href="#' + n[0] + '" class="' + (active === n[2] ? 'on' : '') + '">' + n[1] + '</a>'; }).join('') + '</nav>' +
     '<form class="srch" id="srch" role="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="srch-q" name="q" placeholder="ค้นหาคอร์ส เช่น ชีวะ, A-Level" value="' + esc(S.q || '') + '" autocomplete="off"></form><div class="hr">' + themeSwitch() + cellChip() + cartBtn() + right + '</div></div></header>' + (u ? mnav : '');
@@ -360,10 +374,8 @@ function header(active) {
 function footer() {
   var ig = S.cfg.contact_ig || 'ineedbiochem', cs = S.courses || [];
   var subs = S.cfg.subjects || {};
-  var lessons = cs.reduce(function (a, c) { return a + (c.lesson_count || 0); }, 0), mins = cs.reduce(function (a, c) { return a + (c.total_min || 0); }, 0);
   return '<footer class="bigfoot gut"><div class="w"><div><div class="brand"><img src="' + CATSRC + '" alt="">INeedBio</div>' +
-    '<p>ติวออนไลน์สำหรับน้อง ม.ปลาย เตรียมสอบ สอวน. และ A-Level เรียนผ่านคลิป ดูซ้ำได้ตลอด มีชีทประกอบทุกบท</p>' +
-    (cs.length ? '<div class="stat"><div><b>' + cs.length + '</b><span>คอร์สที่เปิดอยู่</span></div><div><b>' + lessons + '</b><span>ตอน</span></div><div><b>' + Math.round(mins / 60) + '</b><span>ชั่วโมงคลิปเรียน</span></div></div>' : '') + '</div>' +
+    '<p>ติวออนไลน์สำหรับน้อง ม.ปลาย เตรียมสอบ สอวน. และ A-Level เรียนผ่านคลิป ดูซ้ำได้ตลอด มีชีทประกอบทุกบท</p></div>' +
     '<div><h4>คอร์สเรียน</h4><ul>' + Object.keys(subs).map(function (k) { return '<li><a href="#/" data-fsub="' + k + '">' + esc(subs[k]) + '</a></li>'; }).join('') + '</ul></div>' +
     '<div><h4>ติดต่อ</h4><ul><li><a href="https://www.instagram.com/' + esc(ig) + '" target="_blank" rel="noopener">IG @' + esc(ig) + '</a></li>' + '</ul></div>' +
     '<div class="copy">© ' + new Date().getFullYear() + ' INeedBio · ineedbio.shop · <a href="#/terms">ข้อตกลงการใช้งาน</a> · <a href="#/privacy">นโยบายความเป็นส่วนตัว</a></div></div></footer>';
@@ -474,7 +486,7 @@ function route() {
   var parts = (location.hash.replace(/^#\/?/, '') || '').split('/').map(decodeURIComponent);
   if (S.user && !S.cells) loadCells(); applyCellTheme();
   var r = parts[0] || '';
-  applyLearnMode(r === 'learn');
+  applyLearnMode(r === 'learn'); document.documentElement.classList.toggle('in-admin', r === 'admin');
   if (r === '') return UI2() ? viewHome2() : viewHome();
   if (r === 'course') return viewCourse(parts[1]);
   if (r === 'results') return viewResults(parts[1]);
@@ -591,14 +603,15 @@ function viewHome2() {
         (list.length ? '<div class="v2-grid">' + list.map(function (c) { return ncCard(c, mine, S.mem.prog); }).join('') + '</div>' : '<div class="empty"><p>ไม่เจอคอร์สที่ตรงกับที่ค้นหา</p><button class="pill ghost" data-clear="all">ดูคอร์สทั้งหมด</button></div>');
       page('home', html + '</div>'); return;
     }
-    var feat = billboardCourses(cs);
-    html += '<section class="bbd" id="bbd" aria-roledescription="carousel" aria-label="คอร์สแนะนำ">' + feat.map(function (c, i) {
+    var feat = billboardCourses(cs), camp = campSlide(), off = camp ? 1 : 0;
+    html += '<section class="bbd" id="bbd" aria-roledescription="carousel" aria-label="คอร์สแนะนำ">' + (camp ? camp.html : '') + feat.map(function (c, i) {
+      i += off;
       return '<div class="bbd-s' + sc(c.subject) + (i === 0 ? ' on' : '') + '"' + accStyle(c.accent) + ' aria-hidden="' + (i !== 0) + '">' + (c.cover_url ? '<div class="bbd-bg" style="--img:url(\'' + esc(imgSrc(c.cover_url)) + '\')"></div>' : '') +
         '<div class="bbd-in"><div><span class="bbd-k"><i></i>' + esc(c.subject_name) + (c.level ? ' · ' + esc(c.level) : '') + '</span><h2>' + esc(c.title) + '</h2>' + (c.subtitle ? '<p class="sub">' + esc(c.subtitle) + '</p>' : '') +
         '<div class="bbd-f"><span>' + c.lesson_count + ' ตอน</span><span>' + hm(c.total_min) + '</span><span>ดูได้ตลอดชีพ</span><span>' + baht(c.price) + '</span></div>' +
         '<div class="bbd-cta">' + (mine[c.course_id] === 'approved' ? '<a class="bbtn pri" href="#/learn/' + encodeURIComponent(c.course_id) + '">▶ เรียนต่อ</a>' : '<a class="bbtn pri" href="#/course/' + encodeURIComponent(c.course_id) + '">▶ ดูตอนตัวอย่างฟรี</a><button class="bbtn gh" type="button" data-cart-add="' + esc(c.course_id) + '">+ ใส่ตะกร้า</button>') + '</div></div>' +
         (c.cover_url ? '<a class="bbd-art" href="#/course/' + encodeURIComponent(c.course_id) + '" tabindex="-1"><img src="' + esc(imgSrc(c.cover_url)) + '" alt=""></a>' : '') + '</div></div>';
-    }).join('') + (feat.length > 1 ? '<div class="bbd-dots">' + feat.map(function (c, i) { return '<button type="button" data-bb="' + i + '" class="' + (i === 0 ? 'on' : '') + '" aria-label="' + esc(c.title) + '"></button>'; }).join('') + '</div>' : '') + '</section>';
+    }).join('') + (feat.length + off > 1 ? '<div class="bbd-dots">' + (camp ? [camp.label] : []).concat(feat.map(function (c) { return c.title; })).map(function (t, i) { return '<button type="button" data-bb="' + i + '" class="' + (i === 0 ? 'on' : '') + '" aria-label="' + esc(t) + '"></button>'; }).join('') + '</div>' : '') + '</section>';
     var prog = S.mem.prog || {};
     var cont = cs.filter(function (c) { return mine[c.course_id] === 'approved'; });
     if (cont.length) html += rowHtml('cont', 'ห้องเรียนของฉัน', 'เรียนต่อจากที่ค้างไว้', cont.map(function (c) { return ncCard(c, mine, prog); }).join(''), '<a class="link sm" href="#/my">คอร์สของฉัน</a>');
@@ -626,6 +639,20 @@ function viewHome2() {
   if (S.user) jobs.push(api('my.courses').then(function (m) { var o = {}, pg = {}; m.forEach(function (x) { o[x.course_id] = x.enrollment; pg[x.course_id] = { pct: x.percent || 0, done: x.done_count || 0, last: x.last_lesson_id || '' }; }); S.mem.mine = o; S.mem.prog = pg; }).catch(function () {}));
   Promise.all(jobs).then(render).catch(function (e) { failed('home', e); });
   S.homeRender = render;
+}
+/** แบนเนอร์แคมเปญ (ช่องแรกของบิลบอร์ด) ตอนธีมฮาโลวีนเปิดและระบบเซลล์เปิด */
+function campSlide() {
+  var pr = S.cfg.new_member_promo;
+  if (festActive() !== 'halloween' || !pr || (S.user && S.user.new_member === false)) return null; // บัญชีเดิมที่ไม่ได้สิทธิ์ไม่ต้องเห็น // แบนเนอร์ขึ้นเฉพาะตอนมีโค้ดสมาชิกใหม่ที่เปิดอยู่จริง
+  var u = function (id) { return '<svg viewBox="-60 -56 120 112" aria-hidden="true"><use href="#' + id + '"/></svg>'; };
+  var end = pr.ends_at ? new Date(pr.ends_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '';
+  var what = (pr.each ? 'ลดคอร์สละ ' : 'ลด ') + pr.label + (pr.all ? ' ทุกคอร์ส' : ' คอร์สที่ร่วมรายการ');
+  return { label: 'ฮาโลวีน: สมัครสมาชิกใหม่' + what, html: '<div class="bbd-s bb-camp on" aria-hidden="false"><div class="bbd-in"><div><span class="bbd-k"><i></i>Hello-ween · โปรสมาชิกใหม่</span>' +
+    '<h2><span class="nw">ผีหลอก</span> <span class="nw">โจทย์หลอก</span> <span class="nw">เธอหลอก</span><br><em class="nw">อันไหนเจ็บกว่า?</em> 👻</h2><p class="sub">อย่างน้อย… โจทย์หลอก <b>เราช่วยได้</b> 🎃</p>' +
+    '<div class="hw-deal"><span class="hw-pct">' + '−' + esc(pr.label) + '</span><span class="hw-dt"><b>ฮาโลวีนนี้ สมัครสมาชิกใหม่ <span class="nw">' + esc(what) + '</span></b>' +
+    '<small>' + (end ? '📅 ถึง ' + esc(end) + ' เท่านั้น · ' : '') + 'ลดให้อัตโนมัติในตะกร้า ไม่ต้องใช้โค้ด</small></span></div>' +
+    '<div class="bbd-cta">' + (S.user ? '<button type="button" class="bbtn pri" data-jump2="courses">เลือกคอร์สเลย</button>' : '<button class="bbtn pri" data-act="signup">สมัครสมาชิก รับส่วนลด ' + esc(pr.label) + '</button><button type="button" class="bbtn gh" data-jump2="courses">ดูคอร์สทั้งหมด</button>') + '</div></div>' +
+    '<a class="bbd-art" href="#/" data-jump2="courses" tabindex="-1"><span class="bb-art3">' + u('fs-ghost') + u('fs-pumpkin') + u('fs-bat') + '</span><span class="hw-stk">' + esc(pr.label) + '<small>OFF</small></span></a></div></div>' };
 }
 /** คอร์สบนแบนเนอร์ใหญ่: ตามที่แอดมินเลือกและเรียงไว้ (ตั้งค่า home_billboard) ถ้าไม่ได้เลือกใช้ 5 คอร์สแรก */
 function billboardCourses(cs) {
@@ -846,8 +873,8 @@ function viewCourse(id) {
       '<div style="padding-top:24px"><a class="back" href="#/">← คอร์สทั้งหมด</a></div><div class="cd"><div>' +
       '<section class="chero" id="sec-overview"><span class="mono sj">' + esc(c.subject_name) + '</span><h1>' + esc(c.title) + '</h1>' + (c.subtitle ? '<p class="ink2 lead">' + esc(c.subtitle) + '</p>' : '') +
       '<div class="facts"><span><b>' + total + '</b> ตอน</span><span><b>' + hm(c.total_min) + '</b> วิดีโอ</span><span><b>ดูได้ตลอด</b> ไม่มีวันหมดอายุ</span>' + (c.trial ? '<span title="จาก ' + c.trial.n + ' คนที่ลองดูตอนฟรี"><b>' + c.trial.clear_pct + '%</b> ของคนที่ลองเรียนฟรีบอกว่าเข้าใจ</span>' : '') + '</div>' +
-      (c.trailer_id ? '<div class="player trailer">' + playerInner(c.trailer_id, '') + '</div>' : (c.cover_url ? '<div class="cover trailer" style="border-radius:16px;aspect-ratio:16/8"><img src="' + esc(imgSrc(c.cover_url)) + '" alt="" style="object-fit:contain"></div>' : '')) +
-      (!c.trailer_id && previews.length ? '<button class="pill ghost s" style="justify-self:start" data-preview="' + esc(previews[0].youtube_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(previews[0].title) + '">▶ ดูตอนตัวอย่างฟรี</button>' : '') + '</section>' +
+      (c.trailer_id ? '<div class="player trailer" data-tid="' + esc(c.trailer_id) + '">' + playerInner(c.trailer_id, '') + '</div>' : (c.cover_url ? '<div class="cover trailer" style="border-radius:16px;aspect-ratio:16/8"><img src="' + esc(imgSrc(c.cover_url)) + '" alt="" style="object-fit:contain"></div>' : '')) +
+      (!c.trailer_id && previews.length ? '<button class="pill ghost s" style="justify-self:start" data-preview="' + esc(previews[0].youtube_id) + '" data-plid="' + esc(previews[0].lesson_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(previews[0].title) + '">▶ ดูตอนตัวอย่างฟรี</button>' : '') + '</section>' +
       '<nav class="jump" aria-label="ส่วนของหน้า">' + jumps.map(function (j) { return '<button data-jump="' + j[0] + '">' + j[1] + '</button>'; }).join('') + '</nav>' +
       (c.highlights && c.highlights.length ? '<section class="sec"><h2>จุดเด่นของคอร์ส</h2><div class="hl">' + c.highlights.map(function (h) { return '<div><span class="ic">' + CK + '</span><span>' + esc(h) + '</span></div>'; }).join('') + '</div></section>' : '') +
       (c.audience && c.audience.length ? '<section class="sec"><h2>คอร์สนี้เหมาะกับ</h2><ul class="aud">' + c.audience.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></section>' : '') +
@@ -857,7 +884,7 @@ function viewCourse(id) {
         return (sec.name ? '<div class="secth"><span>' + esc(sec.name) + '</span><small>' + sl.length + ' ตอน · ' + hm(sl.reduce(function (a, l) { return a + l.duration_min; }, 0)) + '</small></div>' : '') + sec.chs.map(function (x) { var ch = x.ch, i = k++;
         var mins = ch.lessons.reduce(function (a, l) { return a + l.duration_min; }, 0);
         return '<details' + (i === 0 ? ' open' : '') + '><summary><span>' + esc(x.sub || ch.title) + '</span><span class="n">' + ch.lessons.length + ' ตอน · ' + hm(mins) + '</span></summary><ul>' + ch.lessons.map(function (l) {
-          return '<li><span>' + esc(l.title) + (l.is_preview ? ' <button class="pill s ghost" style="margin-left:6px" data-preview="' + esc(l.youtube_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(l.title) + '">ดูฟรี</button>' : '') + '</span><span class="d">' + l.duration_min + ' นาที</span></li>';
+          return '<li><span>' + esc(l.title) + (l.is_preview ? ' <button class="pill s ghost" style="margin-left:6px" data-preview="' + esc(l.youtube_id) + '" data-plid="' + esc(l.lesson_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(l.title) + '">ดูฟรี</button>' : '') + '</span><span class="d">' + l.duration_min + ' นาที</span></li>';
         }).join('') + '</ul></details>';
       }).join(''); }).join(''); })() + '</div></section>' +
       (c.instructor ? '<section class="sec" id="sec-instructor"><h2>ผู้สอน</h2>' + (c.instructors || [c.instructor]).map(instBlock).join('') + '</section>' : '') +
@@ -915,10 +942,17 @@ function promptpay(id, amount) {
   for (var i = 0; i < s.length; i++) { crc ^= s.charCodeAt(i) << 8; for (var j = 0; j < 8; j++) crc = (crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1) & 0xFFFF; }
   return s + ('000' + crc.toString(16).toUpperCase()).slice(-4);
 }
-function previewVideo(id, title, cid) {
-  openModal(mhead(esc(title), 'ตอนตัวอย่าง ดูได้ฟรี') + '<div class="player">' + playerInner(id, '') + '</div>' +
+function previewVideo(id, title, cid, lid) {
+  // วิดีโอได้ทีละตัว: ปิดคลิปแนะนำคอร์สก่อน (กดเล่นใหม่ได้)
+  var tr = $('.player.trailer'); if (tr && !DEMO && $('iframe', tr)) tr.innerHTML = '<div class="ph"><button class="play" data-trplay="1" aria-label="เล่นคลิปแนะนำคอร์ส"><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></button><span>คลิปแนะนำคอร์ส</span></div>';
+  openModal(mhead(esc(title), 'ตอนตัวอย่าง ดูได้ฟรี' + (S.user && cellsOn() ? ' · นับเป็นเวลาเรียนของเซลล์ด้วย' : '')) + '<div class="player" id="player">' + (DEMO ? playerInner(id, '') : '') + '</div>' +
     (cid && feat('reviews') ? '<div class="tfb" id="tfb"><b>ลองเรียนฟรีแล้ว เข้าใจไหม?</b><div class="rowx" role="group" aria-label="เข้าใจแค่ไหน">' + [['clear', 'เข้าใจ'], ['partly', 'เข้าใจบางส่วน'], ['lost', 'ยังไม่เข้าใจ']].map(function (x) { return '<button class="pill ghost s" data-tf="' + x[0] + '" aria-pressed="false">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div id="tf-more" hidden class="stack" style="gap:8px"><textarea class="i" id="tf-text" rows="2" maxlength="500" placeholder="อยากบอกอะไรเพิ่มไหม เช่น ตรงไหนงง หรือชอบตรงไหน (ไม่ใส่ก็ได้)"></textarea><button class="pill s" id="tf-send" style="justify-self:start">ส่งความเห็น</button></div></div>' : ''), true);
+  if (!DEMO) {
+    safePlayer($('#player'), id, '', {});
+    if (lid && S.user) startStudyPing(lid, true);
+    S.modalClose = function () { stopPlayer(); };
+  }
   if (!cid) return;
   var lv = '';
   $$('[data-tf]').forEach(function (b) { b.onclick = function () { lv = b.dataset.tf; $$('[data-tf]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); x.classList.toggle('ghost', x !== b); }); $('#tf-more').hidden = false; }; });
@@ -988,11 +1022,13 @@ function viewCart() {
       (q.suggest || []).map(function (g) { return '<div class="sugg"><span>เพิ่ม <b>' + g.add_titles.map(esc).join(', ') + '</b> อีกแค่ <b>' + baht(g.extra) + '</b> ได้ ' + esc(g.title) + ' (ประหยัด ' + baht(g.save) + ')</span><button class="pill s" data-recart="' + esc(g.add_ids.join(',')) + '">เพิ่มเลย</button></div>'; }).join('') +
       '<a class="link sm" href="#/" style="justify-self:start">← เลือกคอร์สเพิ่ม</a></div>' +
       '<aside class="buy"><span class="mono">สรุปคำสั่งซื้อ</span>' +
-      '<form class="cpf" id="cpf"><input class="i" id="cp-in" name="coupon" placeholder="โค้ดส่วนลด" value="' + esc(cp ? cp.code : '') + '" autocomplete="off" autocapitalize="characters"' + (cp && cp.ok ? ' readonly' : '') + '>' +
-      (cp && cp.ok ? '<button type="button" class="pill quiet s" id="cp-rm">เอาออก</button>' : '<button class="pill ghost s">ใช้โค้ด</button>') + '</form>' +
-      (cp ? cp.ok ? '<p class="sm" style="color:var(--ok);margin-top:-6px">ใช้โค้ด ' + esc(cp.code) + ' แล้ว · ' + esc(cp.label) + '</p>' : '<p class="err" style="margin-top:-6px">' + esc(cp.message) + '</p>' : '') +
+      (cp && cp.auto ? '<div class="nm-ok">🎃 <span><b>ส่วนลดสมาชิกใหม่ ' + esc(cp.label.replace(/^ลด /, '')) + '</b><br><span class="sm">ใช้ให้อัตโนมัติแล้ว ไม่ต้องใส่โค้ด</span></span></div>' :
+        q.promo ? '<div class="nm-hint">🎃 <span><b>สมาชิกใหม่ลด ' + esc(q.promo.label) + '</b><br><span class="sm">' + (q.promo.signed_in ? 'สำหรับบัญชีที่สมัครช่วงแคมเปญและยังไม่เคยซื้อคอร์ส' : 'สมัครสมาชิกแล้วระบบลดให้อัตโนมัติ') + '</span></span></div>' : '') +
+      '<form class="cpf" id="cpf"><input class="i" id="cp-in" name="coupon" placeholder="' + (cp && cp.auto ? 'มีโค้ดอื่น? (ใช้ได้ 1 โค้ด)' : 'โค้ดส่วนลด') + '" value="' + esc(cp && !cp.auto ? cp.code : '') + '" autocomplete="off" autocapitalize="characters"' + (cp && cp.ok && !cp.auto ? ' readonly' : '') + '>' +
+      (cp && cp.ok && !cp.auto ? '<button type="button" class="pill quiet s" id="cp-rm">เอาออก</button>' : '<button class="pill ghost s">ใช้โค้ด</button>') + '</form>' +
+      (cp && !cp.auto ? cp.ok ? '<p class="sm" style="color:var(--ok);margin-top:-6px">ใช้โค้ด ' + esc(cp.code) + ' แล้ว · ' + esc(cp.label) + '</p>' : '<p class="err" style="margin-top:-6px">' + esc(cp.message) + '</p>' : '') +
       '<div class="sum"><div><span>ราคาคอร์ส</span><span>' + baht(q.subtotal) + '</span></div>' + (q.bundles || []).map(function (x) { return '<div class="bdn"><span>แพ็กเกจ ' + esc(x.title) + (x.upgrade ? ' (คิดส่วนต่าง)' : '') + '</span><span>−' + baht(x.save) + '</span></div>'; }).join('') +
-      (cp && cp.ok && cp.discount ? '<div class="dis"><span>โค้ด ' + esc(cp.code) + '</span><span>−' + baht(cp.discount) + '</span></div>' : '') + '<div class="tot"><span>ยอดชำระ</span><b>' + baht(q.total) + '</b></div></div>' +
+      (cp && cp.ok && cp.discount ? '<div class="dis"><span>' + (cp.auto ? 'ส่วนลดสมาชิกใหม่' : 'โค้ด ' + esc(cp.code)) + '</span><span>−' + baht(cp.discount) + '</span></div>' : '') + '<div class="tot"><span>ยอดชำระ</span><b>' + baht(q.total) + '</b></div></div>' +
       '<label class="consent"><input type="checkbox" id="pt-ok"><span>ฉันอ่านและยอมรับ <button type="button" class="link" id="pt-read">ข้อตกลงการชำระเงิน</button> โอนเข้าบัญชีที่แสดงในหน้าชำระเงินเท่านั้น และไม่มีนโยบายคืนเงินทุกกรณี</span></label>' +
       (blocked.length ? '<p class="err">ลบคอร์สที่ซื้อไม่ได้ออกจากตะกร้าก่อน</p>' : '') +
       (S.user ? '<button class="pill block" id="checkout"' + (blocked.length || !q.bills.length ? ' disabled' : '') + '>ยืนยันคำสั่งซื้อ</button>' : '<button class="pill block" data-act="login">เข้าสู่ระบบเพื่อชำระเงิน</button><button class="pill ghost block" data-act="signup">ยังไม่มีบัญชี สมัครสมาชิก</button>') +
@@ -1212,7 +1248,7 @@ function safePlayer(el, vid, wm, opt) {
   var P = null, dur = 0, drag = false, hideT = null, ended = false, posKey = opt.key ? 'ib_pos_' + opt.key : '';
   var seek = $('.yt-seek', el), time = $('.yt-time', el), msg = $('.yt-msg', el), tgl = $('[data-y=toggle]', el), mb = $('[data-y=mute]', el);
   var setState = function (st) { ['is-idle', 'is-playing', 'is-paused', 'is-ended', 'is-buffering'].forEach(function (c) { el.classList.remove(c); }); el.classList.add(st); tgl.innerHTML = st === 'is-playing' || st === 'is-buffering' ? PI.pause : PI.play; };
-  var wake = function () { el.classList.remove('hide-ui'); clearTimeout(hideT); hideT = setTimeout(function () { if (el.classList.contains('is-playing')) el.classList.add('hide-ui'); }, 2600); };
+  var wake = function () { el.classList.remove('hide-ui'); clearTimeout(hideT); hideT = setTimeout(function () { if (el.classList.contains('is-playing') || el.classList.contains('is-paused')) el.classList.add('hide-ui'); }, 2600); };
   var tick = function () {
     if (!P || !P.getCurrentTime) return;
     var t = P.getCurrentTime() || 0; dur = P.getDuration() || dur;
@@ -1335,6 +1371,7 @@ var CELL_THEMES = [
   { k: 'forest', d: 100, name: 'ป่าดิบชื้น', desc: 'เขียวมอส เส้นใบไม้ แสงแดดสีทอง', m: ['#0f1a14', '#eef3e6', '#d9a441', '#15241b', 'linear-gradient(135deg,#2e6b3c,#16351f 55%,#d9a44155)'] },
   { k: 'nebula', d: 200, name: 'เนบิวลา', desc: 'อวกาศลึก ดาว แสงม่วงชมพู ปุ่มไล่สี', m: ['#0b0a1a', '#f1eeff', '#9d8cff', '#141230', 'radial-gradient(circle at 20% 30%,#fff 0 1px,transparent 2px),radial-gradient(circle at 70% 70%,#fff 0 1px,transparent 2px),linear-gradient(135deg,#4b2fa8,#c2378f)'] },
   { k: 'gold', d: 365, name: 'เกลียวทองคำ', desc: 'งาช้าง หมึกดำ ทองคำ ลายเกลียว DNA', m: ['#fcfaf4', '#16130b', '#a87b14', '#ffffff', 'repeating-linear-gradient(60deg,#e9cf7e 0 5px,#fbf3dc 5px 13px)'] }];
+CELL_THEMES.push({ k: 'spooky', d: 0, lim: 'halloween2569', name: 'ผีน้อยฮาโลวีน', desc: 'ลิมิเต็ด · เรียนครบ 10 วันช่วงฮาโลวีน (ถึง 31 ต.ค. 2569) เซลล์กลายเป็นฟักทอง ผี และค้างคาว เก็บไว้ได้ถาวร', m: ['#0e0b14', '#f5efe6', '#ff7a1a', '#2a1840', 'radial-gradient(circle at 70% 30%,#ff7a1a55,transparent 50%),#2a1840'] });
 var CELL_POS = { 1: [[200, 198, 150, 0]], 2: [[152, 204, 124, -8], [252, 190, 124, 14]],
   4: [[148, 150, 104, 10], [256, 142, 98, -12], [146, 256, 98, 24], [254, 250, 106, -4]],
   8: [[196, 94, 86, 0], [118, 138, 80, 30], [282, 132, 84, -20], [98, 226, 84, 12], [306, 222, 80, 40], [142, 304, 82, -14], [258, 306, 86, 8], [202, 200, 90, -30]] };
@@ -1351,6 +1388,14 @@ var FEST_DEFS = '<svg class="cl-defs" aria-hidden="true" focusable="false"><defs
   '<g fill="none" stroke="#a8420a" stroke-width="1.6" opacity=".55"><path d="M-12-30c-6 12-6 60 0 72"/><path d="M12-30c6 12 6 60 0 72"/></g>' +
   '<g fill="url(#fs-glow)" class="fs-lit"><path d="M-22-6l10-2-4 12z"/><path d="M22-6l-10-2 4 12z"/><path d="M-4 4h8l-4 7z"/><path d="M-24 18l6 5 6-5 6 5 6-5 6 5 6-5 6 5c-4 11-18 16-24 16s-20-5-24-16z"/></g></symbol>' +
   // ลูกอมห่อกระดาษ
+  // ผีน้อย
+  '<symbol id="fs-ghost" viewBox="-60 -56 120 112"><path d="M-32 44V-6a32 32 0 0 1 64 0v50l-10.7-8-10.6 8-10.7-8-10.7 8-10.6-8z" fill="#f6f0ff" stroke="#c9b8e8" stroke-width="2.5" stroke-linejoin="round"/>' +
+  '<path d="M-22-14a24 24 0 0 1 16-16" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".8"/><ellipse cx="-11" cy="0" rx="5.5" ry="8" fill="#2a1840"/><ellipse cx="11" cy="0" rx="5.5" ry="8" fill="#2a1840"/>' +
+  '<circle cx="-9" cy="-3" r="1.8" fill="#fff"/><circle cx="13" cy="-3" r="1.8" fill="#fff"/><ellipse cx="0" cy="14" rx="4.5" ry="5.5" fill="#2a1840"/><ellipse cx="-20" cy="10" rx="5" ry="3" fill="#ff9ec7" opacity=".55"/><ellipse cx="20" cy="10" rx="5" ry="3" fill="#ff9ec7" opacity=".55"/></symbol>' +
+  // ค้างคาว
+  '<symbol id="fs-bat" viewBox="-60 -56 120 112"><path d="M-14-6C-24-22-44-26-56-16c8 2 12 8 10 16 6-4 12-4 16 2 2-6 8-8 14-6zM14-6c10-16 30-20 42-10-8 2-12 8-10 16-6-4-12-4-16 2-2-6-8-8-14-6z" fill="#3b2456" stroke="#24143a" stroke-width="2" stroke-linejoin="round"/>' +
+  '<path d="M-12-22l4 10h16l4-10-6 5h-12z" fill="#3b2456"/><ellipse cx="0" cy="2" rx="18" ry="20" fill="#4a2e6b"/><ellipse cx="0" cy="8" rx="10" ry="11" fill="#5d3c84"/>' +
+  '<circle cx="-7" cy="-4" r="4.5" fill="#ff7a1a"/><circle cx="7" cy="-4" r="4.5" fill="#ff7a1a"/><circle cx="-6" cy="-5" r="1.6" fill="#fff"/><circle cx="8" cy="-5" r="1.6" fill="#fff"/><path d="M-4 8l2 4 2-4 2 4 2-4" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></symbol>' +
   '<symbol id="fs-candy" viewBox="-60 -56 120 112"><path d="M-26 0l-26-20 6 20-6 20z" fill="#8a4fd6"/><path d="M26 0l26-20-6 20 6 20z" fill="#8a4fd6"/><g stroke="#5b2ba0" stroke-width="1.5" opacity=".6"><path d="M-44-12l14 8M-44 12l14-8M44-12l-14 8M44 12l-14-8"/></g>' +
   '<circle r="28" fill="#ff8a1f"/><g fill="#fff" opacity=".85"><path d="M-20-19c10 10 10 28 0 38l6 4c12-12 12-34 0-46z"/><path d="M0-28c10 12 10 44 0 56l7 0c10-14 10-42 0-56z"/></g><circle r="28" fill="none" stroke="#c9560c" stroke-width="2"/><path d="M-16-18c6-6 16-8 24-4" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".6"/></symbol>' +
   // คุกกี้ขิงรูปคน
@@ -1365,8 +1410,8 @@ var FEST_DEFS = '<svg class="cl-defs" aria-hidden="true" focusable="false"><defs
   '<symbol id="fs-gift" viewBox="-60 -56 120 112"><rect x="-34" y="-10" width="68" height="58" rx="5" fill="url(#fs-gf)"/><rect x="-40" y="-24" width="80" height="18" rx="4" fill="#c8102e"/><rect x="-6" y="-24" width="12" height="72" fill="#f2c14e"/><rect x="-40" y="-18" width="80" height="6" fill="#f2c14e" opacity=".0"/>' +
   '<path d="M0-24c-6-18-26-22-26-10 0 8 14 10 26 10zM0-24c6-18 26-22 26-10 0 8-14 10-26 10z" fill="#f2c14e" stroke="#c9961f" stroke-width="1.5"/><rect x="-34" y="-6" width="68" height="4" fill="#000" opacity=".12"/></symbol>' +
   '</defs></svg>';
-var FEST_KINDS = { halloween: [['fs-pumpkin', 'roll'], ['fs-candy', 'twirl']], christmas: [['fs-cookie', 'walk'], ['fs-cane', 'swing'], ['fs-gift', 'bounce']] };
-function festKind(i) { var f = festOn(), ks = f && FEST_KINDS[f]; return ks ? ks[i % ks.length] : null; }
+var FEST_KINDS = { halloween: [['fs-pumpkin', 'roll'], ['fs-ghost', 'swing'], ['fs-bat', 'bounce']], christmas: [['fs-cookie', 'walk'], ['fs-cane', 'swing'], ['fs-gift', 'bounce']] };
+function festKind(i) { var f = festOn() || (cellsOn() && S.cells && S.cells.theme === 'spooky' ? 'halloween' : ''), ks = f && FEST_KINDS[f]; return ks ? ks[i % ks.length] : null; }
 /** สวิตช์ฟีเจอร์ใหม่ต่อเว็บ: window.INEEDBIO_FEATURES = { cells, reviews, fest } ไม่ตั้ง = เปิดทั้งหมด (เดโม) */
 function feat(k) { var f = window.INEEDBIO_FEATURES; return !f || f[k] !== false; }
 function cellsPromoOn() { return feat('cells') && S.cfg.cells_enabled === '1'; }
@@ -1391,12 +1436,16 @@ function cellChip() {
     '<svg viewBox="-60 -56 120 112" aria-hidden="true"><use href="#' + (festKind(0) ? festKind(0)[0] : 'cl-cell') + '" x="-60" y="-56" width="120" height="112"/></svg><b>' + st + '</b></a>';
 }
 /* ─── ลูกเล่นของธีม + ธีมเทศกาล ─── */
-var FESTS = { halloween: { name: 'ฮาโลวีน', bar: 'Hello-ween · เดือนแห่งการเรียนแบบไม่หลอก', from: '10-01', to: '10-31' }, christmas: { name: 'คริสต์มาส', bar: 'Merry Christmas · เรียนต่อเนื่องจนจบปี', from: '12-01', to: '12-31' } };
+var FESTS = { halloween: { name: 'ฮาโลวีน', bar: 'Hello-ween · เรียนแบบไม่หลอก ถึง 31 ต.ค.', from: '10-01', to: '10-31' }, christmas: { name: 'คริสต์มาส', bar: 'Merry Christmas · เรียนต่อเนื่องจนจบปี', from: '12-01', to: '12-31' } };
 function festActive() {
   if (!feat('fest')) return '';
   if (S.festPreview !== undefined) return S.festPreview;
   var m = S.cfg.event_mode || 'off';
   if (m === 'off') return '';
+  // แอดมินตั้งช่วงวันเวลาเองได้ (เวลาไทย) ว่าง = ไม่จำกัด
+  var nowTh = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 16);
+  if (S.cfg.event_from && nowTh < String(S.cfg.event_from).slice(0, 16)) return '';
+  if (S.cfg.event_until && nowTh > String(S.cfg.event_until).slice(0, 16)) return '';
   if (FESTS[m]) return m;
   if (m !== 'auto') return '';
   var md = new Date(Date.now() + 7 * 36e5).toISOString().slice(5, 10);
@@ -1408,13 +1457,114 @@ function fxBuild(key) {
   var h = '', i, n, st = function (o) { return Object.keys(o).map(function (k) { return k + ':' + o[k]; }).join(';'); };
   var BAT = '<svg viewBox="0 0 34 16" width="48" height="23"><path d="M17 5c1-3 2-3 2-3l1 3c3-3 8-4 14-2-4 1-6 4-6 7-2-2-5-2-7 0-1-1-2-2-4-2s-3 1-4 2c-2-2-5-2-7 0 0-3-2-6-6-7 6-2 11-1 14 2z" fill="#6b4a8e"/></svg>';
   if (key === 'christmas') for (i = 0; i < 26; i++) h += '<i class="fx-snow" style="' + st({ left: fxRand(0, 100).toFixed(1) + '%', '--s': fxRand(3, 7).toFixed(1) + 'px', '--t': fxRand(9, 18).toFixed(1) + 's', '--dl': (-fxRand(0, 18)).toFixed(1) + 's', '--dx': fxRand(-40, 40).toFixed(0) + 'px', opacity: fxRand(.5, .95).toFixed(2) }) + '"></i>';
-  if (key === 'halloween') { for (i = 0; i < 4; i++) h += '<i class="fx-bat" style="' + st({ top: fxRand(8, 45).toFixed(0) + '%', left: 0, '--t': fxRand(20, 34).toFixed(0) + 's', '--dl': (-fxRand(0, 30)).toFixed(0) + 's' }) + '">' + BAT + '</i>'; h += '<i class="fx-fog"></i>'; }
+  if (key === 'halloween') {
+    var small = window.innerWidth < 640, G = function (id) { return '<svg viewBox="-60 -56 120 112"><use href="#' + id + '"/></svg>'; };
+    for (i = 0; i < (small ? 3 : 4); i++) h += '<i class="fx-bat" style="' + st({ top: fxRand(8, 45).toFixed(0) + '%', left: 0, '--t': fxRand(20, 34).toFixed(0) + 's', '--dl': (-fxRand(0, 30)).toFixed(0) + 's' }) + '">' + BAT + '</i>';
+    for (i = 0; i < (small ? 1 : 2); i++) h += '<i class="fx-ghost" style="' + st({ left: fxRand(8, 85).toFixed(0) + '%', '--t': fxRand(26, 36).toFixed(0) + 's', '--dl': (-fxRand(0, 30)).toFixed(0) + 's', '--dx': fxRand(-14, 14).toFixed(0) + 'vw' }) + '">' + G('fs-ghost') + '</i>';
+    h += '<i class="fx-mist" style="--t:46s"></i><i class="fx-mist m2" style="--t:62s"></i><i class="fx-fog"></i>';
+    h += '<i class="fx-spider" data-hw="spider" title="แตะเพื่อไล่แมงมุม"><b></b>' + '<svg viewBox="0 0 40 40" width="34" height="34"><g stroke="#1a1024" stroke-width="2.2" stroke-linecap="round" fill="none"><path d="M14 18l-9-6M14 21l-10 0M14 24l-9 6M14 27l-6 9M26 18l9-6M26 21l10 0M26 24l9 6M26 27l6 9"/></g><ellipse cx="20" cy="24" rx="8" ry="9" fill="#2a1840"/><circle cx="20" cy="14" r="5.5" fill="#2a1840"/><circle cx="18" cy="13" r="1.6" fill="#ff7a1a"/><circle cx="22" cy="13" r="1.6" fill="#ff7a1a"/></svg></i>';
+    h += '<i class="fx-peek" data-hw="peek">' + G('fs-ghost') + '</i>';
+  }
   if (key === 'reef') for (i = 0; i < 12; i++) h += '<i class="fx-bub" style="' + st({ left: fxRand(0, 100).toFixed(1) + '%', '--s': fxRand(6, 16).toFixed(0) + 'px', '--t': fxRand(12, 22).toFixed(1) + 's', '--dl': (-fxRand(0, 22)).toFixed(1) + 's', '--dx': fxRand(-30, 30).toFixed(0) + 'px' }) + '"></i>';
   if (key === 'forest') for (i = 0; i < 14; i++) h += '<i class="fx-fly" style="' + st({ left: fxRand(2, 98).toFixed(1) + '%', top: fxRand(10, 95).toFixed(1) + '%', '--t': fxRand(12, 22).toFixed(1) + 's', '--t2': fxRand(2, 4.5).toFixed(1) + 's', '--dl': (-fxRand(0, 20)).toFixed(1) + 's', '--a': fxRand(-60, 60).toFixed(0) + 'px', '--b': fxRand(-50, 50).toFixed(0) + 'px', '--c': fxRand(-60, 60).toFixed(0) + 'px', '--d': fxRand(-50, 50).toFixed(0) + 'px' }) + '"></i>';
   if (key === 'nebula') { for (i = 0; i < 28; i++) h += '<i class="fx-star" style="' + st({ left: fxRand(0, 100).toFixed(1) + '%', top: fxRand(0, 100).toFixed(1) + '%', '--t': fxRand(2.5, 6).toFixed(1) + 's', '--dl': (-fxRand(0, 6)).toFixed(1) + 's' }) + '"></i>'; h += '<i class="fx-shoot" style="top:12%;left:92%;--dl:1s"></i><i class="fx-shoot" style="top:30%;left:70%;--dl:6.5s"></i>'; }
   if (key === 'gold') for (i = 0; i < 12; i++) h += '<i class="fx-spark" style="' + st({ left: fxRand(0, 100).toFixed(1) + '%', top: fxRand(0, 100).toFixed(1) + '%', '--t': fxRand(2.4, 5).toFixed(1) + 's', '--dl': (-fxRand(0, 5)).toFixed(1) + 's' }) + '"></i>';
   return h;
 }
+/* ─── เสียงฮาโลวีน: สังเคราะห์สดด้วย Web Audio (ไม่มีไฟล์เสียง ไม่ติดลิขสิทธิ์) · ปิดเป็นค่าเริ่มต้น เล่นเฉพาะตอนผู้ใช้แตะ · ไม่เล่นในหน้าเรียน ─── */
+var HWA = null;
+function hwSoundOn() { return store('ib_hw_sound') !== '0'; } // เปิดเป็นค่าเริ่มต้น ปิดได้ที่ปุ่มบนแถบฮาโลวีน
+function hwCtx() { try { HWA = HWA || new (window.AudioContext || window.webkitAudioContext)(); if (HWA.state === 'suspended') HWA.resume(); return HWA; } catch (e) { return null; } }
+function hwPlay(kind) {
+  if (!hwSoundOn() || S.inLearn || document.hidden) return;
+  var a = hwCtx(); if (!a) return;
+  var t = a.currentTime, out = a.createGain(); out.gain.value = 0.35; out.connect(a.destination);
+  var env = function (g, at, peak, len) { g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, at + len); };
+  var noise = function (len) { var b = a.createBuffer(1, Math.floor(a.sampleRate * len), a.sampleRate), d = b.getChannelData(0); for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; var n = a.createBufferSource(); n.buffer = b; return n; };
+  if (kind === 'boo') { // ผี: เสียงหวีดต่ำลงพร้อมสั่น + ลมหวิว
+    var o = a.createOscillator(), g = a.createGain(), lfo = a.createOscillator(), ld = a.createGain(), lp = a.createBiquadFilter();
+    o.type = 'sine'; o.frequency.setValueAtTime(520, t); o.frequency.exponentialRampToValueAtTime(170, t + 1.3);
+    lfo.frequency.value = 6.5; ld.gain.value = 14; lfo.connect(ld); ld.connect(o.frequency);
+    lp.type = 'lowpass'; lp.frequency.value = 1200; o.connect(lp); lp.connect(g); g.connect(out); env(g, t, 0.16, 1.5);
+    var n = noise(1.4), bp = a.createBiquadFilter(), ng = a.createGain(); bp.type = 'bandpass'; bp.frequency.setValueAtTime(600, t); bp.frequency.exponentialRampToValueAtTime(250, t + 1.3); bp.Q.value = 3;
+    n.connect(bp); bp.connect(ng); ng.connect(out); env(ng, t, 0.05, 1.4);
+    o.start(t); lfo.start(t); n.start(t); o.stop(t + 1.6); lfo.stop(t + 1.6); n.stop(t + 1.5);
+  } else if (kind === 'flutter') { // ค้างคาวกระพือปีก
+    for (var k = 0; k < 6; k++) { var nb = noise(0.05), f = a.createBiquadFilter(), gg = a.createGain(), at = t + k * 0.045; f.type = 'bandpass'; f.frequency.value = 1500 + Math.random() * 900; f.Q.value = 1.5; nb.connect(f); f.connect(gg); gg.connect(out); env(gg, at, 0.07, 0.05); nb.start(at); nb.stop(at + 0.06); }
+  } else { // chime: คอร์ดไมเนอร์หลอนๆ ไล่ขึ้น
+    [440, 523.25, 659.25, 622.25].forEach(function (fq, i) { var o2 = a.createOscillator(), g2 = a.createGain(), at2 = t + i * 0.16; o2.type = 'triangle'; o2.frequency.value = fq; o2.connect(g2); g2.connect(out); env(g2, at2, 0.09, 1.1); o2.start(at2); o2.stop(at2 + 1.2); });
+  }
+}
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('[data-hwsnd]'); if (!b) return;
+  var on = !hwSoundOn(); store('ib_hw_sound', on ? null : '0');
+  $$('[data-hwsnd]').forEach(function (x) { x.setAttribute('aria-pressed', String(on)); x.textContent = on ? '🔊 เพลงเปิด' : '🔇 เปิดเพลง'; });
+  if (on) { hwCtx(); hwMusic(true); } else hwMusic(false);
+});
+/* เพลงพื้นหลังฮาโลวีน: แต่งและสังเคราะห์สดในเบราว์เซอร์ (ไม่มีไฟล์ ไม่ติดลิขสิทธิ์) · กล่องดนตรีบันไดเสียงไมเนอร์ + เสียงต่ำคลอ · ดัง 10%
+   เริ่มหลังผู้ใช้แตะหน้าเว็บครั้งแรก (เบราว์เซอร์ไม่ยอมให้เปิดเสียงเอง) · หยุดในหน้าเรียน ตอนสลับแท็บ และเมื่อหมดช่วงฮาโลวีน */
+var HWM = { on: false, timer: null, next: 0, step: 0, bus: null };
+/* วอลซ์ฮาโลวีน (แต่งใหม่ทั้งหมด) · จังหวะ 3/4 บันไดเสียงลาไมเนอร์ฮาร์โมนิก · ต่อห้องละ 3 จังหวะ (null = ลากเสียงเดิม)
+   ห้องท่อน A วนครั้งแรกเสียงกล่องดนตรี · รอบสองเล่นคู่แปดต่ำแบบเสียงหลอนๆ แล้ววนใหม่ */
+var HW_WALTZ = [
+  ['Am', [69, 72, 76]], ['Am', [76, null, 75]], ['Dm', [74, null, 77]], ['E7', [76, null, 68]],
+  ['Am', [69, 72, 76]], ['F', [77, null, 81]], ['E7', [80, 77, 74]], ['Am', [76, null, null]],
+  ['F', [72, 77, 81]], ['Dm', [81, null, 77]], ['E7', [80, 76, 74]], ['Am', [72, null, 69]],
+  ['Dm', [74, 77, 81]], ['Am', [84, null, 81]], ['E7', [80, 77, 74]], ['Am', [69, null, null]]
+];
+var HW_CH = { Am: [45, 57, 60, 64], Dm: [50, 57, 62, 65], E7: [52, 56, 62, 64], F: [53, 57, 60, 65] }; // [เบส, เสียงคอร์ดจังหวะ 2-3]
+function hwWanted() { var r = document.documentElement; return hwSoundOn() && r.classList.contains('fe-halloween') && !r.classList.contains('in-learn') && !document.hidden; }
+function hwMusic(start) {
+  if (!start || !hwWanted()) { if (HWM.on) { HWM.on = false; clearInterval(HWM.timer); if (HWM.bus && HWA) HWM.bus.gain.setTargetAtTime(0.0001, HWA.currentTime, 0.3); } return; }
+  if (HWM.on) return;
+  var a = hwCtx(); if (!a) return;
+  if (!HWM.bus) { HWM.bus = a.createGain(); HWM.bus.connect(a.destination); }
+  HWM.bus.gain.cancelScheduledValues(a.currentTime); HWM.bus.gain.setValueAtTime(0.0001, a.currentTime); HWM.bus.gain.linearRampToValueAtTime(0.1, a.currentTime + 2); // 10%
+  HWM.on = true; HWM.next = a.currentTime + 0.1;
+  var beat = 60 / 138, mtof = function (m) { return 440 * Math.pow(2, (m - 69) / 12); };
+  var note = function (m, at, len, type, vol, bend, vib) {
+    var o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.setValueAtTime(mtof(m), at); if (bend) o.detune.setValueAtTime(bend, at);
+    if (vib) { var l = a.createOscillator(), ld = a.createGain(); l.frequency.value = 5.2; ld.gain.value = vib; l.connect(ld); ld.connect(o.detune); l.start(at); l.stop(at + len + 0.05); }
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    o.connect(g); g.connect(HWM.bus); o.start(at); o.stop(at + len + 0.05);
+  };
+  var N = HW_WALTZ.length * 3;
+  var sched = function () {
+    if (!hwWanted()) return hwMusic(false);
+    while (HWM.next < a.currentTime + 0.4) {
+      var k = HWM.step % N, bar = HW_WALTZ[Math.floor(k / 3)], b3 = k % 3, m = bar[1][b3], ch = HW_CH[bar[0]], t = HWM.next, eerie = Math.floor(HWM.step / N) % 2 === 1;
+      if (m) {
+        var hold = 1; while (k + hold < N && HW_WALTZ[Math.floor((k + hold) / 3)][1][(k + hold) % 3] === null) hold++;
+        var len = beat * hold * 1.05 + 0.25;
+        if (!eerie) { note(m, t, len, 'triangle', 0.45); note(m + 12, t, 0.45, 'sine', 0.1, 4); } // กล่องดนตรี
+        else { note(m, t, len, 'sine', 0.32, 0, 18); note(m - 12, t, len, 'triangle', 0.2, -6); } // เสียงหลอนสั่นๆ คู่แปดต่ำ
+      }
+      if (b3 === 0) note(ch[0], t, beat * 0.9, 'triangle', 0.4); // อุ้ม
+      else { note(ch[1] + 12, t, beat * 0.45, 'sine', 0.09); note(ch[2] + 12, t, beat * 0.45, 'sine', 0.08); note(ch[3] + 12, t, beat * 0.45, 'sine', 0.07); } // ปะ ปะ
+      if (k === N - 3) note(57, t, 3, 'sine', 0.22, 6); // ระฆังต่ำท้ายเพลง
+      HWM.step++; HWM.next += beat;
+    }
+  };
+  sched(); HWM.timer = setInterval(sched, 120);
+}
+['pointerdown', 'keydown'].forEach(function (ev) { document.addEventListener(ev, function () { if (hwWanted() && !HWM.on) hwMusic(true); }, true); });
+document.addEventListener('visibilitychange', function () { if (document.hidden) hwMusic(false); else if (hwWanted()) hwMusic(true); });
+/** ฮาโลวีน: แตะพื้นที่ว่าง ค้างคาวกระจาย · แตะแมงมุม มันปีนหนี · แตะผีที่โผล่ ผีหลบ (ไม่ทำงานในหน้าเรียน) */
+document.addEventListener('pointerdown', function (e) {
+  var r = document.documentElement;
+  if (!r.classList.contains('fe-halloween') && !r.classList.contains('ct-spooky')) return;
+  if (r.classList.contains('in-learn') || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  var hw = e.target.closest && e.target.closest('[data-hw]');
+  if (hw) { if (hw.dataset.hw === 'spider') { hw.classList.add('up'); hwPlay('boo'); setTimeout(function () { hw.classList.remove('up'); }, 9000); } else { hw.style.animation = 'none'; void hw.offsetWidth; hw.style.animation = ''; hwPlay('boo'); } return; }
+  if (e.target.closest('.bb-camp .bbd-art')) { hwPlay('boo'); return; }
+  if (e.target.closest('a,button,input,select,textarea,label,.tile,.nc,.dish,.player,.modal,.bbd')) return;
+  if ($$('.fx-burst').length > 9) return;
+  var BAT = '<svg viewBox="0 0 34 16"><path d="M17 5c1-3 2-3 2-3l1 3c3-3 8-4 14-2-4 1-6 4-6 7-2-2-5-2-7 0-1-1-2-2-4-2s-3 1-4 2c-2-2-5-2-7 0 0-3-2-6-6-7 6-2 11-1 14 2z" fill="#6b4a8e"/></svg>';
+  for (var i = 0; i < 3; i++) { var c = document.createElement('i'), ang = -Math.PI / 2 + (i - 1) * 0.9 + fxRand(-0.25, 0.25), d = fxRand(70, 120);
+    c.className = 'fx-burst'; c.innerHTML = BAT; c.style.cssText = 'left:' + (e.clientX - 13) + 'px;top:' + (e.clientY - 6) + 'px;--bx:' + Math.round(Math.cos(ang) * d) + 'px;--by:' + Math.round(Math.sin(ang) * d) + 'px';
+    document.body.appendChild(c); (function (n) { setTimeout(function () { n.remove(); }, 1150); })(c); }
+  hwPlay('flutter');
+});
 function applyFx(key) {
   if (S.fxKey === key) return; S.fxKey = key;
   var el = $('#ct-fx'); if (!el) { el = document.createElement('div'); el.id = 'ct-fx'; el.setAttribute('aria-hidden', 'true'); document.body.appendChild(el); }
@@ -1434,7 +1584,7 @@ function startColonyMotion() {
   if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   var cells = $$('.cl-mv', svg).map(function (m) { return { x: 0, y: 0, vx: fxRand(-.3, .3), vy: fxRand(-.3, .3), r: 0, vr: fxRand(-.15, .15), m: m.dataset.m, t: fxRand(0, 6), dir: Math.random() < .5 ? -1 : 1, sp: fxRand(.8, 1.2) }; });
   var mv = $$('.cl-mv', svg), R = mv.length > 4 ? 14 : mv.length > 2 ? 22 : 28;
-  $$('.cl-cell', svg).forEach(function (g) { g.addEventListener('click', function () { g.classList.remove('poke'); void g.getBoundingClientRect(); g.classList.add('poke'); }); });
+  $$('.cl-cell', svg).forEach(function (g) { g.addEventListener('click', function () { g.classList.remove('poke'); void g.getBoundingClientRect(); g.classList.add('poke'); if (g.classList.contains('fs')) hwPlay(Math.random() < 0.5 ? 'boo' : 'flutter'); }); });
   var step = function () {
     if (!document.body.contains(svg)) return;
     cells.forEach(function (c, i) {
@@ -1464,8 +1614,9 @@ function applyCellTheme() {
   CELL_THEMES.forEach(function (t) { if (t.k !== 'base') h.classList.toggle('ct-' + t.k, t.k === th); });
   Object.keys(FESTS).forEach(function (k) { h.classList.toggle('fe-' + k, k === fe); });
   h.classList.toggle('v2ui', UI2());
-  applyFx(fe || th);
+  applyFx(fe || (th === 'spooky' ? 'halloween' : th));
 }
+document.addEventListener('visibilitychange', function () { document.documentElement.classList.toggle('fx-hidden', document.hidden); });
 function loadCells(then) {
   if (!cellsOn() || S.cellsBusy) return;
   S.cellsBusy = true;
@@ -1476,17 +1627,17 @@ function loadCells(then) {
   }).catch(function () { S.cellsBusy = false; });
 }
 /** นับเวลาดูคลิปจริง: ทุก 5 วินาทีที่คลิปกำลังเล่นและหน้าจอเปิดอยู่ สะสมครบ 60 วินาทีส่ง study.ping 1 ครั้ง */
-function startStudyPing(lid) {
+function startStudyPing(lid, preview) {
   if (!cellsOn()) return;
   clearInterval(S.studyT); var acc = 0;
   S.studyT = setInterval(function () {
     var pl = $('#player');
     if (!pl || !pl.classList.contains('is-playing') || document.visibilityState !== 'visible') return;
     acc += 5; if (acc < 60) return; acc = 0;
-    api('study.ping', { lesson_id: lid, pos: S.yt && S.yt.getCurrentTime ? Math.floor(S.yt.getCurrentTime() || 0) : 0 }).then(function (r) {
+    api('study.ping', { lesson_id: lid, preview: preview ? 1 : undefined, pos: S.yt && S.yt.getCurrentTime ? Math.floor(S.yt.getCurrentTime() || 0) : 0 }).then(function (r) {
       if (!r || r.ignored || r.off) return;
       if (S.cells) { S.cells.today_min = r.today_min; var ch = $('#cell-chip'); if (ch) ch.outerHTML = cellChip(); }
-      if (r.credited) { toast(r.credited.gained.length > 1 ? 'เรียนครบวันนี้แล้ว +' + r.credited.gained.reduce(function (a, g) { return a + g.delta; }, 0) + ' เซลล์ (มีโบนัส)' : 'เรียนครบวันนี้แล้ว +1 เซลล์ ติดกัน ' + r.credited.streak + ' วัน'); S.cells = null; loadCells(); }
+      if (r.credited) { if (festOn() === 'halloween' || (S.cells && S.cells.theme === 'spooky')) hwPlay('chime'); toast(r.credited.gained.length > 1 ? 'เรียนครบวันนี้แล้ว +' + r.credited.gained.reduce(function (a, g) { return a + g.delta; }, 0) + ' เซลล์ (มีโบนัส)' : 'เรียนครบวันนี้แล้ว +1 เซลล์ ติดกัน ' + r.credited.streak + ' วัน'); S.cells = null; loadCells(); }
     }).catch(function () {});
   }, 5000);
 }
@@ -1513,6 +1664,10 @@ function viewCells() {
       '<div class="cl-box dash"><div class="spread"><b>แลกโค้ดลด ' + baht(c.value) + '</b><span class="sm ink2">' + toCost + ' / ' + c.cost + ' เซลล์</span></div><div class="cl-bar"><i style="width:' + Math.round(toCost / c.cost * 100) + '%"></i></div>' +
       '<div class="rowx"><button class="pill s" id="cl-redeem"' + (c.can_redeem ? '' : ' disabled') + '>แลก ' + c.cost + ' เซลล์</button><span class="sm ink2">' + (c.next_redeem_at ? 'แลกครั้งถัดไปได้ ' + thDate(c.next_redeem_at) : 'ใช้กับคอร์สใหม่ 1 ครั้ง อายุ 60 วัน') + '</span></div>' +
       (c.codes.length ? '<div class="stack" style="gap:6px">' + c.codes.map(function (x) { return '<div class="spread"><span class="mono-n"><b>' + esc(x.code) + '</b></span><span class="sm ink2">' + (x.used ? 'ใช้แล้ว' : 'ลด ' + baht(x.value) + ' · ถึง ' + thDate(x.ends_at)) + '</span>' + (x.used ? '' : '<button class="pill quiet s" data-copy="' + esc(x.code) + '">คัดลอก</button>') + '</div>'; }).join('') + '</div>' : '') + '</div>' +
+      (c.events || []).filter(function (e) { return e.active || e.earned; }).map(function (e) {
+        return '<div class="cl-box cl-ev"><div class="spread"><b>🎃 ' + esc(e.name) + '</b><span class="sm ink2">' + (e.earned ? 'ได้สกินแล้ว' : 'เรียนแล้ว ' + e.days + ' / ' + e.need + ' วัน') + '</span></div><div class="cl-bar"><i style="width:' + Math.round(e.days / e.need * 100) + '%"></i></div>' +
+          '<p class="sm ink2">' + (e.earned ? 'สกินเซลล์ "ผีน้อยฮาโลวีน" เป็นของน้องถาวรแล้ว เลือกใช้ได้ที่ ธีมเว็บ ด้านล่าง' : 'เรียนครบ ' + e.need + ' วันภายใน ' + thDate(e.to + 'T23:59:00+07:00') + ' รับสกินเซลล์ลิมิเต็ด เก็บไว้ได้ถาวร (วันที่นับ = ดูคลิปครบ 15 นาที ไม่ต้องติดกัน ตอนตัวอย่างฟรีก็นับ)') + '</p></div>';
+      }).join('') +
       (festActive() ? '<div class="cl-box"><div class="spread"><b>ธีมเทศกาล' + esc(FESTS[festActive()].name) + '</b><button class="pill ghost s" data-fest="toggle">' + (festOn() ? 'ใช้ธีมของฉันแทน' : 'ใช้ธีมเทศกาล') + '</button></div><p class="sm ink2">ช่วงเทศกาลเว็บจะเปลี่ยนเป็นธีมพิเศษให้ทุกคน ถ้าชอบธีมที่ปลดล็อกไว้มากกว่า กดใช้ธีมของตัวเองได้</p></div>' : '') +
       (DEMO ? '<div class="cl-demo"><b>เดโม: ลองธีมเทศกาล</b><div class="rowx"><button class="pill ghost s" data-fest="halloween">ฮาโลวีน</button><button class="pill ghost s" data-fest="christmas">คริสต์มาส</button><button class="pill ghost s" data-fest="none">ไม่มีเทศกาล</button></div></div>' : '') +
       (DEMO ? '<div class="cl-demo"><b>เดโม: จำลองการเรียน</b><p class="sm ink2">ของจริงนับจากเวลาที่คลิปเล่นจริงในห้องเรียน ปุ่มนี้มีเฉพาะในเดโม</p><div class="rowx"><button class="pill s" id="cl-sim-study"' + (c.today_done ? ' disabled' : '') + '>เรียนวันนี้ 15 นาที</button><button class="pill ghost s" id="cl-sim-day">ข้ามไปวันถัดไป</button><button class="pill ghost s" id="cl-sim-skip">ขาดเรียน 2 วัน</button></div></div>' : '') +
@@ -1521,9 +1676,10 @@ function viewCells() {
       '<section class="blk"><div class="sec-h"><div><small>28 วันล่าสุด</small><h2>ปฏิทินการเรียน</h2></div></div><div class="cl-cal">' + cal + '</div><p class="sm ink2" style="margin-top:8px">สีเข้ม = เรียนครบ 15 นาที · สีอ่อน = เรียนแต่ยังไม่ครบ</p></section>' +
       '<section class="blk"><div class="sec-h"><div><small>เส้นทาง</small><h2>เซลล์โตตามวันที่เรียนติดกัน</h2></div></div><div class="cl-road">' + road.map(function (r) { return '<div class="' + (c.best >= r[0] ? 'done' : '') + '"><span class="d">' + r[0] + ' วัน</span><b>' + r[1] + '</b><span class="sm">' + r[2] + '</span></div>'; }).join('') + '</div></section>' +
       '<section class="blk"><div class="sec-h"><div><small>ปลดล็อกตามสถิติสูงสุด เก็บไว้ถาวร</small><h2>ธีมเว็บ</h2></div></div><div class="cl-themes">' + CELL_THEMES.map(function (t) {
-        var locked = c.best < t.d, on = c.theme === t.k;
+        var locked = t.lim ? (c.themes || []).indexOf(t.k) < 0 : c.best < t.d, on = c.theme === t.k;
+        if (t.lim && locked && !(c.events || []).some(function (e) { return e.skin === t.k && e.active; })) return ''; // หมดช่วงกิจกรรมแล้วไม่ได้ ก็ไม่ต้องโชว์
         return '<div class="cl-th' + (on ? ' on' : '') + '"><div class="cl-mock" style="--m-bg:' + t.m[0] + ';--m-ink:' + t.m[1] + ';--m-acc:' + t.m[2] + ';--m-card:' + t.m[3] + ';--m-pat:' + t.m[4] + '"><div class="hd"><span>INeed<em>Bio</em></span><em>' + (t.d || '') + '</em></div><div class="tl"><i></i><b>ชีววิทยา สอวน. ค่าย 1</b><s>฿790</s></div>' + (locked ? '<div class="lk">ปลดล็อกที่ ' + t.d + ' วัน</div>' : '') + '</div>' +
-          '<div class="cp"><span class="d">' + (t.d ? t.d + ' วัน' : 'เริ่มต้น') + '</span><b>' + esc(t.name) + '</b><p>' + esc(t.desc) + '</p>' + (locked ? '' : '<button class="pill ' + (on ? 'quiet' : 'ghost') + ' s" data-cth="' + t.k + '" style="justify-self:start"' + (on ? ' disabled' : '') + '>' + (on ? 'ใช้อยู่' : 'ใช้ธีมนี้') + '</button>') + '</div></div>';
+          '<div class="cp">' + (t.lim ? '<span class="lim">LIMITED · ฮาโลวีน</span>' : '<span class="d">' + (t.d ? t.d + ' วัน' : 'เริ่มต้น') + '</span>') + '<b>' + esc(t.name) + '</b><p>' + esc(t.desc) + '</p>' + (locked ? '' : '<button class="pill ' + (on ? 'quiet' : 'ghost') + ' s" data-cth="' + t.k + '" style="justify-self:start"' + (on ? ' disabled' : '') + '>' + (on ? 'ใช้อยู่' : 'ใช้ธีมนี้') + '</button>') + '</div></div>';
       }).join('') + '</div></section>' +
       '<section class="blk"><div class="sec-h"><div><small>กติกา</small><h2>นับจากการเรียนจริงเท่านั้น</h2></div></div><div class="cl-rules">' +
       '<div><b>วันที่นับ</b><p>คลิปต้องเล่นจริงรวม 15 นาทีในวันนั้น (ตัดวันตามเวลาไทย) กดติ๊กดูจบอย่างเดียวไม่นับ</p></div>' +
@@ -1841,16 +1997,16 @@ function startResend(st, mode) {
   };
 }
 function demoLogins() {
-  return '<div class="note plain sm stack" style="gap:8px"><b style="color:var(--ink)">บัญชีตัวอย่างสำหรับเดโม</b><div class="rowx"><button class="pill s ghost" data-demo="student">เข้าเป็นนักเรียน</button><button class="pill s ghost" data-demo="teacher">เข้าเป็นผู้สอนเคมี</button><button class="pill s ghost" data-demo="admin">เข้าเป็นแอดมิน</button></div></div>';
+  return '<div class="note plain sm stack" style="gap:8px"><b style="color:var(--ink)">บัญชีตัวอย่างสำหรับเดโม</b><div class="rowx"><button class="pill s ghost" data-demo="student">เข้าเป็นนักเรียน</button><button class="pill s ghost" data-demo="newbie">เข้าเป็นสมาชิกใหม่</button><button class="pill s ghost" data-demo="teacher">เข้าเป็นผู้สอนเคมี</button><button class="pill s ghost" data-demo="admin">เข้าเป็นแอดมิน</button></div></div>';
 }
 
 /* ─── ADMIN ─── */
 function viewAdmin(tab, arg) {
-  if (S.user && S.user.role === 'teacher' && (S.user.profile_todo || []).length && tab !== 'tprofile') { tab = 'tprofile'; arg = undefined; if (location.hash !== '#/admin/tprofile') history.replaceState(null, '', '#/admin/tprofile'); }
+  if (S.user && hasRole('teacher') && !isAdm() && (S.user.profile_todo || []).length && tab !== 'tprofile') { tab = 'tprofile'; arg = undefined; if (location.hash !== '#/admin/tprofile') history.replaceState(null, '', '#/admin/tprofile'); }
   var groups = isAdm() ? [['งานประจำวัน', [['dash', 'ภาพรวม'], ['orders', 'คำสั่งซื้อ'], ['feedback', 'รีวิวและผลการเรียน'], ['requests', 'สิทธิ์เข้าเรียน'], ['legacy', 'นักเรียนรุ่นเก่า']]],
     ['เนื้อหา', [['courses', 'คอร์สและบทเรียน'], ['results', 'ผลงานนักเรียน']]],
     ['การเงินและการขาย', [['payouts', 'ส่วนแบ่งผู้สอน'], ['finance', 'รายรับรายจ่าย'], ['bundles', 'แพ็กเกจ'], ['coupons', 'โค้ดส่วนลด'], ['accounts', 'บัญชีรับเงิน']]],
-    ['ระบบ', [['teachers', 'ผู้สอน'], ['users', 'ผู้ใช้และยศ'], ['cells', 'เซลล์สะสม'], ['log', 'บันทึกการแก้ไข'], ['settings', 'ตั้งค่า']]]]
+    ['ระบบ', [['teachers', 'ผู้สอน']].concat(hasRole('teacher') ? [['tprofile', 'โปรไฟล์ผู้สอนของฉัน']] : []).concat([['users', 'ผู้ใช้และยศ'], ['cells', 'เซลล์สะสม'], ['log', 'บันทึกการแก้ไข'], ['settings', 'ตั้งค่า']])]]
     : [['ผู้สอน · ' + mySubj().map(function (k) { return S.cfg.subjects[k]; }).join(' · '), [['dash', 'ภาพรวม'], ['courses', 'คอร์สของฉัน'], ['orders', 'คำสั่งซื้อ (ดูอย่างเดียว)'], ['payouts', 'ส่วนแบ่งของฉัน'], ['finance', 'รายรับรายจ่าย'], ['tprofile', 'โปรไฟล์ผู้สอน']]]];
   groups.forEach(function (g) { g[1] = g[1].filter(function (t) { return (t[0] !== 'cells' || feat('cells')) && (t[0] !== 'feedback' || feat('reviews')); }); });
   var allowed = [].concat.apply([], groups.map(function (g) { return g[1].map(function (t) { return t[0]; }); })).concat(['course', 'tprofile']);
@@ -2121,7 +2277,7 @@ function playlistTab(shell, c, head, bindHead) {
     return '<div class="plrow" data-i="' + i + '">' + field('pl_url_' + i, 'ลิงก์เพลย์ลิสต์', p.id ? 'https://www.youtube.com/playlist?list=' + p.id : '', { ph: 'https://www.youtube.com/playlist?list=PL...' }) +
       '<div class="row2">' + field('pl_ch_' + i, 'ตอนใหม่ใส่ในบท', p.chapter, { ph: 'ว่าง = บทสุดท้ายของคอร์ส', hint: 'ใช้ชื่อบทเดิมได้ เช่น ตะลุยโจทย์ › ชุดที่ 1' }) + field('pl_st_' + i, 'คำที่ตัดออกจากชื่อคลิป (ไม่ใส่ก็ได้)', p.strip, { ph: 'เช่น สอวน.เคมี' }) + '</div>' +
       (p.last_sync ? '<span class="hint">' + esc(p.title || p.id) + ' · มี ' + (p.last_count || 0) + ' คลิป · เช็กล่าสุด ' + thDate(p.last_sync, true) + '</span>' : '') +
-      '<button type="button" class="link sm" data-pldel="' + i + '" style="justify-self:start">ลบเพลย์ลิสต์นี้</button></div>';
+      '<div class="rowx"><button type="button" class="pill s" data-plprev="' + i + '">ดึงคลิปทั้งเพลย์ลิสต์</button><button type="button" class="link sm" data-pldel="' + i + '">ลบเพลย์ลิสต์นี้</button></div></div>';
   };
   shell(head +
     '<div class="note plain">ผูกเพลย์ลิสต์ YouTube ไว้กับคอร์สนี้ ระบบเช็กทุก 15 นาที เจอคลิปใหม่จะเพิ่มเป็นตอนใหม่ให้เอง (ชื่อตอน ความยาว ลำดับ) และส่งอีเมลแจ้งผู้สอน คลิปที่ถูกเอาออกจากเพลย์ลิสต์จะถูกซ่อน ไม่ลบ ความคืบหน้าของน้องยังอยู่ ตอนที่มีอยู่แล้ว (คลิปเดียวกัน) จะไม่ถูกเพิ่มซ้ำ</div>' +
@@ -2141,6 +2297,39 @@ function playlistTab(shell, c, head, bindHead) {
     api('staff.playlists.save', { course_id: c.course_id, playlists: collect() }).then(function () { busy(btn, false); toast('บันทึกเพลย์ลิสต์แล้ว'); viewAdmin('course', c.course_id); })
       .catch(function (x) { busy(btn, false); er.textContent = x.message; er.hidden = false; });
   };
+  // ดึงทั้งเพลย์ลิสต์: ได้ชื่อ (ตั้งตามแบบตอนก่อนหน้า) และความยาวเอง แก้ชื่อได้ก่อนกดเพิ่ม
+  $('#plrows').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-plprev]'); if (!b) return;
+    var i = b.dataset.plprev, url = $('#f-pl_url_' + i).value.trim(), strip = $('#f-pl_st_' + i).value.trim(), chap0 = $('#f-pl_ch_' + i).value.trim();
+    if (!url) return toast('วางลิงก์เพลย์ลิสต์ก่อน', true);
+    busy(b, true);
+    Promise.all([api('staff.playlist.preview', { course_id: c.course_id, url: url, strip: strip }), api('admin.lessons', { course_id: c.course_id }).catch(function () { return []; })]).then(function (res) {
+      busy(b, false);
+      var r = res[0], ls = res[1], chaps = []; ls.forEach(function (l) { if (chaps.indexOf(l.chapter) < 0) chaps.push(l.chapter); });
+      var nNew = r.items.filter(function (x) { return !x.exists; }).length;
+      $('#plres').innerHTML = '<div class="card form pl-prev"><div class="spread"><div><b>' + esc(r.title || 'เพลย์ลิสต์') + '</b><div class="sub">' + r.items.length + ' คลิป · ใหม่ ' + nNew + ' · มีในคอร์สแล้ว ' + (r.items.length - nNew) + '</div></div></div>' +
+        '<p class="hint" style="margin:0">' + (r.style ? 'ตั้งชื่อตามแบบตอนก่อนหน้า เช่น "' + esc(r.style.example) + '" → ' + esc(r.style.format) + 'ชื่อคลิป (ใช้เลขในชื่อคลิป ถ้าไม่มีนับต่อจาก ' + (r.style.next - 1) + ')' : 'คอร์สนี้ยังไม่มีแบบเลขตอน ใช้ชื่อคลิปโดยตัดคำที่ซ้ำทุกคลิปออก') + ' · แก้ชื่อในช่องได้ก่อนกดเพิ่ม</p>' +
+        '<label class="f" for="plp-ch">ใส่ในบท<input class="i" id="plp-ch" list="plp-chs" value="' + esc(chap0 || chaps[chaps.length - 1] || '') + '" placeholder="ชื่อบท"><datalist id="plp-chs">' + chaps.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist></label>' +
+        '<div class="pl-list">' + r.items.map(function (x, k) {
+          return '<div class="pl-it' + (x.exists ? ' ex' : '') + '"><input type="checkbox" data-plk="' + k + '"' + (x.exists ? ' disabled' : ' checked') + ' aria-label="เพิ่มคลิปนี้"><div><input class="i" data-plt="' + k + '" value="' + esc(x.title) + '"' + (x.exists ? ' disabled' : '') + ' aria-label="ชื่อตอน"><small>' + esc(x.yt_title) + '</small></div><span class="pl-d">' + (x.duration_min ? x.duration_min + ' นาที' : '—') + (x.exists ? '<br><em>มีแล้ว</em>' : '') + '</span></div>';
+        }).join('') + '</div>' +
+        '<p class="err" id="plp-err" hidden></p><div class="rowx"><button type="button" class="pill s" id="plp-go"' + (nNew ? '' : ' disabled') + '>เพิ่ม ' + nNew + ' ตอน และให้ซิงก์คลิปใหม่เอง</button><span class="hint">คลิปที่ถูกเอาออกจากเพลย์ลิสต์ทีหลัง ระบบจะซ่อนให้</span></div></div>';
+      var cnt = function () { var n = $$('[data-plk]:checked').length; $('#plp-go').textContent = 'เพิ่ม ' + n + ' ตอน และให้ซิงก์คลิปใหม่เอง'; $('#plp-go').disabled = !n; };
+      $$('[data-plk]').forEach(function (cb) { cb.onchange = cnt; });
+      $('#plp-go').onclick = function () {
+        var gb = this, er = $('#plp-err'), ch = $('#plp-ch').value.trim(); er.hidden = true;
+        if (!ch) { er.textContent = 'ใส่ชื่อบทก่อน'; er.hidden = false; return; }
+        var items = r.items.map(function (x, k) { return { x: x, k: k }; }).filter(function (o) { var cb = $('[data-plk="' + o.k + '"]'); return cb && cb.checked; })
+          .map(function (o) { return { chapter: ch, title: $('[data-plt="' + o.k + '"]').value.trim(), youtube: 'https://youtu.be/' + o.x.youtube_id, duration_min: o.x.duration_min, source_playlist: r.id }; });
+        if (items.some(function (x) { return !x.title; })) { er.textContent = 'มีตอนที่ยังไม่มีชื่อ'; er.hidden = false; return; }
+        busy(gb, true);
+        var pls = collect(); pls.forEach(function (p) { if (p.url === url && !p.chapter) p.chapter = ch; });
+        api('admin.lessons.bulk', { course_id: c.course_id, items: items }).then(function () { return api('staff.playlists.save', { course_id: c.course_id, playlists: pls }); })
+          .then(function () { toast('เพิ่ม ' + items.length + ' ตอนแล้ว'); viewAdmin('course', c.course_id); }).catch(function (x2) { busy(gb, false); er.textContent = x2.message; er.hidden = false; });
+      };
+      $('#plres').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }).catch(function (x) { busy(b, false); toast(x.message, true); });
+  });
   $('#plsync').onclick = function () {
     var b = this; busy(b, true);
     api('staff.course.sync', { course_id: c.course_id }).then(function (r) {
@@ -2287,7 +2476,7 @@ function aUsers(shell) {
     S.ulist = us;
     shell('<h1>ผู้ใช้และยศ</h1><p class="ink2 sm">ตั้งผู้สอนได้ที่ปุ่ม "ยศ" ผู้สอนเห็นเฉพาะวิชาที่เลือก</p><form id="uqf" class="rowx"><input class="i" id="uq" name="q" style="max-width:360px" placeholder="ค้นหาชื่อ อีเมล เบอร์ หรือโรงเรียน" value="' + esc(q) + '"><button class="pill ghost s">ค้นหา</button></form>' +
       (us.length ? '<div class="tbl"><table style="min-width:760px"><thead><tr><th>ชื่อ</th><th>โรงเรียน</th><th>คอร์สที่มีสิทธิ์</th><th>อุปกรณ์ที่ใช้อยู่</th><th></th></tr></thead><tbody>' + us.map(function (u) {
-        return '<tr><td><div class="urow">' + (u.has_photo ? '<button class="pav s" data-ph="' + esc(u.user_id) + '" data-n="' + esc(u.nickname) + '" title="ดูรูป">' + uAv(u.user_id, true) + '</button>' : '<span class="pav s" title="ยังไม่มีรูป">' + uAv('', false) + '</span>') + '<div>' + esc(u.first_name + ' ' + u.last_name) + ' (' + esc(u.nickname) + ')' + (u.is_repeat ? ' <span class="badge b-wait">ซิ่ว</span>' : '') + (u.role === 'admin' ? ' <span class="badge b-inv">แอดมิน</span>' : u.role === 'teacher' ? ' <span class="badge b-ok">ผู้สอน · ' + (u.subjects || []).map(function (k) { return esc(SHORT[k] || k); }).join(', ') + '</span>' : '') + (u.status === 'banned' ? ' <span class="badge b-no">ระงับ</span>' : '') +
+        return '<tr><td><div class="urow">' + (u.has_photo ? '<button class="pav s" data-ph="' + esc(u.user_id) + '" data-n="' + esc(u.nickname) + '" title="ดูรูป">' + uAv(u.user_id, true) + '</button>' : '<span class="pav s" title="ยังไม่มีรูป">' + uAv('', false) + '</span>') + '<div>' + esc(u.first_name + ' ' + u.last_name) + ' (' + esc(u.nickname) + ')' + (u.is_repeat ? ' <span class="badge b-wait">ซิ่ว</span>' : '') + (uRoles(u).indexOf('admin') >= 0 ? ' <span class="badge b-inv">แอดมิน</span>' : '') + (uRoles(u).indexOf('teacher') >= 0 ? ' <span class="badge b-ok">ผู้สอน · ' + (u.subjects || []).map(function (k) { return esc(SHORT[k] || k); }).join(', ') + '</span>' : '') + (u.status === 'banned' ? ' <span class="badge b-no">ระงับ</span>' : '') +
           '<div class="sub">' + esc(u.email) + ' · ' + esc(u.phone) + '</div>' + contactLine(u) + '</div></div></td><td>' + esc(u.school) + '<div class="sub">' + esc(u.grade) + (u.is_repeat && u.current_university ? ' · ตอนนี้ ' + esc(u.current_faculty) + ' ' + esc(u.current_university) : '') + '</div>' + (u.dream_faculty ? '<div class="sub">ฝัน: ' + esc(u.dream_faculty) + ' · ' + esc(u.dream_university) + '</div>' : '') + '</td><td class="sm">' + (u.courses.length ? u.courses.map(esc).join('<br>') : '<span class="sub">–</span>') + '</td>' +
           '<td class="sm">' + (u.device ? esc(u.device) + '<div class="sub">ตั้งแต่ ' + thDate(u.device_since, true) + '</div>' : '<span class="sub">ไม่ได้เข้าสู่ระบบ</span>') + '</td>' +
           '<td><div class="acts">' + (u.user_id === S.user.user_id ? '<span class="sub">บัญชีของคุณ</span>' :
@@ -2348,7 +2537,8 @@ function aSettings(shell) {
       '<input type="hidden" name="home_billboard" id="f-home_billboard" value="' + esc(s.home_billboard || '') + '"><div class="bbset" id="bbset"><p class="hint">กำลังโหลดคอร์ส…</p></div>' +
       '<h3 style="font-size:16px;margin-top:6px">ทั่วไป</h3>' + field('announcement', 'ประกาศบนหัวเว็บ (เว้นว่างเพื่อซ่อน)', s.announcement, { ph: 'เช่น เปิดรับสมัครคอร์สชีววิทยา สอวน. รอบ 2027 แล้ว' }) +
       (feat('cells') ? field('cells_enabled', 'ระบบเซลล์แบ่งตัว (สะสมวันเรียนต่อเนื่อง แลกโค้ดลด)', s.cells_enabled || '1', { options: [['1', 'เปิด'], ['0', 'ปิด']] }) : '') +
-      (feat('fest') ? field('event_mode', 'ธีมเทศกาล (ทับธีมของทุกคนชั่วคราว น้องกดกลับไปใช้ธีมตัวเองได้)', s.event_mode || 'auto', { options: [['auto', 'อัตโนมัติตามปฏิทิน · ฮาโลวีน 1–31 ต.ค. · คริสต์มาส 1–31 ธ.ค.'], ['off', 'ปิด'], ['halloween', 'ฮาโลวีน ตั้งแต่ตอนนี้'], ['christmas', 'คริสต์มาส ตั้งแต่ตอนนี้']] }) : '') +
+      (feat('fest') ? field('event_mode', 'ธีมเทศกาล (ทับธีมของทุกคนชั่วคราว น้องกดกลับไปใช้ธีมตัวเองได้)', s.event_mode || 'auto', { options: [['auto', 'อัตโนมัติตามปฏิทิน · ฮาโลวีน 1–31 ต.ค. · คริสต์มาส 1–31 ธ.ค.'], ['off', 'ปิด'], ['halloween', 'ฮาโลวีน ตั้งแต่ตอนนี้'], ['christmas', 'คริสต์มาส ตั้งแต่ตอนนี้']] }) +
+        '<div class="row2">' + field('event_from', 'เริ่ม (เวลาไทย ว่าง = ตามปฏิทิน)', s.event_from || '', { type: 'datetime-local' }) + field('event_until', 'สิ้นสุด (เวลาไทย ว่าง = ตามปฏิทิน)', s.event_until || '', { type: 'datetime-local', hint: 'เช่น ฮาโลวีนจบ 31 ต.ค. 23:59' }) + '</div>' : '') +
       '<h3 style="font-size:16px;margin-top:6px">การชำระเงิน</h3><p class="hint">บัญชีแยกตามวิชาตั้งได้ที่เมนู <a href="#/admin/accounts">บัญชีรับเงิน</a> ส่วนนี้คือบัญชีหลัก ใช้กับวิชาที่ยังไม่ได้ผูกบัญชี</p>' +
       '<div class="row2">' + field('promptpay_id', 'บัญชีหลัก: เบอร์หรือเลขบัตรพร้อมเพย์', s.promptpay_id, { mode: 'numeric' }) + field('promptpay_name', 'บัญชีหลัก: ชื่อบัญชี', s.promptpay_name) + '</div>' +
       field('order_expire_hours', 'ต้องส่งหลักฐานภายในกี่ชั่วโมงหลังสั่งซื้อ (เลยแล้วบิลยกเลิกเอง)', s.order_expire_hours || '48', { mode: 'numeric' }) +
@@ -2574,17 +2764,21 @@ function prLabel(pr) {
 
 /* ─── ส่วนแบ่งผู้สอน ─── */
 function aPayouts(shell) {
-  var pr = S.poP || prNow(), adm = isAdm();
-  Promise.all([api('fin.summary', { period: pr }), adm ? Promise.resolve([]) : api('fin.payouts.mine').catch(function () { return []; })]).then(function (res) {
-    var f = res[0], hist = res[1], subs = S.cfg.subjects || {}, pays = f.pays || [], pos = f.payouts || [], P = f.profiles || {};
+  var adm = isAdm();
+  Promise.all([api('fin.summary', S.poP ? { period: S.poP } : {}), adm ? Promise.resolve([]) : api('fin.payouts.mine').catch(function () { return []; })]).then(function (res) {
+    var f = res[0], hist = res[1], subs = S.cfg.subjects || {}, pays = f.pays || [], pos = f.payouts || [], P = f.profiles || {}, pr = f.period;
     var poOf = function (x) { return pos.filter(function (p) { return p.user_id === x.user_id && (p.subject || '') === x.subject; })[0]; };
     var need = 0, paid = 0, sales = 0;
     f.by_subject.forEach(function (b) { sales += b.income; });
     pays.forEach(function (x) { if (x.settle > 0) { need += x.settle; var po = poOf(x); if (po && po.status === 'paid') paid += x.settle; } });
-    var st = f.closed ? '<span class="chip ok">ปิดยอดแล้ว' + (f.closed_at ? ' ' + thDate(f.closed_at) : '') + '</span>' : f.pending_close ? '<span class="chip wait">รอปิดยอด · มีรายจ่ายรออนุมัติ</span>' : '<span class="chip soft">กำลังนับ · ปิดยอดเองเมื่อครบรอบ</span>';
+    var st = f.closed ? '<span class="chip ok">ปิดยอดแล้ว · ตัดยอด ' + thDate(f.cutoff || f.closed_at, true) + '</span>' : f.pending_close ? '<span class="chip wait">รอปิดยอด · มีรายจ่ายรออนุมัติ</span>' : '<span class="chip soft">กำลังนับ · ยอดที่เข้ามาอยู่งวดนี้จนกว่าจะปิดยอด</span>';
     var html = '<div class="spread"><h1>' + (adm ? 'ส่วนแบ่งผู้สอน' : 'ส่วนแบ่งของฉัน') + '</h1><div class="rowx">' +
-      '<button class="pill quiet s" id="po-prev" aria-label="งวดก่อน">←</button><b style="min-width:150px;text-align:center">' + esc(prLabel(pr)) + '</b><button class="pill quiet s" id="po-next" aria-label="งวดถัดไป"' + (pr >= prNow() ? ' disabled' : '') + '>→</button></div></div>' +
-      '<div class="rowx" style="justify-content:space-between">' + st + (adm ? '<div class="rowx">' + (f.pending_close ? '<a class="pill ghost s" href="#/admin/finance">ดูรายจ่ายรออนุมัติ</a>' : '') + (f.closed && !pos.some(function (p) { return p.status === 'paid' && p.amount; }) ? '<button class="pill quiet s" id="po-reopen">เปิดงวดใหม่</button>' : '') + '<button class="pill s" id="po-split">ตั้งสัดส่วนผู้สอน</button></div>' : '') + '</div>' +
+      '<button class="pill quiet s" id="po-prev" aria-label="งวดก่อน">←</button><b style="min-width:150px;text-align:center">' + esc(prLabel(pr)) + '</b><button class="pill quiet s" id="po-next" aria-label="งวดถัดไป"' + (pr >= f.max_period ? ' disabled' : '') + '>→</button></div></div>' +
+      '<div class="rowx" style="justify-content:space-between">' + st + (adm ? '<div class="rowx">' + (f.pending_close ? '<a class="pill ghost s" href="#/admin/finance">ดูรายจ่ายรออนุมัติ</a>' : '') +
+        (f.can_close ? '<button class="pill s" id="po-close">ปิดยอดตอนนี้</button>' : '') + (f.can_recut ? '<button class="pill quiet s" id="po-recut">แก้เวลาตัดยอด</button>' : '') +
+        (f.closed && f.can_recut && !pos.some(function (p) { return p.status === 'paid' && p.amount; }) ? '<button class="pill quiet s" id="po-reopen">เปิดงวดใหม่</button>' : '') +
+        (!f.closed ? '<button class="pill quiet s" id="po-adj">+ ปรับปรุงยอด</button>' : '') + '<button class="pill quiet s" id="po-split">ตั้งส่วนแบ่ง</button></div>' : '') + '</div>' +
+      (f.rolled_in ? '<div class="note plain sm">มี ' + f.rolled_in + ' รายการที่เข้ามาหลังปิดยอดงวดก่อน ยกมารวมในงวดนี้แล้ว (ดูได้ในรายรับรายจ่าย ป้าย "ยกมา")</div>' : '') +
       '<div class="kpis">' + [['ยอดขายงวดนี้', sales, ''], [adm ? 'ต้องโอนผู้สอน' : 'ส่วนแบ่งของฉัน', need, ''], ['โอนแล้ว', paid, ''], ['รอโอน', need - paid, need - paid > 0 ? ' wait' : '']].map(function (k) { return '<div class="kpi' + k[2] + '"><span>' + k[0] + '</span><b>' + money2(k[1]) + '</b></div>'; }).join('') + '</div>';
     var cards = Object.keys(subs).map(function (k) {
       var b = f.by_subject.filter(function (x) { return x.subject === k; })[0], rows = pays.filter(function (x) { return x.subject === k; });
@@ -2598,25 +2792,63 @@ function aPayouts(shell) {
         else act = '<span class="amt">' + money2(x.settle) + '</span>' + (adm && po ? '<button class="pill s" data-popay="' + esc(po.payout_id) + '" data-u="' + esc(x.user_id) + '" data-s="' + esc(k) + '">แนบสลิปโอน</button>' : '<span class="chip wait">รอโอน</span>');
         var acc = p.account_no ? '<div class="po-acc"><span>ชื่อบัญชี ' + esc(p.account_name || '-') + '</span><b>' + esc(p.bank_name || '') + ' ' + esc(p.account_no) + '</b></div>'
           : '<div class="po-acc miss"><span>ยังไม่ได้ใส่บัญชีรับเงิน</span><b>' + (adm ? '<a href="#/admin/tprofile/' + esc(x.user_id) + '">เพิ่มในโปรไฟล์ผู้สอน</a>' : '<a href="#/admin/tprofile">เพิ่มในโปรไฟล์ของคุณ</a>') + '</b></div>';
-        return '<div class="po-row">' + tAv(p.photo, 'po-av') + '<div class="po-nm"><b>' + esc(p.name || x.name) + '</b><small>' + x.pct + '% ของวิชา' + esc(subs[k]) + (x.held ? ' · หักเงินที่เข้าบัญชีตัวเอง ' + money2(x.held) : '') + '</small></div>' + acc + '<div class="po-act">' + act + '</div></div>';
+        return '<div class="po-row">' + tAv(p.photo, 'po-av') + '<div class="po-nm"><b>' + esc(p.name || x.name) + '</b><small>' + ((x.courses || []).length ? 'จาก ' + x.courses.map(esc).join(', ') : x.share ? x.pct + '% ของวิชา' + esc(subs[k]) : 'ไม่มียอดขายในงวดนี้') + (x.held ? ' · หักเงินที่เข้าบัญชีตัวเอง ' + money2(x.held) : '') + '</small>' + (x.adjust ? '<small class="po-adj">ปรับปรุงยอด ' + (x.adjust > 0 ? '+' : '') + money2(x.adjust) + ' · ' + (x.adjust_notes || []).map(function (t) { return esc(t.replace(/^[+−]\S+\s*/, '')); }).join(', ') + '</small>' : '') + '</div>' + acc + '<div class="po-act">' + act + '</div></div>';
       };
-      return '<div class="po-sj' + sc(k) + '"><div class="po-hd"><span class="po-dot">' + esc(subs[k]) + '</span><div class="po-calc"><span>ยอดขาย <b>' + money2(b.income) + '</b></span><span>− รายจ่าย <b>' + money2(b.expense) + '</b></span><span>= แบ่งได้ <b>' + money2(b.pool) + '</b></span></div></div>' +
+      return '<div class="po-sj' + sc(k) + '"><div class="po-hd"><span class="po-dot">' + esc(subs[k]) + '</span><div class="po-calc"><span>ยอดขาย <b>' + money2(b.income) + '</b></span><span>− รายจ่าย <b>' + money2(b.expense) + '</b></span><span>= แบ่งได้ <b>' + money2(b.pool_all != null ? b.pool_all : b.pool) + '</b></span></div></div>' +
         (rows.length ? rows.map(row).join('') : '') +
+        (b.others || []).map(function (o) { return '<div class="po-row po-oth"><span class="po-av po-oi" aria-hidden="true">' + ICON.bank + '</span><div class="po-nm"><b>' + esc(o.label) + '</b><small>' + o.pct + '% ของยอดที่แบ่ง · ไม่ใช่ผู้สอน</small></div><div class="po-acc"><span>เก็บไว้ที่</span><b>INeedBio</b></div><div class="po-act"><span class="amt">' + money2(o.amount) + '</span><span class="chip soft">เข้าสถาบัน ไม่ต้องโอน</span></div></div>'; }).join('') +
         (b.unassigned ? '<div class="po-note warn">' + money2(b.unassigned) + ' ยังไม่มีผู้รับส่วนแบ่ง' + (adm ? ' · <button class="link sm" data-posp="' + k + '">ตั้งสัดส่วนวิชานี้</button>' : '') + '</div>' : '') + '</div>';
     }).join('');
     html += cards || '<div class="empty"><p>ยังไม่มียอดขายในงวดนี้</p></div>';
+    if ((f.adjustments || []).length) html += '<h3 style="font-size:17px">ปรับปรุงยอดในงวดนี้</h3><div class="tbl"><table style="min-width:560px"><thead><tr><th>ผู้สอน</th><th>วิชา</th><th>เหตุผล</th><th class="num">ยอด</th><th></th></tr></thead><tbody>' +
+      f.adjustments.map(function (a) { return '<tr><td>' + esc((P[a.user_id] || {}).name || a.name) + '</td><td>' + esc(subs[a.subject] || a.subject) + '</td><td class="sm">' + esc(a.note) + (a.source === 'recut' ? ' <span class="chip soft">อัตโนมัติ</span>' : '') + '</td><td class="num">' + (a.amount > 0 ? '+' : '') + money2(a.amount) + '</td><td>' + (adm && !f.closed && a.source !== 'recut' ? '<button class="link sm" data-adjdel="' + esc(a.adj_id) + '">ลบ</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
     if (!adm && hist.length) html += '<h3 style="font-size:17px">ย้อนหลัง</h3><div class="tbl"><table style="min-width:560px"><thead><tr><th>งวด</th><th>วิชา</th><th class="num">ส่วนแบ่ง</th><th class="num">ยอดโอน</th><th>สถานะ</th><th></th></tr></thead><tbody>' +
       hist.map(function (h) { return '<tr><td>' + esc(h.label) + '</td><td>' + esc(subs[h.subject] || h.subject) + '</td><td class="num">' + money2(h.share) + '</td><td class="num">' + money2(h.amount) + '</td><td>' + (h.status === 'paid' ? '<span class="chip ok">โอนแล้ว ' + thDate(h.paid_at) + '</span>' : '<span class="chip wait">รอโอน</span>') + '</td><td>' + (h.has_slip ? '<button class="link sm" data-poslip="' + esc(h.payout_id) + '">ดูสลิป</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
-    html += '<p class="hint">วิธีคิด: ยอดขายของวิชา − รายจ่ายที่อนุมัติแล้วของวิชา = ยอดที่แบ่ง ไม่มีค่าแพลตฟอร์ม แบ่งให้ผู้สอนตามสัดส่วนที่ตั้งไว้ ณ วันที่ขาย ถ้าน้องโอนเข้าบัญชีผู้สอนโดยตรง หักออกจากยอดที่ต้องโอน · ปิดยอดทุกวันที่ 15 และวันสุดท้ายของเดือน</p>';
+    html += '<p class="hint">วิธีคิด: ยอดขายของวิชา − รายจ่ายที่อนุมัติแล้วของวิชา = ยอดที่แบ่ง แบ่งให้ผู้สอนที่ติ๊กในคอร์สนั้น และส่วนที่ไม่ใช่ผู้สอน (เช่น ค่าหลังบ้าน) ตามที่ตั้งไว้ ณ วันที่ขาย ถ้าน้องโอนเข้าบัญชีผู้สอนโดยตรง หักออกจากยอดที่ต้องโอน · ปิดยอดอัตโนมัติวันที่ 15 และสิ้นเดือน หรือแอดมินกดปิดยอดเองได้ทุกเมื่อ ยอดที่เข้ามาหลังเวลาตัดยอดยกไปงวดถัดไปเอง</p>';
     shell(html);
     $('#po-prev').onclick = function () { S.poP = prAdd(pr, -1); viewAdmin('payouts'); };
     $('#po-next').onclick = function () { S.poP = prAdd(pr, 1); viewAdmin('payouts'); };
     if ($('#po-split')) $('#po-split').onclick = function () { splitsModal(); };
+    if ($('#po-close')) $('#po-close').onclick = function () { cutoffModal(f, false); };
+    if ($('#po-recut')) $('#po-recut').onclick = function () { cutoffModal(f, true); };
+    if ($('#po-adj')) $('#po-adj').onclick = function () { adjustModal(f); };
+    $$('[data-adjdel]').forEach(function (b) { b.onclick = function () { busy(b, true); api('fin.adjust.delete', { adj_id: b.dataset.adjdel }).then(function () { toast('ลบแล้ว'); viewAdmin('payouts'); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
     $$('[data-posp]').forEach(function (b) { b.onclick = function () { splitsModal(b.dataset.posp); }; });
     if ($('#po-reopen')) $('#po-reopen').onclick = function () { confirmBox('เปิดงวด ' + prLabel(pr) + ' ใหม่?', 'ตัวเลขจะคำนวณใหม่ ทำได้เฉพาะเมื่อยังไม่ได้โอนเงินผู้สอนของงวดนี้', 'เปิดงวดใหม่', true).then(function (y) { if (y) api('fin.reopen', { period: pr }).then(function () { toast('เปิดงวดใหม่แล้ว'); viewAdmin('payouts'); }).catch(function (e) { toast(e.message, true); }); }); };
     $$('[data-popay]').forEach(function (b) { b.onclick = function () { var x = pays.filter(function (y) { return y.user_id === b.dataset.u && y.subject === b.dataset.s; })[0]; payModal(b.dataset.popay, x, P[b.dataset.u] || {}, subs[b.dataset.s], pr); }; });
     $$('[data-poslip]').forEach(function (b) { b.onclick = function () { busy(b, true); api('fin.payout.slip', { payout_id: b.dataset.poslip }).then(function (r) { busy(b, false); openModal(mhead('สลิปการโอน') + (r.mime === 'application/pdf' ? '<iframe title="สลิป" style="width:100%;height:70vh;border:0" src="data:application/pdf;base64,' + r.base64 + '"></iframe>' : '<img class="phbig" alt="สลิปการโอน" src="data:' + esc(r.mime) + ';base64,' + r.base64 + '">')); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
   }).catch(function (e) { shell('<h1>ส่วนแบ่งผู้สอน</h1><p class="err">' + esc(e.message) + '</p>'); });
+}
+function thInput(iso) { return new Date((iso ? new Date(iso).getTime() : Date.now()) + 7 * 36e5).toISOString().slice(0, 16); }
+/** ปิดยอด / แก้เวลาตัดยอด: ยอดที่อนุมัติหลังเวลานี้ยกไปงวดถัดไปเอง */
+function cutoffModal(f, recut) {
+  var pr = f.period;
+  openModal(mhead(recut ? 'แก้เวลาตัดยอด ' + prLabel(pr) : 'ปิดยอด ' + prLabel(pr), recut ? 'คิดยอดงวดนี้ใหม่ตามเวลาที่ใส่ ยอดที่เข้าหลังเวลานี้ไปอยู่งวดถัดไป' : 'ล็อกตัวเลขของงวดนี้และสร้างรายการโอนให้ผู้สอน') +
+    '<form class="form" id="cof"><label class="f" for="co-at">เวลาตัดยอด (เวลาไทย)<input class="i" type="datetime-local" id="co-at" value="' + thInput(recut ? f.cutoff : null) + '" max="' + thInput() + '" required></label>' +
+    '<div class="co-ex"><b>ตัวอย่าง</b><span>โอนเงินผู้สอนไปตอน 17:00 วันที่ 30 → ใส่ 30 · 17:00 ยอดที่อนุมัติหลัง 17:00 จะไปรวมในงวดถัดไปเอง ไม่หาย และไม่ถูกนับซ้ำ</span></div>' +
+    (recut ? '<div class="note wait sm">ผู้สอนที่ยังไม่โอน: ระบบแก้ยอดรอโอนให้ · ที่โอนไปแล้ว: ไม่แก้ยอดที่โอน แต่ลงส่วนต่างเป็น "ปรับปรุงยอด" ในงวดถัดไปให้เอง (โอนเกินจะถูกหัก โอนขาดจะได้เพิ่ม)</div>' : '') +
+    '<p class="err" id="cof-err" hidden></p><button class="pill">' + (recut ? 'คิดยอดใหม่' : 'ปิดยอด') + '</button></form>');
+  $('#cof').onsubmit = function (e) {
+    e.preventDefault(); var btn = $('#cof button'), er = $('#cof-err'), v = $('#co-at').value; er.hidden = true;
+    if (!v) { er.textContent = 'ใส่เวลาตัดยอด'; er.hidden = false; return; }
+    busy(btn, true);
+    api(recut ? 'fin.recut' : 'fin.close', { period: pr, cutoff: new Date(v + ':00+07:00').toISOString() }).then(function () { closeModal(); toast(recut ? 'คิดยอดใหม่แล้ว' : 'ปิดยอดแล้ว'); S.poP = pr; viewAdmin('payouts'); }).catch(function (x) { busy(btn, false); er.textContent = x.message; er.hidden = false; });
+  };
+}
+/** ปรับปรุงยอดเอง: บวก/ลบให้ผู้สอนในงวดที่ยังเปิด */
+function adjustModal(f) {
+  var subs = S.cfg.subjects || {};
+  api('fin.splits').then(function (r) {
+    var people = r.people.filter(function (x) { return (x.roles || [x.role]).indexOf('teacher') >= 0; });
+    openModal(mhead('ปรับปรุงยอด ' + prLabel(f.period), 'เพิ่มหรือหักเงินให้ผู้สอนในงวดนี้ เช่น แก้ยอดที่ผิดของงวดก่อน ผู้สอนเห็นเหตุผลที่ใส่') +
+      '<form class="form" id="ajf">' + field('user_id', 'ผู้สอน', '', { options: people.map(function (x) { return [x.user_id, x.name + ' · ' + x.full]; }) }) +
+      '<div class="row2">' + field('subject', 'วิชา', '', { options: Object.keys(subs).map(function (k) { return [k, subs[k]]; }) }) + field('amount', 'ยอด (บาท) ติดลบ = หักคืน', '', { ph: 'เช่น 500 หรือ -200' }) + '</div>' +
+      field('note', 'เหตุผล', '', { ph: 'เช่น ยอดคอร์ส ม.5 ของ 30 ก.ย. ที่ยังไม่ได้รับ' }) +
+      '<p class="err" id="ajf-err" hidden></p><button class="pill">บันทึก</button></form>');
+    var sync = function () { var u = people.filter(function (x) { return x.user_id === $('#f-user_id').value; })[0]; if (u && u.subjects.length && u.subjects.indexOf($('#f-subject').value) < 0) $('#f-subject').value = u.subjects[0]; };
+    $('#f-user_id').onchange = sync; sync();
+    submitForm('#ajf', 'fin.adjust.save', '#ajf-err', function () { closeModal(); toast('บันทึกแล้ว'); S.poP = f.period; viewAdmin('payouts'); }, function () { return { period: f.period, amount: String($('#f-amount').value).replace(/[^\d.\-]/g, '') }; });
+  }).catch(function (e) { toast(e.message, true); });
 }
 function payModal(id, x, p, subj, pr) {
   var now = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 16);
@@ -2631,12 +2863,13 @@ function payModal(id, x, p, subj, pr) {
     e.preventDefault(); var btn = $('#pmf button:not([type=button])'), er = $('#pmf-err'), file = $('#pm-file').files[0]; er.hidden = true;
     if (!file) { er.textContent = 'เลือกไฟล์สลิปก่อน'; er.hidden = false; return; }
     busy(btn, true);
-    var send = function (slip) { api('fin.payout.pay', { payout_id: id, slip: slip, paid_at: new Date($('#pm-at').value + ':00+07:00').toISOString(), note: $('#f-note').value }).then(function () { closeModal(); toast('บันทึกแล้ว ส่งอีเมลแจ้งผู้สอนแล้ว'); viewAdmin('payouts'); }).catch(function (x2) { busy(btn, false); er.textContent = x2.message; er.hidden = false; }); };
+    var send = function (slip) { api('fin.payout.pay', { payout_id: id, slip: slip, paid_at: new Date($('#pm-at').value + ':00+07:00').toISOString(), note: $('#f-note').value }).then(function () { closeModal(); toast('บันทึกแล้ว ส่งอีเมลแจ้งผู้สอนแล้ว'); S.poP = pr; viewAdmin('payouts'); }).catch(function (x2) { busy(btn, false); er.textContent = x2.message; er.hidden = false; }); };
     if (file.type === 'application/pdf') { var rd = new FileReader(); rd.onload = function () { send({ mime: 'application/pdf', base64: String(rd.result).split(',')[1] }); }; rd.readAsDataURL(file); }
     else compressImage(file).then(send).catch(function () { busy(btn, false); er.textContent = 'เปิดไฟล์สลิปไม่ได้'; er.hidden = false; });
   };
 }
 function splitsModal(only) {
+  if (only) S.tmS = only; location.hash = '#/admin/teachers'; return;
   api('fin.splits').then(function (r) {
     var subs = S.cfg.subjects || {}, cur = only || S.spS || Object.keys(subs)[0];
     var today = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10);
@@ -2678,15 +2911,71 @@ function splitsModal(only) {
 /* ─── โปรไฟล์ผู้สอน ─── */
 function aTeachers(shell) {
   api('admin.teachers').then(function (list) {
-    var subs = S.cfg.subjects || {};
-    shell('<div class="spread"><h1>ผู้สอน</h1><span class="sub">เพิ่มหรือนำผู้สอนออกได้ที่นี่ · โปรไฟล์สร้างให้อัตโนมัติเมื่อได้ยศผู้สอน</span></div><div id="team"></div><h3 style="font-size:17px">โปรไฟล์ผู้สอน</h3>' +
+    var subs = S.cfg.subjects || {}, TD = { name: 'ชื่อ', photo: 'รูป', bank: 'บัญชีรับเงิน' };
+    var tlist = list.filter(function (t) { return (t.roles || [t.role]).indexOf('teacher') >= 0; }), miss = tlist.filter(function (t) { return (t.profile_todo || []).length; });
+    shell('<div class="spread"><h1>ผู้สอน</h1><span class="sub">เพิ่มหรือนำผู้สอนออก ตั้งส่วนแบ่ง และตามให้ผู้สอนกรอกโปรไฟล์</span></div><div id="team"></div>' +
+      '<div class="spread"><h3 style="font-size:17px">โปรไฟล์ผู้สอน</h3>' + (miss.length ? '<button class="pill ghost s" id="tc-all">ส่งอีเมลตามทุกคนที่ยังกรอกไม่ครบ (' + miss.length + ')</button>' : '') + '</div>' +
       '<div class="tc-grid">' + list.map(function (t) {
-        return '<a class="tc" href="#/admin/tprofile/' + esc(t.user_id) + '">' + tAv(t.photo_url, 'tc-av') + '<div><b>' + esc(t.display_name) + '</b><span>' + esc(t.title || '') + '</span><div class="rowx" style="gap:6px;margin-top:6px">' +
-          (t.role === 'admin' ? '<span class="chip soft">เจ้าของ/แอดมิน</span>' : '') + t.subjects.map(function (k) { return '<span class="chip soft">' + esc(subs[k] || k) + '</span>'; }).join('') +
-          '<span class="chip ' + (t.has_bank ? 'ok' : 'no') + '">' + (t.has_bank ? 'มีบัญชีรับเงิน' : 'ยังไม่มีบัญชีรับเงิน') + '</span><span class="chip soft">สอน ' + t.courses + ' คอร์ส</span></div></div></a>';
+        var R = t.roles || [t.role], todo = t.profile_todo || [], teach = R.indexOf('teacher') >= 0;
+        var inv = !teach ? '' : !todo.length ? '<span class="chip ok">โปรไฟล์ครบ</span>'
+          : '<div class="tc-inv"><span class="chip wait">ยังขาด ' + todo.map(function (k) { return TD[k] || k; }).join(' · ') + '</span>' +
+            (t.invite_error ? '<span class="tc-st bad">ส่งอีเมลไม่สำเร็จ: ' + esc(t.invite_error) + '</span>' : t.invited_at ? '<span class="tc-st">ส่งอีเมลเชิญแล้ว ' + thDate(t.invited_at, true) + '</span>' : '<span class="tc-st">ยังไม่ได้ส่งอีเมลเชิญ</span>') +
+            '<span class="rowx" style="gap:6px"><button type="button" class="pill s" data-tinv="' + esc(t.user_id) + '">' + (t.invited_at ? 'ส่งอีเมลอีกครั้ง' : 'ส่งอีเมลเชิญ') + '</button><button type="button" class="pill quiet s" data-tpv="' + esc(t.user_id) + '">ดูตัวอย่างอีเมล</button></span></div>';
+        return '<div class="tc"><a href="#/admin/tprofile/' + esc(t.user_id) + '" class="tc-l">' + tAv(t.photo_url, 'tc-av') + '</a><div style="flex:1;min-width:0"><a class="tc-l" href="#/admin/tprofile/' + esc(t.user_id) + '"><b>' + esc(t.display_name) + '</b><span>' + esc(t.title || '') + '</span></a><div class="rowx" style="gap:6px;margin-top:6px">' +
+          (R.indexOf('admin') >= 0 ? '<span class="chip soft">แอดมิน</span>' : '') + (teach ? t.subjects.map(function (k) { return '<span class="chip soft">ผู้สอน' + esc(subs[k] || k) + '</span>'; }).join('') : '') +
+          (teach ? '<span class="chip soft">ในหน้าคอร์ส ' + t.courses + ' คอร์ส</span>' : '') + '</div>' + inv + '</div></div>';
       }).join('') + '</div>');
     teamCard($('#team'));
+    $$('[data-tinv]').forEach(function (b) { b.onclick = function () { busy(b, true); api('admin.teacher.invite', { user_id: b.dataset.tinv }).then(function (x) { inviteToast(x); viewAdmin('teachers'); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
+    $$('[data-tpv]').forEach(function (b) { b.onclick = function () { busy(b, true); api('admin.teacher.invite', { user_id: b.dataset.tpv, preview: true }).then(function (x) { busy(b, false); mailPreview(x); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
+    if ($('#tc-all')) $('#tc-all').onclick = function () { var b = this; busy(b, true); api('admin.teacher.invite', { all: true }).then(function (x) { var okN = x.results.filter(function (y) { return y.ok; }).length, bad = x.results.filter(function (y) { return !y.ok; }); if (bad.length) toast('ส่งได้ ' + okN + ' · ไม่สำเร็จ ' + bad.length + ': ' + bad[0].error, true); else toast('ส่งอีเมลแล้ว ' + okN + ' คน'); viewAdmin('teachers'); }).catch(function (e) { busy(b, false); toast(e.message, true); }); };
   }).catch(function (e) { shell('<h1>ผู้สอน</h1><p class="err">' + esc(e.message) + '</p>'); });
+}
+function mailPreview(x) {
+  openModal(mhead('ตัวอย่างอีเมลที่จะส่ง', 'ถึง ' + esc(x.to)) + '<div class="mp-sub"><span>หัวเรื่อง</span><b>' + esc(x.subject) + '</b></div><iframe class="mp-f" title="ตัวอย่างอีเมล" sandbox=""></iframe>', true);
+  var f = $('.mp-f'); if (f) f.srcdoc = x.html;
+}
+/* รายการแก้ในบรรทัดได้ + ลากวางเรียงลำดับ (เมาส์และนิ้ว) · Alt+↑/↓ ย้ายด้วยคีย์บอร์ด */
+function editList(host, arr, onChange, empty) {
+  var fit = function (t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; };
+  var draw = function (focusIdx) {
+    host.innerHTML = arr.length ? arr.map(function (l, i) { return '<div class="el-it" data-eli="' + i + '"><span class="el-g" aria-hidden="true" title="ลากเพื่อย้าย"><svg width="14" height="20" viewBox="0 0 14 20" fill="currentColor"><circle cx="4" cy="4" r="1.6"/><circle cx="10" cy="4" r="1.6"/><circle cx="4" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="4" cy="16" r="1.6"/><circle cx="10" cy="16" r="1.6"/></svg></span><textarea class="el-t" rows="1" maxlength="200" aria-label="บรรทัดที่ ' + (i + 1) + ' (Alt+ลูกศรขึ้นลงเพื่อย้าย)">' + esc(l) + '</textarea><button type="button" class="el-x" aria-label="ลบบรรทัดนี้">×</button></div>'; }).join('') : '<p class="hint">' + esc(empty || '') + '</p>';
+    $$('.el-it', host).forEach(function (it) {
+      var i = +it.dataset.eli, t = $('.el-t', it);
+      fit(t);
+      t.oninput = function () { arr[i] = t.value.replace(/\n/g, ' '); if (/\n/.test(t.value)) t.value = arr[i]; fit(t); onChange && onChange(); };
+      t.onkeydown = function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); return; }
+        if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); var j = i + (e.key === 'ArrowUp' ? -1 : 1); if (j < 0 || j >= arr.length) return; var x = arr.splice(i, 1)[0]; arr.splice(j, 0, x); draw(j); onChange && onChange(); }
+      };
+      t.onblur = function () { var v = t.value.trim(); if (v !== t.value) { arr[i] = v; t.value = v; } };
+      $('.el-x', it).onclick = function () { arr.splice(i, 1); draw(); onChange && onChange(); };
+      $('.el-g', it).onpointerdown = function (e) { startDrag(e, it, i); };
+    });
+    if (focusIdx != null) { var ft = $$('.el-t', host)[focusIdx]; if (ft) ft.focus(); }
+  };
+  var startDrag = function (e, it, from) {
+    e.preventDefault();
+    var items = $$('.el-it', host), y0 = e.clientY, gap = 6, h = it.offsetHeight + gap, to = from;
+    var mids = items.map(function (x) { var r = x.getBoundingClientRect(); return r.top + r.height / 2; });
+    it.classList.add('drag'); host.classList.add('dragging');
+    try { it.setPointerCapture(e.pointerId); } catch (x) {}
+    var move = function (ev) {
+      var dy = ev.clientY - y0; it.style.transform = 'translateY(' + dy + 'px)';
+      var c = mids[from] + dy; to = from;
+      mids.forEach(function (m, k) { if (k < from && c < m) to = Math.min(to, k); if (k > from && c > m) to = Math.max(to, k); });
+      items.forEach(function (x, k) { if (k === from) return; x.style.transform = k >= to && k < from ? 'translateY(' + h + 'px)' : k <= to && k > from ? 'translateY(' + -h + 'px)' : ''; });
+    };
+    var up = function () {
+      it.removeEventListener('pointermove', move); it.removeEventListener('pointerup', up); it.removeEventListener('pointercancel', up);
+      host.classList.remove('dragging'); it.classList.remove('drag');
+      items.forEach(function (x) { x.style.transform = ''; });
+      if (to !== from) { var v = arr.splice(from, 1)[0]; arr.splice(to, 0, v); onChange && onChange(); }
+      draw();
+    };
+    it.addEventListener('pointermove', move); it.addEventListener('pointerup', up); it.addEventListener('pointercancel', up);
+  };
+  draw();
 }
 function aTProfile(shell, uid) {
   api('teacher.profile', uid ? { user_id: uid } : {}).then(function (t) {
@@ -2698,10 +2987,7 @@ function aTProfile(shell, uid) {
       $('#tp-photo').innerHTML = st.photo_url ? '<img src="' + esc(imgSrc(st.photo_url)) + '" alt="">' : '<img src="' + CATSRC + '" alt="" class="cat">';
     };
     var bio = function () {
-      $('#tp-bio').innerHTML = st.bio.map(function (l, i) { return '<div class="bi"><span>' + esc(l) + '</span><span class="bi-a"><button type="button" data-bu="' + i + '" aria-label="เลื่อนขึ้น"' + (i ? '' : ' disabled') + '>↑</button><button type="button" data-bd="' + i + '" aria-label="เลื่อนลง"' + (i < st.bio.length - 1 ? '' : ' disabled') + '>↓</button><button type="button" class="del" data-bx="' + i + '">ลบ</button></span></div>'; }).join('') || '<p class="hint">ยังไม่มีประวัติ เพิ่มได้ด้านล่าง</p>';
-      $$('[data-bu]').forEach(function (b) { b.onclick = function () { var i = +b.dataset.bu, x = st.bio[i]; st.bio[i] = st.bio[i - 1]; st.bio[i - 1] = x; bio(); }; });
-      $$('[data-bd]').forEach(function (b) { b.onclick = function () { var i = +b.dataset.bd, x = st.bio[i]; st.bio[i] = st.bio[i + 1]; st.bio[i + 1] = x; bio(); }; });
-      $$('[data-bx]').forEach(function (b) { b.onclick = function () { st.bio.splice(+b.dataset.bx, 1); bio(); }; });
+      editList($('#tp-bio'), st.bio, prev, 'ยังไม่มีประวัติ เพิ่มได้ด้านล่าง');
       prev();
     };
     var mine = !uid || uid === S.user.user_id;
@@ -2711,7 +2997,7 @@ function aTProfile(shell, uid) {
       '<div class="tp-ph"><span class="tp-img" id="tp-photo"></span><div class="stack" style="gap:6px"><label class="pill s" style="cursor:pointer;justify-self:start">อัปโหลดรูปใหม่<input type="file" id="tp-file" accept="image/*" hidden></label><span class="hint">รูปนี้ขึ้นทุกคอร์สที่สอน' + (t.courses.length ? ' ' + t.courses.length + ' คอร์ส' : '') + '</span></div></div>' +
       '<div class="row2">' + field('display_name', 'ชื่อที่แสดง', t.display_name, { ph: 'เช่น พี่หมีลี่' }) + '<label class="f">ชื่อจริง (จากตอนสมัคร)<input class="i" value="' + esc(t.full_name) + '" disabled></label></div>' +
       field('title', 'คำโปรยใต้ชื่อ', t.title, { ph: 'เช่น ที่ 1 คณะสหเวชศาสตร์ จุฬาฯ' }) +
-      '<div class="f">ประวัติ (เรียงลำดับได้)<div class="stack" style="gap:6px" id="tp-bio"></div><div class="rowx" style="flex-wrap:nowrap"><input class="i" id="tp-add" placeholder="เพิ่มประวัติ เช่น ผลงาน รางวัล ประสบการณ์" maxlength="200"><button type="button" class="pill quiet s" id="tp-addb">เพิ่ม</button></div></div>' +
+      '<div class="f">ประวัติ <span class="hint" style="display:inline">คลิกข้อความเพื่อแก้ · ลาก ⋮⋮ เพื่อย้าย</span><div class="stack" style="gap:6px" id="tp-bio"></div><div class="rowx" style="flex-wrap:nowrap"><input class="i" id="tp-add" placeholder="เพิ่มประวัติ เช่น ผลงาน รางวัล ประสบการณ์" maxlength="200"><button type="button" class="pill quiet s" id="tp-addb">เพิ่ม</button></div></div>' +
       '<div class="msec"><h3>บัญชีรับส่วนแบ่ง</h3><p class="hint">เห็นได้แค่เจ้าของบัญชีกับเจ้าของเว็บ</p></div>' +
       '<div class="row2">' + field('account_name', 'ชื่อบัญชี', t.account_name) + field('bank_name', 'ธนาคาร', t.bank_name, { ph: 'เช่น กสิกรไทย' }) + '</div>' + field('account_no', 'เลขที่บัญชี', t.account_no, { mode: 'numeric' }) +
       '<p class="err" id="tpf-err" hidden></p><button class="pill" style="justify-self:start">บันทึกโปรไฟล์</button></form>' +
@@ -2781,7 +3067,7 @@ var LMODE = store('ib_lmode') || 'auto';
 var MQD = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
 function applyLearnMode(on) {
   var r = document.documentElement;
-  S.inLearn = !!on;
+  S.inLearn = !!on; r.classList.toggle('in-learn', !!on); if (on) hwMusic(false);
   if (!on || !UI2()) { r.classList.remove('theater'); applyTheme(); return; }
   var dark = LMODE === 'dark' || (LMODE === 'auto' && MQD && MQD.matches);
   r.classList.toggle('theater', dark);
@@ -2801,54 +3087,156 @@ function bindLmode() {
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { lmodeKnob(true); });
 }
 
-/* ─── ทีมผู้สอน: เพิ่ม/นำออก และ % ปรับให้เอง ─── */
+/* ─── ทีมผู้สอน: เพิ่ม/นำออก · ส่วนที่ไม่ใช่ผู้สอน · ติ๊กว่าใครได้ส่วนแบ่งจากคอร์สไหน ─── */
+function inviteToast(inv, pre) {
+  if (!inv) return toast(pre || 'บันทึกแล้ว');
+  if (inv.ok) toast((pre ? pre + ' · ' : '') + 'ส่งอีเมลเชิญไปที่ ' + inv.to + ' แล้ว');
+  else toast((pre ? pre + ' แต่' : '') + 'ส่งอีเมลเชิญไม่สำเร็จ: ' + (inv.error || 'ไม่ทราบสาเหตุ'), true);
+}
+function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 function teamCard(host, subjDefault) {
   Promise.all([api('fin.splits'), api('admin.users', { q: '' }).catch(function () { return []; })]).then(function (res) {
     var r = res[0], users = res[1], subs = S.cfg.subjects || {}, cur = S.tmS || subjDefault || Object.keys(subs)[0];
     var today = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10), from = S.tmFrom || today, q = '';
-    var person = function (id) { return r.people.filter(function (p) { return p.user_id === id; })[0] || { name: id, full: '' }; };
-    var partsOf = function (sj) {
-      var vs = (r.splits[sj] || []).filter(function (v) { return v.from <= from; }), v = vs[vs.length - 1];
-      if (v && v.parts.length) return v.parts.map(function (x) { return { user_id: x.user_id, pct: Number(x.pct) }; });
-      var ts = r.people.filter(function (p) { return p.role === 'teacher' && p.subjects.indexOf(sj) >= 0; });
-      return ts.map(function (p) { return { user_id: p.user_id, pct: Math.round(10000 / ts.length) / 100 }; });
+    var person = function (id) { return r.people.filter(function (p) { return p.user_id === id; })[0] || { name: id, full: '', photo: '' }; };
+    var cs, team, O, Mx, dirty;
+    // เวอร์ชันที่ใช้ ณ วันที่เลือก → แปลงเป็น { others, courses } (แบบเดียวกับหลังบ้าน)
+    var load = function () {
+      cs = r.courses.filter(function (c) { return c.subject === cur; });
+      var vs = (r.splits[cur] || []).filter(function (v) { return v.from <= from; }), v = vs[vs.length - 1], map = {};
+      O = []; var tch = null;
+      if (v && v.courses) { O = (v.others || []).map(function (x) { return { label: x.label, pct: Number(x.pct) }; }); map = v.courses; }
+      else {
+        if (v && (v.parts || []).length) { O = v.parts.filter(function (x) { return x.kind === 'other'; }).map(function (x) { return { label: x.label, pct: Number(x.pct) }; }); tch = v.parts.filter(function (x) { return x.kind !== 'other'; }); }
+        else { var ts = r.people.filter(function (p) { return (p.roles || [p.role]).indexOf('teacher') >= 0 && p.subjects.indexOf(cur) >= 0; }); tch = ts.map(function (p) { return { user_id: p.user_id, pct: 100 / ts.length }; }); }
+        if (tch.length) cs.forEach(function (c) { map[c.course_id] = tch; });
+      }
+      Mx = {};
+      cs.forEach(function (c) {
+        var L = map[c.course_id] || [], eq = L.every(function (x) { return Math.abs(x.pct - L[0].pct) < 0.02; });
+        Mx[c.course_id] = { ids: L.map(function (x) { return x.user_id; }), custom: eq ? null : L.reduce(function (a, x) { a[x.user_id] = Number(x.pct); return a; }, {}) };
+      });
+      team = r.people.filter(function (p) { return (p.roles || [p.role]).indexOf('teacher') >= 0 && p.subjects.indexOf(cur) >= 0; }).map(function (p) { return p.user_id; });
+      Object.keys(Mx).forEach(function (cid) { Mx[cid].ids.forEach(function (id) { if (team.indexOf(id) < 0) team.push(id); }); });
+      dirty = false;
     };
-    var L = partsOf(cur), dirty = false;
-    var fix = function () { L.forEach(function (x) { x.pct = Math.round(x.pct * 100) / 100; }); var t = L.reduce(function (a, x) { return a + x.pct; }, 0); if (L.length) L[L.length - 1].pct = Math.round((L[L.length - 1].pct + 100 - t) * 100) / 100; };
-    var paintBar = function () {
-      var bs = $$('.tm-bar > span', host);
-      L.forEach(function (x, i) { if (bs[i]) { bs[i].style.flexBasis = x.pct + '%'; bs[i].textContent = x.pct >= 14 ? person(x.user_id).name + ' ' + Math.round(x.pct) + '%' : ''; } });
-      $$('.tm-p', host).forEach(function (el, i) { if (!L[i]) return; $('.tm-pc', el).value = Math.round(L[i].pct * 10) / 10; var rg = $('input[type=range]', el); if (document.activeElement !== rg) rg.value = Math.round(L[i].pct); });
-      $('#tm-save', host).disabled = !dirty;
+    var Tt = function () { return r2(100 - O.reduce(function (a, x) { return a + (Number(x.pct) || 0); }, 0)); };
+    var pctOf = function (cid) {
+      var m = Mx[cid], T = Tt();
+      if (!m.ids.length) return [];
+      if (m.custom) return m.ids.map(function (id) { return { user_id: id, pct: r2(m.custom[id]) }; });
+      var L = m.ids.map(function (id) { return { user_id: id, pct: r2(T / m.ids.length) }; }), s = L.reduce(function (a, x) { return a + x.pct; }, 0);
+      L[L.length - 1].pct = r2(L[L.length - 1].pct + T - s); return L;
+    };
+    var bad = function (cid) { var L = pctOf(cid); return L.length && Math.abs(L.reduce(function (a, x) { return a + x.pct; }, 0) - Tt()) > 0.05; };
+    // โหมด "ใส่ % เอง": ทุกช่องเป็นตัวเลข (เช่น คณิต แต่ละ ม. แต่ละเทอม แต่ละคนไม่เท่ากัน) · โหมดติ๊ก: แบ่งเท่ากัน
+    S.tmMode = S.tmMode || {};
+    var mode = function () { return S.tmMode[cur] || (cs.some(function (c) { return Mx[c.course_id].custom; }) ? 'pct' : 'tick'); };
+    var toPct = function () { cs.forEach(function (c) { var m = Mx[c.course_id], L = pctOf(c.course_id), o = {}; team.forEach(function (id) { var x = L.filter(function (y) { return y.user_id === id; })[0]; o[id] = x ? x.pct : 0; }); m.custom = o; m.ids = team.filter(function (id) { return o[id] > 0; }); }); };
+    var fixIds = function (m) { m.ids = Object.keys(m.custom || {}).filter(function (id) { return Number(m.custom[id]) > 0; }); };
+    var gradeOf = function (c) { var g = String(c.title).match(/ม\.?\s*([1-6])/) || String(c.course_id).match(/-M([1-6])(?:-|$)/); return g ? 'ม.' + g[1] : 'คอร์สอื่น'; };
+    var groups = function () { var o = [], idx = {}; cs.forEach(function (c) { var g = gradeOf(c); if (idx[g] == null) { idx[g] = o.length; o.push({ g: g, cs: [] }); } o[idx[g]].cs.push(c); }); return o.length > 1 ? o : [{ g: '', cs: cs }]; };
+    var rowSum = function (cid) { return r2(pctOf(cid).reduce(function (a, x) { return a + x.pct; }, 0)); };
+    var totTag = function (cid) { var sm = rowSum(cid), T0 = Tt(); return '<span class="tk-tot ' + (!sm ? 'none' : Math.abs(sm - T0) > 0.05 ? 'bad' : 'ok') + '" data-tot="' + esc(cid) + '">' + (!sm ? 'ยังไม่มีผู้รับ' : sm + ' / ' + T0 + '%') + '</span>'; };
+    var narrow = function () { return window.innerWidth < 700; };
+    var sumTxt = function (cid) {
+      var L = pctOf(cid); if (!L.length) return '<span class="tk-none">ยังไม่มีผู้รับ</span>';
+      if (bad(cid)) return '<span class="tk-bad">รวม ' + r2(L.reduce(function (a, x) { return a + x.pct; }, 0)) + '% ต้องได้ ' + Tt() + '%</span>';
+      return Mx[cid].custom ? '<span>ปรับเอง</span>' : '<span>' + (L.length > 1 ? 'คนละ ' + r2(Tt() / L.length) + '%' : L[0].pct + '%') + '</span>';
+    };
+    var sec3 = function () {
+      var M = mode(), T = Tt(), G = groups(), P = M === 'pct';
+      if (P) cs.forEach(function (c) { var m = Mx[c.course_id]; if (m.custom) return; var L = pctOf(c.course_id), o = {}; team.forEach(function (id) { var x = L.filter(function (y) { return y.user_id === id; })[0]; o[id] = x ? x.pct : 0; }); m.custom = o; fixIds(m); });
+      var head = '<div class="tm-sec"><div class="tm-h tm-h3"><div><b>3 · ใครได้ส่วนแบ่งจากคอร์สไหน</b><span>' + (P ? 'ใส่ % ของแต่ละคนในแต่ละคอร์ส รวมทั้งแถวต้องได้ ' + T + '% (ส่วนผู้สอน) · ช่องว่าง = ไม่ได้ส่วนแบ่งจากคอร์สนั้น' : 'ผู้สอนที่ติ๊กในคอร์สเดียวกันแบ่ง ' + T + '% เท่ากัน') + ' · คอร์สที่ไม่มีผู้รับ ยอดเข้าสถาบันทั้งหมด</span></div>' +
+        '<div class="seg tk-mode" role="group" aria-label="วิธีแบ่ง"><button type="button" data-tkm="tick" aria-pressed="' + !P + '">ติ๊กแบ่งเท่ากัน</button><button type="button" data-tkm="pct" aria-pressed="' + P + '">ใส่ % เอง</button></div></div>';
+      if (!team.length || !cs.length) return head + '<p class="hint">' + (cs.length ? 'เพิ่มผู้สอนก่อน แล้วเลือกคอร์สที่เขาได้ส่วนแบ่ง' : 'วิชานี้ยังไม่มีคอร์ส') + '</p></div>';
+      var anyBad = cs.some(function (c) { return bad(c.course_id); });
+      var tools = P && anyBad ? '<div class="tk-warn"><span>มี ' + cs.filter(function (c) { return bad(c.course_id); }).length + ' คอร์สที่ยังรวมไม่ได้ ' + T + '%</span><button type="button" class="pill quiet s" data-tkscale="1">ปรับทุกแถวให้ได้ ' + T + '% (คงสัดส่วนเดิม)</button></div>' : '';
+      var cell = function (c, id) {
+        var m = Mx[c.course_id], on = m.ids.indexOf(id) >= 0, nm = esc(person(id).name);
+        if (P) return '<label class="tm-pcw tk-in"><input class="i tm-pc" inputmode="decimal" data-pc="' + esc(c.course_id) + '|' + esc(id) + '" value="' + (m.custom && Number(m.custom[id]) > 0 ? r2(m.custom[id]) : '') + '" placeholder="–" aria-label="' + nm + ' % จาก ' + esc(c.title) + '"><span>%</span></label>';
+        return '<label class="tk-box"><input type="checkbox" data-tk="' + esc(c.course_id) + '|' + esc(id) + '"' + (on ? ' checked' : '') + ' aria-label="' + nm + ' ได้ส่วนแบ่งจาก ' + esc(c.title) + '"><span></span></label>';
+      };
+      var acts = function (c, g) { var o = []; if (P) o.push('<button type="button" class="link sm" data-tkeq="' + esc(c.course_id) + '">แบ่งเท่า</button>'); if (g.g && g.cs.length > 1) o.push('<button type="button" class="link sm" data-tkcp="' + esc(c.course_id) + '">ใช้กับทั้ง ' + esc(g.g) + '</button>'); return o.join(''); };
+      if (narrow()) {
+        return head + tools + G.map(function (g) {
+          return (g.g ? '<div class="tk-gh">' + esc(g.g) + '</div>' : '') + g.cs.map(function (c) {
+            return '<div class="tk-card' + (bad(c.course_id) ? ' bad' : '') + '" data-row="' + esc(c.course_id) + '"><div class="tk-ch"><b>' + esc(c.title) + '</b>' + totTag(c.course_id) + '</div>' +
+              '<div class="tk-cl">' + team.map(function (id) { var p = person(id); return '<div class="tk-ci">' + tAv(p.photo, 'tk-av') + '<span>' + esc(p.name) + '</span>' + cell(c, id) + '</div>'; }).join('') + '</div>' +
+              '<div class="tk-ca">' + acts(c, g) + '</div></div>';
+          }).join('');
+        }).join('') + '</div>';
+      }
+      return head + tools + '<div class="tk-wrap"><table class="tk' + (P ? ' tk-pctm' : '') + '"><thead><tr><th>คอร์ส</th>' + team.map(function (id) { var p = person(id); return '<th class="tk-p">' + tAv(p.photo, 'tk-av') + '<span>' + esc(p.name) + '</span>' + (P ? '' : '<button type="button" class="link sm" data-tkall="' + esc(id) + '">ทุกคอร์ส</button>') + '</th>'; }).join('') + '<th>รวมผู้สอน</th><th></th></tr></thead><tbody>' +
+        G.map(function (g) {
+          return (g.g ? '<tr class="tk-g"><td colspan="' + (team.length + 3) + '">' + esc(g.g) + '</td></tr>' : '') + g.cs.map(function (c) {
+            return '<tr data-row="' + esc(c.course_id) + '"' + (bad(c.course_id) ? ' class="bad"' : '') + '><td><b>' + esc(c.title) + '</b>' + (c.status !== 'published' ? '<small>' + (c.status === 'draft' ? 'ฉบับร่าง' : 'ปิดขาย') + '</small>' : '') + '</td>' +
+              team.map(function (id) { return '<td class="tk-c">' + cell(c, id) + '</td>'; }).join('') + '<td class="tk-s">' + totTag(c.course_id) + '</td><td class="tk-a">' + acts(c, g) + '</td></tr>';
+          }).join('');
+        }).join('') + '</tbody></table></div></div>';
     };
     var draw = function () {
       S.tmS = cur;
-      var inT = L.map(function (x) { return x.user_id; });
-      var cands = q.length >= 2 ? users.filter(function (u) { return inT.indexOf(u.user_id) < 0 && [u.first_name, u.last_name, u.nickname, u.email].join(' ').toLowerCase().indexOf(q.toLowerCase()) >= 0; }).slice(0, 5) : [];
-      host.innerHTML = '<div class="card tm"><div class="spread"><h3>ทีมผู้สอนและสัดส่วน</h3><div class="sp-tabs">' + Object.keys(subs).map(function (k) { return '<button type="button" data-tms="' + k + '" aria-pressed="' + (k === cur) + '">' + esc(subs[k]) + '</button>'; }).join('') + '</div></div>' +
-        '<div class="tm-bar' + sc(cur) + '">' + (L.length ? L.map(function (x, i) { return '<span style="flex-basis:' + x.pct + '%;background:color-mix(in srgb,var(--acc) ' + (100 - i * 20) + '%,#0b0e12)"></span>'; }).join('') : '<span class="none">ยังไม่มีผู้รับส่วนแบ่ง</span>') + '</div>' +
-        '<div class="stack" style="gap:8px">' + L.map(function (x, i) { var p = person(x.user_id); return '<div class="tm-p' + sc(cur) + '">' + tAv(p.photo, 'tm-av') + '<div class="tm-nm"><b>' + esc(p.name) + '</b><small>' + esc(p.full) + (p.role === 'admin' ? ' · เจ้าของ' : '') + '</small></div><input type="range" min="0" max="100" step="1" value="' + Math.round(x.pct) + '" data-tmr="' + i + '" aria-label="สัดส่วนของ ' + esc(p.name) + '"><label class="tm-pcw"><input class="i tm-pc" inputmode="decimal" data-tmn="' + i + '" value="' + x.pct + '" aria-label="เปอร์เซ็นต์"><span>%</span></label><button type="button" class="tm-x" data-tmx="' + esc(x.user_id) + '" aria-label="นำ ' + esc(p.name) + ' ออก">×</button></div>'; }).join('') + '</div>' +
-        '<div class="tm-add"><input class="i" id="tm-q" placeholder="+ เพิ่มผู้สอน: พิมพ์ชื่อหรืออีเมลของคนที่สมัครแล้ว" value="' + esc(q) + '" autocomplete="off"><div class="stack" style="gap:6px" id="tm-c">' +
+      var cands = q.length >= 2 ? users.filter(function (u) { return team.indexOf(u.user_id) < 0 && [u.first_name, u.last_name, u.nickname, u.email].join(' ').toLowerCase().indexOf(q.toLowerCase()) >= 0; }).slice(0, 5) : [];
+      var vers = (r.splits[cur] || []).map(function (v) { return v.from; });
+      var T = Tt();
+      host.innerHTML = '<div class="card tm"><div class="spread"><h3>ทีมผู้สอนและส่วนแบ่ง</h3><div class="sp-tabs">' + Object.keys(subs).map(function (k) { return '<button type="button" data-tms="' + k + '" aria-pressed="' + (k === cur) + '">' + esc(subs[k]) + '</button>'; }).join('') + '</div></div>' +
+        // 1) ผู้สอน
+        '<div class="tm-sec"><div class="tm-h"><b>1 · ผู้สอนวิชา' + esc(subs[cur]) + '</b><span>ได้ยศผู้สอน เข้าหลังบ้านของวิชานี้ และถูกขอให้กรอกโปรไฟล์</span></div>' +
+        '<div class="tm-team">' + (team.length ? team.map(function (id) { var p = person(id); return '<span class="tm-mem">' + tAv(p.photo, 'tm-av') + '<span><b>' + esc(p.name) + '</b><small>' + esc(p.full) + ((p.roles || []).indexOf('admin') >= 0 ? ' · แอดมิน' : '') + '</small></span><button type="button" class="tm-x" data-tmx="' + esc(id) + '" aria-label="นำ ' + esc(p.name) + ' ออก">×</button></span>'; }).join('') : '<span class="hint">ยังไม่มีผู้สอน</span>') + '</div>' +
+        '<div class="tm-add"><input class="i" id="tm-q" placeholder="+ เพิ่มผู้สอน: พิมพ์ชื่อหรืออีเมลของคนที่สมัครแล้ว" value="' + esc(q) + '" autocomplete="off"><div class="stack" style="gap:6px">' +
         cands.map(function (u) { return '<div class="tm-cand">' + uAv(u.user_id, u.has_photo) + '<span><b>' + esc(u.first_name + ' ' + u.last_name) + '</b> (' + esc(u.nickname) + ') <span class="sub" style="display:inline">' + esc(u.email) + '</span></span><button type="button" class="pill s" data-tma="' + esc(u.user_id) + '">เพิ่มเป็นผู้สอน' + esc(subs[cur]) + '</button></div>'; }).join('') +
-        (q.length >= 2 && !cands.length ? '<span class="hint">ไม่พบผู้ใช้ ให้ผู้สอนสมัครสมาชิกก่อน</span>' : '') + '</div></div>' +
-        '<div class="spread"><label class="rowx sm ink2" style="gap:8px">มีผลตั้งแต่<input class="i" type="date" id="tm-from" value="' + from + '" style="width:auto"></label><div class="rowx"><button type="button" class="pill quiet s" id="tm-eq">แบ่งเท่ากัน</button><button type="button" class="pill s" id="tm-save"' + (dirty ? '' : ' disabled') + '>บันทึกสัดส่วน</button></div></div>' +
-        '<p class="hint">เพิ่มผู้สอน: ให้ยศผู้สอน ส่งอีเมลให้เข้ามากรอกโปรไฟล์ และแบ่ง % ใหม่เท่ากันทันที · นำออก: ส่วนของเขาแบ่งให้คนที่เหลือตามสัดส่วน และเอาออกจากคอร์สของวิชานี้ · งวดที่ปิดแล้วไม่เปลี่ยน</p></div>';
-      hydrateAv(host); paintBar();
-      $$('[data-tms]', host).forEach(function (b) { b.onclick = function () { cur = b.dataset.tms; L = partsOf(cur); dirty = false; q = ''; draw(); }; });
-      $$('[data-tmr]', host).forEach(function (rg) { rg.oninput = function () {
-        var i = +rg.dataset.tmr, nv = +rg.value, oth = L.filter(function (_, j) { return j !== i; }), rest = oth.reduce(function (a, x) { return a + x.pct; }, 0);
-        if (!oth.length) { L[i].pct = 100; paintBar(); return; }
-        L[i].pct = nv; oth.forEach(function (x) { x.pct = rest > 0 ? x.pct / rest * (100 - nv) : (100 - nv) / oth.length; }); fix(); dirty = true; paintBar();
-      }; });
-      $$('[data-tmn]', host).forEach(function (n) { n.onchange = function () { var i = +n.dataset.tmn, nv = Math.max(0, Math.min(100, Number(n.value) || 0)), oth = L.filter(function (_, j) { return j !== i; }), rest = oth.reduce(function (a, x) { return a + x.pct; }, 0); L[i].pct = nv; oth.forEach(function (x) { x.pct = rest > 0 ? x.pct / rest * (100 - nv) : (100 - nv) / (oth.length || 1); }); fix(); dirty = true; paintBar(); }; });
-      $('#tm-eq', host).onclick = function () { L.forEach(function (x) { x.pct = 100 / L.length; }); fix(); dirty = true; paintBar(); };
-      $('#tm-from', host).onchange = function () { from = this.value || today; S.tmFrom = from; L = partsOf(cur); dirty = false; draw(); };
+        (q.length >= 2 && !cands.length ? '<span class="hint">ไม่พบผู้ใช้ ให้ผู้สอนสมัครสมาชิกก่อน</span>' : '') + '</div></div></div>' +
+        // 2) ส่วนที่ไม่ใช่ผู้สอน
+        '<div class="tm-sec"><div class="tm-h"><b>2 · ส่วนที่ไม่ใช่ผู้สอน</b><span>เช่น ค่าหลังบ้าน ค่าจัดการ หักจากทุกคอร์สของวิชานี้ เข้าสถาบัน ไม่ต้องโอน และไม่เกี่ยวกับรายจ่ายที่ตั้งเบิก</span></div>' +
+        '<div class="tm-split' + sc(cur) + '"><span style="flex-basis:' + Math.max(T, 0) + '%">ผู้สอน ' + T + '%</span>' + O.map(function (x) { return Number(x.pct) > 0 ? '<span class="o" style="flex-basis:' + x.pct + '%">' + esc(x.label || 'ส่วนอื่น') + ' ' + r2(x.pct) + '%</span>' : ''; }).join('') + '</div>' +
+        '<div class="stack" style="gap:8px">' + O.map(function (x, i) { return '<div class="tm-o"><span class="tm-oi" aria-hidden="true">' + ICON.bank + '</span><input class="i" data-onm="' + i + '" value="' + esc(x.label) + '" placeholder="ชื่อ เช่น ค่าหลังบ้าน" aria-label="ชื่อส่วน"><label class="tm-pcw"><input class="i tm-pc" inputmode="decimal" data-opc="' + i + '" value="' + x.pct + '" aria-label="เปอร์เซ็นต์"><span>%</span></label><button type="button" class="tm-x" data-ox="' + i + '" aria-label="ลบ">×</button></div>'; }).join('') + '</div>' +
+        '<div class="rowx" style="gap:6px">' + (O.length ? '' : ['ค่าหลังบ้าน', 'ค่าจัดการ'].map(function (l) { return '<button type="button" class="pill quiet s" data-oadd="' + l + '">+ ' + l + '</button>'; }).join('')) + '<button type="button" class="pill quiet s" data-oadd="">+ เพิ่มส่วนอื่น</button></div></div>' +
+        // 3) ส่วนแบ่งต่อคอร์ส
+        sec3() +
+        // บันทึก
+        '<div class="spread tm-foot"><div class="rowx" style="gap:8px"><label class="rowx sm ink2" style="gap:8px">มีผลตั้งแต่<input class="i" type="date" id="tm-from" value="' + from + '" style="width:auto"></label>' +
+        (vers.length ? '<span class="tm-vers">ตั้งไว้: ' + vers.map(function (d) { return '<button type="button" class="chip' + (d === from ? ' on' : '') + '" data-tmv="' + d + '">' + thDate(d + 'T12:00:00+07:00') + '</button>'; }).join('') + '</span>' : '') + '</div>' +
+        '<button type="button" class="pill s" id="tm-save"' + (dirty ? '' : ' disabled') + '>บันทึกส่วนแบ่ง</button></div>' +
+        '<p class="hint">ยอดที่แบ่ง = ยอดขายของคอร์ส − รายจ่ายที่อนุมัติของวิชา · ใช้กับยอดขายตั้งแต่วันที่เลือก งวดที่ปิดแล้วไม่เปลี่ยน · นำผู้สอนออก: ส่วนของเขาในแต่ละคอร์สไปที่ผู้สอนที่เหลือของคอร์สนั้น</p></div>';
+      hydrateAv(host);
+      var mark = function () { dirty = true; draw(); };
+      $$('[data-tms]', host).forEach(function (b) { b.onclick = function () { cur = b.dataset.tms; q = ''; load(); draw(); }; });
+      $$('[data-tmv]', host).forEach(function (b) { b.onclick = function () { from = b.dataset.tmv; S.tmFrom = from; load(); draw(); }; });
+      $('#tm-from', host).onchange = function () { from = this.value || today; S.tmFrom = from; load(); draw(); };
       var qi = $('#tm-q', host); qi.oninput = function () { q = qi.value; var pos = qi.selectionStart; draw(); var n = $('#tm-q', host); n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} };
-      $$('[data-tma]', host).forEach(function (b) { b.onclick = function () { busy(b, true); api('admin.team.add', { user_id: b.dataset.tma, subject: cur, from: from }).then(function () { toast('เพิ่มผู้สอนแล้ว ส่งอีเมลให้กรอกโปรไฟล์แล้ว'); S.tlist = null; viewAdmin('teachers'); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
-      $$('[data-tmx]', host).forEach(function (b) { b.onclick = function () { var p = person(b.dataset.tmx); confirmBox('นำ ' + p.name + ' ออกจากวิชา' + subs[cur] + '?', 'ส่วนแบ่งของเขาจะแบ่งให้คนที่เหลือตามสัดส่วน ตั้งแต่ ' + thDate(from + 'T12:00:00+07:00') + ' และเอาออกจากคอร์สของวิชานี้', 'นำออก', true).then(function (y) { if (!y) return; api('admin.team.remove', { user_id: b.dataset.tmx, subject: cur, from: from }).then(function () { toast('นำออกแล้ว'); S.tlist = null; viewAdmin('teachers'); }).catch(function (e) { toast(e.message, true); }); }); }; });
-      $('#tm-save', host).onclick = function () { var b = this; busy(b, true); api('fin.splits.save', { subject: cur, from: from, parts: L.map(function (x) { return { user_id: x.user_id, pct: x.pct }; }) }).then(function (x) { r = x; dirty = false; busy(b, false); toast('บันทึกสัดส่วนแล้ว'); draw(); }).catch(function (e) { busy(b, false); toast(e.message, true); }); };
+      $$('[data-tma]', host).forEach(function (b) { b.onclick = function () { busy(b, true); api('admin.team.add', { user_id: b.dataset.tma, subject: cur, from: from }).then(function (x) { inviteToast(x.invite, 'เพิ่มผู้สอนแล้ว ติ๊กคอร์สที่เขาได้ส่วนแบ่งได้เลย'); S.tlist = null; viewAdmin('teachers'); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
+      $$('[data-tmx]', host).forEach(function (b) { b.onclick = function () { var p = person(b.dataset.tmx); confirmBox('นำ ' + p.name + ' ออกจากวิชา' + subs[cur] + '?', 'ส่วนของเขาในแต่ละคอร์สไปที่ผู้สอนที่เหลือของคอร์สนั้น ตั้งแต่ ' + thDate(from + 'T12:00:00+07:00') + ' · ถ้าไม่เหลือวิชาที่สอน ยศผู้สอนจะถูกถอด (ยศอื่นยังอยู่)', 'นำออก', true).then(function (y) { if (!y) return; api('admin.team.remove', { user_id: b.dataset.tmx, subject: cur, from: from }).then(function () { toast('นำออกแล้ว'); S.tlist = null; viewAdmin('teachers'); }).catch(function (e) { toast(e.message, true); }); }); }; });
+      $$('[data-oadd]', host).forEach(function (b) { b.onclick = function () { O.push({ label: b.dataset.oadd, pct: O.length ? 0 : 30 }); if (mode() !== 'pct') Object.keys(Mx).forEach(function (k) { if (Mx[k].custom) Mx[k].custom = null; }); mark(); var n = $$('[data-onm]', host); if (!b.dataset.oadd && n.length) n[n.length - 1].focus(); }; });
+      $$('[data-ox]', host).forEach(function (b) { b.onclick = function () { O.splice(+b.dataset.ox, 1); if (mode() !== 'pct') Object.keys(Mx).forEach(function (k) { Mx[k].custom = null; }); mark(); }; });
+      $$('[data-onm]', host).forEach(function (n) { n.oninput = function () { O[+n.dataset.onm].label = n.value; dirty = true; $('#tm-save', host).disabled = false; }; n.onchange = function () { draw(); }; });
+      $$('[data-opc]', host).forEach(function (n) { n.onchange = function () { O[+n.dataset.opc].pct = Math.max(0, Math.min(99, Number(n.value) || 0)); if (mode() !== 'pct') Object.keys(Mx).forEach(function (k) { Mx[k].custom = null; }); mark(); }; });
+      $$('[data-tkm]', host).forEach(function (b) { b.onclick = function () { var to = b.dataset.tkm; if (to === mode()) return; if (to === 'pct') toPct(); else cs.forEach(function (c) { var m = Mx[c.course_id]; if (m.custom) { fixIds(m); m.custom = null; } }); S.tmMode[cur] = to; mark(); }; });
+      $$('input[data-tk]', host).forEach(function (cb) { cb.onchange = function () { var a = cb.dataset.tk.split('|'), m = Mx[a[0]]; if (cb.checked) { if (m.ids.indexOf(a[1]) < 0) m.ids.push(a[1]); } else m.ids = m.ids.filter(function (x) { return x !== a[1]; }); m.custom = null; mark(); }; });
+      $$('[data-tkall]', host).forEach(function (b) { b.onclick = function () { var id = b.dataset.tkall, all = cs.every(function (c) { return Mx[c.course_id].ids.indexOf(id) >= 0; }); cs.forEach(function (c) { var m = Mx[c.course_id]; m.ids = m.ids.filter(function (x) { return x !== id; }); if (!all) m.ids.push(id); m.custom = null; }); mark(); }; });
+      // ใส่ % เอง: พิมพ์แล้วอัปเดตยอดรวมของแถวทันที (ไม่วาดใหม่ เคอร์เซอร์ไม่หลุด)
+      $$('[data-pc]', host).forEach(function (n) {
+        n.oninput = function () {
+          var a = n.dataset.pc.split('|'), m = Mx[a[0]], v = Math.max(0, Math.min(100, Number(String(n.value).replace(/[^\d.]/g, '')) || 0));
+          m.custom = m.custom || {}; m.custom[a[1]] = v; fixIds(m); dirty = true; $('#tm-save', host).disabled = false;
+          var t = $('[data-tot="' + a[0] + '"]', host); if (t) t.outerHTML = totTag(a[0]);
+          var row = $('[data-row="' + a[0] + '"]', host); if (row) row.classList.toggle('bad', !!bad(a[0]));
+        };
+        n.onblur = function () { var w = $('.tk-warn', host), nb = cs.some(function (c) { return bad(c.course_id); }); if (!!w !== nb) draw(); };
+      });
+      $$('[data-tkeq]', host).forEach(function (b) { b.onclick = function () { var m = Mx[b.dataset.tkeq], ids = m.ids.length ? m.ids : team, T0 = Tt(), o = {}; team.forEach(function (id) { o[id] = 0; }); ids.forEach(function (id, i) { o[id] = i < ids.length - 1 ? r2(T0 / ids.length) : r2(T0 - r2(T0 / ids.length) * (ids.length - 1)); }); m.custom = o; fixIds(m); mark(); }; });
+      $$('[data-tkcp]', host).forEach(function (b) { b.onclick = function () { var src = cs.filter(function (c) { return c.course_id === b.dataset.tkcp; })[0], g = gradeOf(src), m0 = Mx[src.course_id]; cs.forEach(function (c) { if (c === src || gradeOf(c) !== g) return; var m = Mx[c.course_id]; m.ids = m0.ids.slice(); m.custom = m0.custom ? JSON.parse(JSON.stringify(m0.custom)) : null; }); toast('ใช้ส่วนแบ่งของ ' + src.title + ' กับทั้ง ' + g + ' แล้ว (ยังไม่บันทึก)'); mark(); }; });
+      $$('[data-tkscale]', host).forEach(function (b) { b.onclick = function () { var T0 = Tt(); cs.forEach(function (c) { var m = Mx[c.course_id]; if (!m.custom || !bad(c.course_id)) return; var sm = rowSum(c.course_id), ids = m.ids, acc = 0; ids.forEach(function (id, i) { var v = i < ids.length - 1 ? r2(m.custom[id] * T0 / sm) : r2(T0 - acc); acc = r2(acc + v); m.custom[id] = v; }); }); mark(); }; });
+      $('#tm-save', host).onclick = function () {
+        var b = this, badc = cs.filter(function (c) { return bad(c.course_id); })[0];
+        if (badc) return toast('สัดส่วนของ ' + badc.title + ' ยังรวมไม่ได้ ' + Tt() + '%', true);
+        if (O.some(function (x) { return Number(x.pct) > 0 && !String(x.label).trim(); })) return toast('ตั้งชื่อส่วนที่ไม่ใช่ผู้สอนด้วย', true);
+        var courses = {}; cs.forEach(function (c) { var L = pctOf(c.course_id); if (L.length) courses[c.course_id] = L; });
+        busy(b, true);
+        api('fin.splits.save', { subject: cur, from: from, others: O.map(function (x) { return { label: String(x.label).trim(), pct: Number(x.pct) || 0 }; }), courses: courses }).then(function (x) { r = x; load(); busy(b, false); toast('บันทึกส่วนแบ่งแล้ว มีผลตั้งแต่ ' + thDate(from + 'T12:00:00+07:00')); draw(); }).catch(function (e) { busy(b, false); toast(e.message, true); });
+      };
     };
-    draw();
+    load(); draw();
   }).catch(function (e) { host.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
 }
 
@@ -2867,19 +3255,20 @@ function csvDownload(name, rows) {
   setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
 function aFinance(shell) {
-  var pr = S.finP || prNow(), sub = S.finS || '', tab = S.finT && S.finT !== 'summary' ? S.finT : 'income';
-  api('fin.summary', { period: pr, subject: sub }).then(function (f) {
-    var subs = S.cfg.subjects || {}, adm = f.admin, T = f.totals;
+  var sub = S.finS || '', tab = S.finT && S.finT !== 'summary' ? S.finT : 'income';
+  api('fin.summary', S.finP ? { period: S.finP, subject: sub } : { subject: sub }).then(function (f) {
+    var subs = S.cfg.subjects || {}, adm = f.admin, T = f.totals, pr = f.period;
+    var rolled = function (x) { return x.rolled_from ? ' <span class="badge b-soft" title="เข้ามาหลังปิดยอดงวด ' + esc(prLabel(x.rolled_from)) + '">ยกมา</span>' : ''; };
     var sname = function (k) { return subs[k] || 'ส่วนกลาง'; };
-    var status = f.closed ? '<span class="badge b-ok">ปิดงวดแล้ว ' + thDate(f.closed_at) + '</span>' : pr === prNow() ? '<span class="badge b-soft">งวดปัจจุบัน ยอดยังเปลี่ยนได้</span>' : '<span class="badge b-wait">ยังไม่ปิดงวด</span>';
+    var status = f.closed ? '<span class="badge b-ok">ปิดงวดแล้ว · ตัดยอด ' + thDate(f.cutoff || f.closed_at, true) + '</span>' : pr === f.open_period ? '<span class="badge b-soft">งวดปัจจุบัน ยอดยังเปลี่ยนได้</span>' : '<span class="badge b-wait">ยังไม่ปิดงวด</span>';
     var pend = f.expenses.filter(function (x) { return x.status === 'pending'; }).length;
     var kpi = function (k, lab, v, note) { return '<div class="kpi ' + k + '"><span>' + lab + '</span><b>' + money2(v) + '</b><span>' + note + '</span></div>'; };
     var html = '<div class="spread"><h1>รายรับรายจ่าย</h1><div class="rowx">' +
-      '<button class="pill quiet s" id="fp-prev" aria-label="งวดก่อน">←</button><b style="min-width:150px;text-align:center">' + esc(prLabel(pr)) + '</b><button class="pill quiet s" id="fp-next" aria-label="งวดถัดไป"' + (pr >= prNow() ? ' disabled' : '') + '>→</button></div></div>' +
+      '<button class="pill quiet s" id="fp-prev" aria-label="งวดก่อน">←</button><b style="min-width:150px;text-align:center">' + esc(prLabel(pr)) + '</b><button class="pill quiet s" id="fp-next" aria-label="งวดถัดไป"' + (pr >= f.max_period ? ' disabled' : '') + '>→</button></div></div>' +
       '<div class="rowx" style="justify-content:space-between"><div class="ofold" role="group" aria-label="วิชา">' + (adm ? '<button data-fs="" aria-pressed="' + !sub + '">ทุกวิชา</button>' : '') + f.subjects.map(function (k) { return '<button class="s-' + k + '" data-fs="' + k + '" aria-pressed="' + (sub === k || (!adm && !sub && f.subjects.length === 1)) + '">' + esc(subs[k]) + '</button>'; }).join('') + '</div>' +
       '<div class="rowx">' + status + (f.closed ? '' : '<button class="pill ghost s" id="fx-add">+ บันทึกรายจ่าย</button>') + '<button class="pill quiet s" id="f-csv">ดาวน์โหลด CSV</button>' + '<a class="pill s" href="#/admin/payouts">' + (adm ? 'ส่วนแบ่งผู้สอน' : 'ส่วนแบ่งของฉัน') + ' →</a>' + '</div></div>' +
       '<div class="kpis">' + kpi('k2', 'รายรับ', T.income, f.income.length + ' รายการ') + kpi('', 'รายจ่าย', T.expense, adm && !sub && T.shared ? 'รวมส่วนกลาง ' + money2(T.shared) : (pend ? 'รออนุมัติอีก ' + pend + ' รายการ' : 'อนุมัติแล้ว')) +
-      kpi('k1', 'ส่วนแบ่งผู้สอน', T.teachers, 'ยอดขายวิชา − รายจ่ายวิชา ไม่มีค่าแพลตฟอร์ม') + kpi('k3', 'ยังไม่มีผู้รับ / ส่วนกลาง', T.platform, adm && !sub ? 'ยอดที่ยังไม่ได้ตั้งผู้รับ − รายจ่ายส่วนกลาง' : 'ยอดของวิชานี้ที่ยังไม่มีผู้รับ') + '</div>' +
+      kpi('k1', 'ส่วนแบ่งผู้สอน', T.teachers, 'ตามคอร์สที่ติ๊กไว้') + kpi('k3', 'เข้าสถาบัน', T.platform, (T.kept ? 'ส่วนที่ไม่ใช่ผู้สอน ' + money2(T.kept) + ' · ' : '') + (adm && !sub ? 'รวมยอดที่ไม่มีผู้รับ − รายจ่ายส่วนกลาง' : 'รวมยอดที่ไม่มีผู้รับ')) + '</div>' +
       '<div class="seg" role="tablist">' + [['income', 'รายรับ · ' + f.income.length], ['expense', 'รายจ่าย · ' + f.expenses.length + (pend ? ' (รอ ' + pend + ')' : '')], ['free', 'สิทธิ์ที่ไม่นับเงิน']].map(function (t) { return '<button data-ft="' + t[0] + '" aria-pressed="' + (tab === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>';
     if (tab === 'summary') {
       html += '<div class="tbl"><table style="min-width:620px"><thead><tr><th>วิชา</th><th class="num">รายรับ</th><th class="num">รายจ่าย</th><th class="num">สุทธิ</th><th class="num">แพลตฟอร์ม</th><th class="num">ผู้สอน</th></tr></thead><tbody>' +
@@ -2895,12 +3284,12 @@ function aFinance(shell) {
           (f.closed ? '<button class="pill quiet s" id="f-reopen">เปิดงวดใหม่</button>' : '<button class="pill s" id="f-close"' + (pr === ymNow() ? ' title="ปิดได้เมื่อสิ้นเดือน แต่ปิดก่อนก็ได้"' : '') + '>ปิดงวด</button>') + '</div>' : '');
     } else if (tab === 'income') {
       html += f.income.length ? '<div class="tbl"><table style="min-width:720px"><thead><tr><th>วันที่</th><th>นักเรียน</th><th>คอร์ส</th><th>ที่มา</th><th>เข้าบัญชี</th><th class="num">ยอด</th></tr></thead><tbody>' + f.income.map(function (x) {
-        return '<tr' + (x.revoked ? ' style="opacity:.6"' : '') + '><td class="sub">' + thDate(x.date, true) + '</td><td>' + esc(x.student) + (x.nickname ? '<div class="sub">' + esc(x.nickname) + '</div>' : '') + '</td><td>' + esc(x.course_title) + '<div class="sub">' + esc(sname(x.subject)) + (x.bill_id ? ' · ' + esc(x.bill_id) : '') + '</div></td><td><span class="badge ' + (SRC_BADGE[x.source] || 'b-soft') + '">' + esc(x.source_label) + '</span>' + (x.revoked ? ' <span class="badge b-no">ถอนสิทธิ์ภายหลัง</span>' : '') + '</td><td class="sm">' + esc(x.account_label) + '</td><td class="num">' + money2(x.amount) + '</td></tr>';
+        return '<tr' + (x.revoked ? ' style="opacity:.6"' : '') + '><td class="sub">' + thDate(x.date, true) + rolled(x) + '</td><td>' + esc(x.student) + (x.nickname ? '<div class="sub">' + esc(x.nickname) + '</div>' : '') + '</td><td>' + esc(x.course_title) + '<div class="sub">' + esc(sname(x.subject)) + (x.bill_id ? ' · ' + esc(x.bill_id) : '') + '</div></td><td><span class="badge ' + (SRC_BADGE[x.source] || 'b-soft') + '">' + esc(x.source_label) + '</span>' + (x.revoked ? ' <span class="badge b-no">ถอนสิทธิ์ภายหลัง</span>' : '') + '</td><td class="sm">' + esc(x.account_label) + '</td><td class="num">' + money2(x.amount) + '</td></tr>';
       }).join('') + '</tbody></table></div>' : '<div class="empty"><p>ยังไม่มีรายรับในเดือนนี้</p></div>';
     } else if (tab === 'expense') {
       html += f.expenses.length ? '<div class="tbl"><table style="min-width:720px"><thead><tr><th>วันที่</th><th>วิชา · หมวด</th><th>รายละเอียด</th><th>บันทึกโดย</th><th class="num">ยอด</th><th>สถานะ</th><th></th></tr></thead><tbody>' + f.expenses.map(function (x) {
         var mine = x.created_by === S.user.user_id, canEdit = !f.closed && (adm || (mine && x.status === 'pending'));
-        return '<tr' + (x.status === 'rejected' ? ' style="opacity:.55"' : '') + '><td class="sub">' + thDate(x.date) + '</td><td>' + esc(x.subject_name) + '<div class="sub">' + esc(x.category) + '</div></td><td class="sm">' + esc(x.note || '–') + (x.has_receipt ? ' <button class="link sm" data-rc="' + esc(x.expense_id) + '">ใบเสร็จ</button>' : '') + '</td><td class="sm">' + esc(x.created_by_name) + '</td><td class="num">' + money2(x.amount) + '</td>' +
+        return '<tr' + (x.status === 'rejected' ? ' style="opacity:.55"' : '') + '><td class="sub">' + thDate(x.date) + rolled(x) + '</td><td>' + esc(x.subject_name) + '<div class="sub">' + esc(x.category) + '</div></td><td class="sm">' + esc(x.note || '–') + (x.has_receipt ? ' <button class="link sm" data-rc="' + esc(x.expense_id) + '">ใบเสร็จ</button>' : '') + '</td><td class="sm">' + esc(x.created_by_name) + '</td><td class="num">' + money2(x.amount) + '</td>' +
           '<td>' + (x.status === 'approved' ? '<span class="badge b-ok">อนุมัติ</span>' : x.status === 'rejected' ? '<span class="badge b-no">ไม่อนุมัติ</span>' : '<span class="badge b-wait">รออนุมัติ</span>') + '</td><td><div class="acts">' +
           (adm && x.status === 'pending' && !f.closed ? '<button class="pill s" data-xd="approve" data-x="' + esc(x.expense_id) + '">อนุมัติ</button><button class="pill quiet s" data-xd="reject" data-x="' + esc(x.expense_id) + '">ไม่อนุมัติ</button>' : '') +
           (canEdit ? '<button class="pill quiet s" data-xe="' + esc(x.expense_id) + '">แก้ไข</button>' : '') + '</div></td></tr>';
@@ -2956,7 +3345,7 @@ function expenseModal(x, f) {
   $('#xf').onsubmit = function (e) {
     e.preventDefault(); var btn = $('#xf button:not([type=button])'), er = $('#xf-err'), d = formData($('#xf')); er.hidden = true; busy(btn, true);
     var file = $('#xf-file').files[0];
-    var send = function (rc) { if (x.expense_id) d.expense_id = x.expense_id; if (rc) d.receipt = rc; api('fin.expense.save', d).then(function () { closeModal(); toast(adm ? 'บันทึกแล้ว' : 'ส่งให้แอดมินอนุมัติแล้ว'); S.finT = 'expense'; S.finP = prOf(d.date); viewAdmin('finance'); }).catch(function (x2) { busy(btn, false); er.textContent = x2.message; er.hidden = false; }); };
+    var send = function (rc) { if (x.expense_id) d.expense_id = x.expense_id; if (rc) d.receipt = rc; api('fin.expense.save', d).then(function () { closeModal(); toast(adm ? 'บันทึกแล้ว' : 'ส่งให้แอดมินอนุมัติแล้ว'); S.finT = 'expense'; viewAdmin('finance'); }).catch(function (x2) { busy(btn, false); er.textContent = x2.message; er.hidden = false; }); };
     if (!file) return send(null);
     if (file.type === 'application/pdf') { var rd = new FileReader(); rd.onload = function () { send({ mime: 'application/pdf', base64: String(rd.result).split(',')[1] }); }; rd.readAsDataURL(file); }
     else compressImage(file).then(send).catch(function () { busy(btn, false); er.textContent = 'เปิดไฟล์ใบเสร็จไม่ได้'; er.hidden = false; });
@@ -3072,20 +3461,21 @@ function aLog(shell) {
 
 /* ─── ตั้งยศ ─── */
 function roleModal(u) {
-  var subs = S.cfg.subjects || {};
+  var subs = S.cfg.subjects || {}, R = uRoles(u);
   openModal(mhead('ยศของ ' + esc(u.nickname || u.first_name), esc(u.first_name + ' ' + u.last_name) + ' · ' + esc(u.email)) + '<form class="form" id="rolef">' +
-    '<div class="stack" style="gap:10px">' + [['student', 'นักเรียน', 'ใช้งานเว็บปกติ'], ['teacher', 'ผู้สอน', 'เห็นและจัดการเฉพาะคอร์สในวิชาที่เลือก ดูรายรับรายจ่ายของวิชาตัวเอง ให้สิทธิ์ฟรีได้ แก้ราคา บัญชีรับเงิน และอนุมัติสลิปไม่ได้'], ['admin', 'แอดมิน', 'เข้าถึงทุกอย่างในเว็บ']].map(function (r) {
-      return '<label class="chk-l" style="align-items:flex-start"><input type="radio" name="role" value="' + r[0] + '"' + (u.role === r[0] ? ' checked' : '') + '><span><b>' + r[1] + '</b><br><span class="sub">' + r[2] + '</span></span></label>';
+    '<p class="hint" style="margin:0">เลือกได้หลายยศพร้อมกัน ไม่เลือกเลย = นักเรียน (ทุกคนซื้อและเรียนคอร์สได้อยู่แล้ว)</p>' +
+    '<div class="stack" style="gap:10px">' + [['admin', 'แอดมิน', 'เข้าถึงทุกอย่างในเว็บ'], ['teacher', 'ผู้สอน', 'มีโปรไฟล์ผู้สอน ได้ส่วนแบ่งตามคอร์สที่ติ๊ก จัดการคอร์สในวิชาที่เลือก ดูรายรับรายจ่ายของวิชาตัวเอง']].map(function (r) {
+      return '<label class="chk-l" style="align-items:flex-start"><input type="checkbox" name="rl_' + r[0] + '"' + (R.indexOf(r[0]) >= 0 ? ' checked' : '') + '><span><b>' + r[1] + '</b><br><span class="sub">' + r[2] + '</span></span></label>';
     }).join('') + '</div>' +
-    '<div class="f" id="role-subj">วิชาที่ดูแล<div class="rowx">' + Object.keys(subs).map(function (k) { return '<label class="chk-l"><input type="checkbox" name="rs_' + k + '"' + ((u.subjects || []).indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(subs[k]) + '</label>'; }).join('') + '</div></div>' +
-    '<p class="hint">เปลี่ยนยศแล้ว ผู้ใช้คนนี้จะถูกออกจากระบบ ต้องเข้าสู่ระบบใหม่</p><p class="err" id="rolef-err" hidden></p><button class="pill">บันทึกยศ</button></form>');
-  var sync = function () { var v = ($('#rolef input[name=role]:checked') || {}).value; $('#role-subj').hidden = v !== 'teacher'; };
-  $$('#rolef input[name=role]').forEach(function (r) { r.onchange = sync; }); sync();
+    '<div class="f" id="role-subj">วิชาที่สอน<div class="rowx">' + Object.keys(subs).map(function (k) { return '<label class="chk-l"><input type="checkbox" name="rs_' + k + '"' + ((u.subjects || []).indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(subs[k]) + '</label>'; }).join('') + '</div></div>' +
+    '<p class="hint">เปลี่ยนยศแล้ว ผู้ใช้คนนี้จะถูกออกจากระบบ ต้องเข้าสู่ระบบใหม่ · ได้ยศผู้สอนครั้งแรก ระบบส่งอีเมลให้เข้ามากรอกโปรไฟล์</p><p class="err" id="rolef-err" hidden></p><button class="pill">บันทึกยศ</button></form>');
+  var sync = function () { $('#role-subj').hidden = !$('#rolef [name=rl_teacher]').checked; };
+  $('#rolef [name=rl_teacher]').onchange = sync; sync();
   $('#rolef').onsubmit = function (e) {
     e.preventDefault(); var btn = $('#rolef button'), er = $('#rolef-err'); er.hidden = true;
-    var role = ($('#rolef input[name=role]:checked') || {}).value, sj = Object.keys(subs).filter(function (k) { return $('#rolef [name=rs_' + k + ']').checked; });
+    var roles = ['admin', 'teacher'].filter(function (k) { return $('#rolef [name=rl_' + k + ']').checked; }), sj = Object.keys(subs).filter(function (k) { return $('#rolef [name=rs_' + k + ']').checked; });
     busy(btn, true);
-    api('admin.user.update', { user_id: u.user_id, role: role, subjects: sj }).then(function () { S.owners = null; closeModal(); toast('บันทึกยศแล้ว'); viewAdmin('users'); }).catch(function (x) { busy(btn, false); er.textContent = x.message; er.hidden = false; });
+    api('admin.user.update', { user_id: u.user_id, roles: roles, subjects: sj }).then(function (x) { S.owners = null; S.tlist = null; closeModal(); inviteToast(x && x.invite, 'บันทึกยศแล้ว'); viewAdmin('users'); }).catch(function (x) { busy(btn, false); er.textContent = x.message; er.hidden = false; });
   };
 }
 
@@ -3146,7 +3536,7 @@ function aCoupons(shell) {
       '<p class="ink2 sm">นักเรียนใส่โค้ดได้ 1 โค้ดต่อคำสั่งซื้อในหน้าตะกร้า ระบบนับสิทธิ์ทันทีที่สร้างคำสั่งซื้อ และคืนสิทธิ์ถ้าบิลถูกยกเลิกหรือหมดเวลา</p>' +
       (list.length ? '<div class="tbl"><table style="min-width:760px"><thead><tr><th>โค้ด</th><th>ส่วนลด</th><th>ใช้กับ</th><th class="num">ใช้ไป</th><th>ช่วงเวลา</th><th class="num">ยอดขาย</th><th></th></tr></thead><tbody>' + list.map(function (c) {
         var ended = c.ends_at && new Date(c.ends_at).getTime() < now;
-        return '<tr><td><b class="mono-n">' + esc(c.code) + '</b> ' + (c.status === 'inactive' ? '<span class="badge b-soft">ปิด</span>' : ended ? '<span class="badge b-soft">หมดอายุ</span>' : '<span class="badge b-ok">ใช้ได้</span>') + (c.note ? '<div class="sub">' + esc(c.note) + '</div>' : '') + '</td>' +
+        return '<tr><td><b class="mono-n">' + esc(c.code) + '</b> ' + (c.status === 'inactive' ? '<span class="badge b-soft">ปิด</span>' : ended ? '<span class="badge b-soft">หมดอายุ</span>' : '<span class="badge b-ok">ใช้ได้</span>') + (c.new_only === '1' ? ' <span class="badge b-new">สมาชิกใหม่ · อัตโนมัติ</span>' : '') + (c.note ? '<div class="sub">' + esc(c.note) + '</div>' : '') + '</td>' +
           '<td class="sm">' + cpLabel(c) + (Number(c.min_total) ? '<div class="sub">ขั้นต่ำ ' + baht(c.min_total) + '</div>' : '') + '</td>' +
           '<td class="sm">' + (c.scope === 'all' ? 'ทุกคอร์ส' : c.scope === 'subject' ? c.targets.map(function (s) { return esc(subs[s] || s); }).join(', ') : c.targets.map(function (id) { var x = cs.filter(function (y) { return y.course_id === id; })[0]; return esc(x ? x.title : id); }).join('<br>')) + '</td>' +
           '<td class="num">' + c.used + (Number(c.max_uses) ? ' / ' + c.max_uses : '') + (Number(c.per_user) ? '<div class="sub">คนละ ' + c.per_user + ' ครั้ง</div>' : '') + '</td>' +
@@ -3170,6 +3560,7 @@ function couponModal(c, cs) {
     '<div class="f m-course"><div class="stack" style="gap:6px;max-height:190px;overflow:auto">' + cs.map(function (x) { return '<label class="chk-l"><input type="checkbox" name="t_' + esc(x.course_id) + '"' + (c.scope === 'course' && c.targets.indexOf(x.course_id) >= 0 ? ' checked' : '') + '> ' + esc(x.title) + ' <span class="muted">' + baht(x.price) + '</span></label>'; }).join('') + '</div></div>' +
     '<div class="row2">' + field('min_total', 'ยอดขั้นต่ำ (บาท)', c.min_total, { mode: 'numeric', ph: 'ไม่ใส่ = ไม่มีขั้นต่ำ' }) + field('max_uses', 'ใช้ได้ทั้งหมดกี่ครั้ง', c.max_uses, { mode: 'numeric', ph: 'ไม่ใส่ = ไม่จำกัด' }) + '</div>' +
     '<div class="row2">' + field('per_user', 'ใช้ได้คนละกี่ครั้ง', c.per_user, { mode: 'numeric', ph: 'ไม่ใส่ = ไม่จำกัด' }) + '<span></span></div>' +
+    '<label class="chk-l nm-chk"><input type="checkbox" name="new_only"' + (c.new_only === '1' ? ' checked' : '') + '> <span><b>เฉพาะสมาชิกใหม่ · ลดให้อัตโนมัติ</b><br><span class="sm muted">ใช้ได้เฉพาะบัญชีที่สมัครตั้งแต่ "เริ่มใช้ได้" และยังไม่เคยซื้อคอร์ส (นักเรียนเก่าที่ผูกบัญชีไม่ได้สิทธิ์) ระบบลดให้ในตะกร้าเองไม่ต้องแจกโค้ด คนละ 1 ครั้ง</span></span></label>' +
     '<div class="row2">' + field('starts_at', 'เริ่มใช้ได้', toLocalInput(c.starts_at), { type: 'datetime-local' }) + field('ends_at', 'หมดอายุ', toLocalInput(c.ends_at), { type: 'datetime-local' }) + '</div>' +
     field('note', 'บันทึกภายใน (นักเรียนไม่เห็น)', c.note, { ph: 'เช่น แจกใน IG story 1 ต.ค.' }) +
     '<p class="err" id="cpf2-err" hidden></p><div class="rowx"><button class="pill">บันทึก</button>' + (c.code ? '<button type="button" class="pill danger" id="cp-del">ลบ</button>' : '') + '</div></form>', true);
@@ -3213,7 +3604,8 @@ document.addEventListener('click', function (e) {
   if (f) { S.filter = f.dataset.filter; viewHome(); return; }
   if (t.closest('[data-top]')) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   var ts = t.closest('[data-theme-set]');
-  if (ts) { var hr = document.documentElement; hr.classList.add('theming'); clearTimeout(S.thT); S.thT = setTimeout(function () { hr.classList.remove('theming'); }, 500); THEME = ts.dataset.themeSet; store('ib_theme', THEME === 'auto' ? null : THEME); applyTheme(); $$('[data-theme-set]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.themeSet === THEME)); }); toast(THEME === 'auto' ? 'ใช้ธีมตามเครื่อง' : THEME === 'dark' ? 'เปลี่ยนเป็นธีมมืด' : 'เปลี่ยนเป็นธีมสว่าง'); return; }
+  if (ts) { var hr = document.documentElement; hr.classList.add('theming'); clearTimeout(S.thT); S.thT = setTimeout(function () { hr.classList.remove('theming'); }, 500); if (ts.dataset.themeSet === 'fest') { festThemePick(true); toast('เปิดธีมฮาโลวีน 🎃'); return; }
+    THEME = ts.dataset.themeSet; store('ib_theme', THEME === 'auto' ? null : THEME); applyTheme(); if (festOn()) festThemePick(false); $$('[data-theme-set]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.themeSet === THEME)); }); toast(THEME === 'auto' ? 'ใช้ธีมตามเครื่อง' : THEME === 'dark' ? 'เปลี่ยนเป็นธีมมืด' : 'เปลี่ยนเป็นธีมสว่าง'); return; }
   var ry = t.closest('[data-ryear]'), rsb = t.closest('[data-rsub]');
   if (ry) { S.ryear = Number(ry.dataset.ryear); S.rsub = ''; viewResults(); return; }
   if (rsb) { S.rsub = rsb.dataset.rsub; viewResults(); return; }
@@ -3250,9 +3642,11 @@ document.addEventListener('click', function (e) {
   if (bc) { var bid = bc.dataset.billCancel; confirmBox('ยกเลิกบิล ' + bid + '?', 'ถ้าโอนเงินไปแล้ว อย่ายกเลิก ให้แนบสลิปแทน คอร์สในบิลนี้จะกลับมาซื้อใหม่ได้', 'ยกเลิกบิล', true).then(function (y) { if (!y) return; api('bill.cancel', { bill_id: bid }).then(function () { toast('ยกเลิกบิลแล้ว'); route(); }).catch(function (e) { toast(e.message, true); }); }); return; }
   if (t.closest('[data-uisw]')) { store('ib_ui', UI2() ? '1' : null); S.fresh = true; route(); return; }
   var pv = t.closest('[data-preview]');
-  if (pv) { previewVideo(pv.dataset.preview, pv.dataset.title, pv.dataset.cid); return; }
+  if (pv) { previewVideo(pv.dataset.preview, pv.dataset.title, pv.dataset.cid, pv.dataset.plid); return; }
+  var tp = t.closest('[data-trplay]');
+  if (tp) { var tb = tp.closest('.player.trailer'); if (tb) tb.innerHTML = playerInner(tb.dataset.tid, ''); return; }
   var dm = t.closest('[data-demo]');
-  if (dm && window.__DEMO) { var r = window.__DEMO.login(dm.dataset.demo); setSession(r); closeModal(); toast('สวัสดี ' + r.user.nickname); if (dm.dataset.demo !== 'student') go('/admin'); else route(); }
+  if (dm && window.__DEMO) { var r = window.__DEMO.login(dm.dataset.demo); setSession(r); closeModal(); toast('สวัสดี ' + r.user.nickname); if (dm.dataset.demo !== 'student' && dm.dataset.demo !== 'newbie') go('/admin'); else route(); }
 });
 document.addEventListener('submit', function (e) {
   if (e.target.id !== 'srch') return;
