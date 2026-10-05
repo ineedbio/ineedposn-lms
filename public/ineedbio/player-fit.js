@@ -49,6 +49,7 @@
     '.player.fake-fs{height:100vh;height:100dvh;width:100vw;padding:0;margin:0!important;max-width:none!important;background:#000}' +
     'body.fake-fs-on main,body.fake-fs-on :has(> .player.fake-fs),body.fake-fs-on :has(.player.fake-fs){transform:none!important;animation:none!important;filter:none!important;contain:none!important;will-change:auto!important}' +
     '.player.fake-fs .yt-bar{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));padding-bottom:max(8px,env(safe-area-inset-bottom,0px))}' +
+    '.yt-q{display:none!important}' +
     '.player:fullscreen{background:#000;margin:0!important} .player:-webkit-full-screen{background:#000;margin:0!important}';
   document.head.appendChild(css);
 
