@@ -87,6 +87,27 @@
     setTimeout(function () { d.classList.add('out'); setTimeout(function () { d.remove(); }, 260); }, 3000);
   }
 
+  /* Experimental sharpness test, off unless the URL has ?ytfit=1.5 or ?ytfit=2 (default 0 = iframe exactly the size of
+     the box). N > 1 draws the iframe N times larger (never wider than 1920 px, never scaled up) and shrinks it back
+     with transform: scale(1/N). iPhone / iPad ignore it unless the URL also has &ytios=1 (only after testing there).
+     player-fit.js applies the same layout to the lesson player in app.js, which can't be edited. */
+  var IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1);
+  var YTFIT = (function () {
+    var q = null, n = 0;
+    try { q = new URLSearchParams(location.search); n = parseFloat(q.get('ytfit')); } catch (e) {}
+    if (n !== 1.5 && n !== 2) n = 0;
+    var blocked = !!(n && IOS && !(q && q.get('ytios') === '1'));
+    return { n: blocked ? 0 : n, asked: n, ios: IOS, blocked: blocked };
+  })();
+  /** iframe layout inside a .yt-crop of W×H: the 16:9 picture is centred, the iframe is 140px taller (title/controls cropped) */
+  function ytLayout(W, H) {
+    var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, w = vw, sc = 1;
+    if (YTFIT.n > 1) { var k = Math.min(YTFIT.n, 1920 / vw); if (k > 1.001) { w = Math.round(vw * k); sc = vw / w; } }
+    if (sc === 1) return { w: vw, h: vh + 140, left: Math.round((W - vw) / 2), top: Math.round((H - vh) / 2 - 70), tf: 'none', sc: 1 };
+    return { w: w, h: w * 9 / 16 + 140, left: (W - vw) / 2, top: (H - vh) / 2 - 70 * sc, tf: 'scale(' + sc + ')', sc: sc };
+  }
+  window.__ibYt = { cfg: YTFIT, layout: ytLayout };
+
   var players = [], seq = 0;
   function pauseOthers(keep) { players.forEach(function (p) { if (p !== keep && p.P && p.P.pauseVideo) try { p.P.pauseVideo(); } catch (e) {} }); }
   function drop(p) { clearInterval(p.t); clearInterval(p.ping); if (p.off) try { p.off(); } catch (e) {} try { p.P && p.P.destroy(); } catch (e) {} p.P = null; }
@@ -112,7 +133,7 @@
     var me = { el: el, P: null, t: null, ping: null, again: function () { mount(el, vid, { sound: true, lid: opt.lid }); } };
     players.push(me);
     var host = 'ibp-host-' + (++seq);
-    el.classList.add('sp', 'is-idle');
+    el.classList.add('sp', 'is-idle'); el.setAttribute('data-ibp', '1');
     el.innerHTML = '<div class="yt-crop"><div id="' + host + '"></div></div><div class="yt-shield"></div>' +
       '<div class="yt-cover"><button class="yt-big" aria-label="เล่น">' + PI.play + '</button><div class="yt-msg"></div></div>' +
       '<div class="yt-bar"><input type="range" class="yt-seek" min="0" max="1000" value="0" step="1" aria-label="เลื่อนเวลา">' +
@@ -187,10 +208,10 @@
       var key = W + 'x' + H;
       if (lastFitKey === key) return;
       lastFitKey = key;
-      var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, st = ifr.style;
-      st.setProperty('width', vw + 'px', 'important'); st.setProperty('height', (vh + 140) + 'px', 'important');
-      st.setProperty('left', Math.round((W - vw) / 2) + 'px', 'important'); st.setProperty('top', Math.round((H - vh) / 2 - 70) + 'px', 'important');
-      st.setProperty('transform', 'none', 'important');
+      var L = ytLayout(W, H), st = ifr.style;
+      st.setProperty('width', L.w + 'px', 'important'); st.setProperty('height', L.h + 'px', 'important');
+      st.setProperty('left', L.left + 'px', 'important'); st.setProperty('top', L.top + 'px', 'important');
+      st.setProperty('transform', L.tf, 'important'); st.setProperty('transform-origin', '0 0', 'important');
     };
     var ro = window.ResizeObserver ? new ResizeObserver(fit) : null;
     if (ro) ro.observe(crop); else window.addEventListener('resize', fit);
@@ -209,6 +230,8 @@
         events: {
           onReady: function () {
             if (players.indexOf(me) < 0) return;
+            window.__ibYtLast = P;
+            try { P.unloadModule('captions'); } catch (e) {} try { P.unloadModule('cc'); } catch (e) {} // subtitles off, once
             dur = P.getDuration() || 0; fit(); if (savedRate !== 1) setRate(savedRate);
             var ifr = P.getIframe && P.getIframe(); if (ifr) { ifr.setAttribute('tabindex', '-1'); ifr.setAttribute('title', 'ตอนตัวอย่างฟรี'); }
             if (opt.muted) { P.mute(); P.playVideo(); }

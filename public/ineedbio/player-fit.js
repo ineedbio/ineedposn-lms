@@ -25,7 +25,7 @@
     if (typeof ResizeObserver === 'function') new ResizeObserver(function () { fit(player); }).observe(player);
     fit(player);
   }
-  function scan() { Array.prototype.forEach.call(document.querySelectorAll('.player.sp'), watch); }
+  function scan() { Array.prototype.forEach.call(document.querySelectorAll('.player.sp'), watch); watchFrames(); }
   function all() { Array.prototype.forEach.call(document.querySelectorAll('.player.sp'), fit); }
 
   var raf = 0;
@@ -63,5 +63,48 @@
     new MutationObserver(debouncedScan).observe(document.body, { childList: true, subtree: true });
     scan();
   }
+
+  /* ?ytfit=1.5|2 for the lesson player in app.js (course-page.js has its own): app.js can't be edited, so after its
+     fit() writes the iframe's inline style this puts the experimental layout back. Does nothing unless ytfit is on.
+     The rewrite is idempotent (only writes when a value differs), so the style observer settles after one pass. */
+  var Y = window.__ibYt, framed = typeof WeakSet === 'function' ? new WeakSet() : null;
+  function applyFrame(ifr) {
+    var crop = ifr.parentNode; if (!Y || !crop || !crop.classList || !crop.classList.contains('yt-crop')) return;
+    var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
+    var L = Y.layout(W, H), st = ifr.style, want = { width: L.w + 'px', height: L.h + 'px', left: L.left + 'px', top: L.top + 'px', transform: L.tf, 'transform-origin': '0 0' };
+    for (var k in want) if (st.getPropertyValue(k) !== want[k] || st.getPropertyPriority(k) !== 'important') st.setProperty(k, want[k], 'important');
+  }
+  function watchFrames() {
+    if (!Y || !Y.cfg.n || !framed) return;
+    Array.prototype.forEach.call(document.querySelectorAll('.player.sp:not([data-ibp]) .yt-crop iframe'), function (ifr) {
+      if (framed.has(ifr)) return; framed.add(ifr);
+      new MutationObserver(function () { applyFrame(ifr); }).observe(ifr, { attributes: true, attributeFilter: ['style'] });
+      applyFrame(ifr);
+    });
+  }
+
+  /* ?ytdebug=1: read-only overlay, refreshed once a second */
+  if (/[?&]ytdebug=1(&|$)/.test(location.search)) {
+    var box = null;
+    setInterval(function () {
+      var ifr = document.querySelector('.player.sp .yt-crop iframe');
+      if (!box) {
+        box = document.createElement('pre');
+        box.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:2147483647;margin:0;padding:6px 8px;background:rgba(0,0,0,.78);color:#7CFC9A;font:11px/1.35 monospace;border-radius:6px;pointer-events:none;max-width:92vw;white-space:pre-wrap';
+        document.body.appendChild(box);
+      }
+      if (!ifr) { box.textContent = 'ytdebug: no player on this page'; return; }
+      var crop = ifr.parentNode, r = ifr.getBoundingClientRect(), pl = null, q = 'n/a';
+      try { pl = (window.YT && YT.get && YT.get(ifr.id)) || (window.__ibYtLast && window.__ibYtLast.getIframe && window.__ibYtLast.getIframe() === ifr ? window.__ibYtLast : null); } catch (e) {}
+      try { if (pl && pl.getPlaybackQuality) q = pl.getPlaybackQuality() + ' (levels: ' + (pl.getAvailableQualityLevels ? pl.getAvailableQualityLevels().join(',') : '-') + ')'; } catch (e) {}
+      var c = Y ? Y.cfg : { n: '?', asked: '?', ios: '?', blocked: '?' };
+      box.textContent = 'getPlaybackQuality: ' + q + '\n' +
+        'iframe layout: ' + ifr.offsetWidth + '×' + ifr.offsetHeight + ' · on screen: ' + r.width.toFixed(1) + '×' + r.height.toFixed(1) + '\n' +
+        '.yt-crop: ' + crop.clientWidth + '×' + crop.clientHeight + ' · dpr: ' + window.devicePixelRatio + '\n' +
+        'transform: ' + getComputedStyle(ifr).transform + '\n' +
+        'ytfit asked: ' + c.asked + ' · applied: ' + c.n + ' · ios: ' + c.ios + (c.blocked ? ' (blocked: add &ytios=1 after testing)' : '');
+    }, 1000);
+  }
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
