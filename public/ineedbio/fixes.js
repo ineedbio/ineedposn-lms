@@ -9,4 +9,8 @@
     if (this.type === 'file' && this.hasAttribute('capture')) this.removeAttribute('capture');
     return click.apply(this, arguments);
   };
+
+  // Video quality menu is gone (YouTube ignores vq / setPlaybackQuality). Forget the old choice (ib_q2 / ib_q) before
+  // app.js reads it, so nobody stays on 360p or gets an oversized scaled iframe. Only these two keys are removed.
+  try { localStorage.removeItem('ib_q2'); localStorage.removeItem('ib_q'); } catch (e) {}
 })();

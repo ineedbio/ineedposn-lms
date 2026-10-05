@@ -75,18 +75,11 @@
     return ytLoad;
   }
 
-  // Same speed / quality choices as app.js's lesson player, remembered under the same keys (ib_rate, ib_q2).
-  // Quality 0 = auto: the iframe is the size of the box, not scaled, no vq sent. Phones/tablets get no 1440p/4K and
-  // the picture is never drawn larger than 1920×1080 device pixels. The old ib_q value is not read.
+  // Quality: YouTube no longer lets a page force a resolution (vq / setPlaybackQuality have no effect), so there is
+  // no quality menu: YouTube Auto picks the stream from the real size of the iframe, which is the size of the box
+  // (16:9, never scaled with transform). The old ib_q2 choice (360p..4K) is removed so nobody stays stuck on it.
   var YTRATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
-  var YTQ = [[0, 'อัตโนมัติ', ''], [2160, '4K', 'highres'], [1440, '1440p', 'hd1440'], [1080, '1080p', 'hd1080'], [720, '720p', 'hd720'], [480, '480p', 'large'], [360, '360p', 'medium']];
   var YTQ_KEY = 'ib_q2';
-  function isHandheld() {
-    var ua = navigator.userAgent || '';
-    if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;
-    if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return true;
-    return !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches);
-  }
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
   function toast(t) {
     var box = document.getElementById('toasts'); if (!box) return;
@@ -118,7 +111,6 @@
     stopAll();
     var me = { el: el, P: null, t: null, ping: null, again: function () { mount(el, vid, { sound: true, lid: opt.lid }); } };
     players.push(me);
-    var hand = isHandheld(), QS = YTQ.filter(function (q) { return !hand || q[0] <= 1080; });
     var host = 'ibp-host-' + (++seq);
     el.classList.add('sp', 'is-idle');
     el.innerHTML = '<div class="yt-crop"><div id="' + host + '"></div></div><div class="yt-shield"></div>' +
@@ -126,7 +118,6 @@
       '<div class="yt-bar"><input type="range" class="yt-seek" min="0" max="1000" value="0" step="1" aria-label="เลื่อนเวลา">' +
       '<div class="yt-row"><button class="yt-b" data-y="toggle" aria-label="เล่น/หยุด">' + PI.play + '</button><button class="yt-b" data-y="back" aria-label="ย้อน 10 วินาที">' + PI.back + '</button><button class="yt-b" data-y="fwd" aria-label="ข้าม 10 วินาที">' + PI.fwd + '</button>' +
       '<button class="yt-b" data-y="mute" aria-label="เปิด/ปิดเสียง">' + PI.vol + '</button><span class="yt-time">0:00 / 0:00</span><span style="flex:1"></span>' +
-      '<select class="yt-q" aria-label="ความชัด">' + QS.map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('') + '</select>' +
       '<select class="yt-rate" aria-label="ความเร็ว">' + YTRATES.map(function (r) { return '<option value="' + r + '"' + (r === 1 ? ' selected' : '') + '>' + r + 'x</option>'; }).join('') + '</select>' +
       '<button class="yt-b" data-y="fs" aria-label="เต็มจอ">' + PI.fs + '</button></div></div>';
     var $ = function (s) { return el.querySelector(s); };
@@ -179,7 +170,7 @@
     Array.prototype.forEach.call(el.querySelectorAll('.yt-b'), function (b) { b.onclick = function (e) { e.stopPropagation(); var y = b.dataset.y; if (y === 'toggle') toggle(); else if (y === 'back') jump(-10); else if (y === 'fwd') jump(10); else if (y === 'mute') mute(); else if (y === 'fs') fs(); wake(); }; });
     seek.oninput = function () { drag = true; seek.style.setProperty('--p', (seek.value / 10) + '%'); time.textContent = fmtT(seek.value / 1000 * dur) + ' / ' + fmtT(dur); };
     seek.onchange = function () { drag = false; if (P && dur) { P.seekTo(seek.value / 1000 * dur, true); ended = false; } wake(); };
-    var rate = $('.yt-rate'), qSel = $('.yt-q');
+    var rate = $('.yt-rate');
     var setRate = function (r) {
       if (!P) return;
       P.setPlaybackRate(r);
@@ -187,24 +178,20 @@
     };
     rate.onchange = function () { setRate(Number(this.value)); store('ib_rate', this.value); wake(); };
     var savedRate = Number(store('ib_rate')) || 1; rate.value = String(savedRate);
-    var qH = Number(store(YTQ_KEY)) || 0; if (!QS.some(function (q) { return q[0] === qH; })) qH = 0; qSel.value = String(qH);
-    var qOf = function () { return (YTQ.filter(function (q) { return q[0] === qH; })[0] || YTQ[0])[2]; };
+    try { localStorage.removeItem(YTQ_KEY); localStorage.removeItem('ib_q'); } catch (e) {}
     var crop = $('.yt-crop');
     var lastFitKey = '';
     var fit = function () {
       var ifr = crop.querySelector('iframe'); if (!ifr) return;
       var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
-      var key = W + 'x' + H + '@' + qH;
+      var key = W + 'x' + H;
       if (lastFitKey === key) return;
       lastFitKey = key;
-      var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, dpr = window.devicePixelRatio || 1, sc = 1, st = ifr.style;
-      if (qH) sc = Math.min(1, vh * dpr / qH);
-      if (hand) sc = Math.min(1, Math.max(sc, vh * dpr / 1080, vw * dpr / 1920));
-      st.setProperty('width', (vw / sc) + 'px', 'important'); st.setProperty('height', (vh / sc + 140) + 'px', 'important');
-      st.setProperty('left', ((W - vw) / 2) + 'px', 'important'); st.setProperty('top', ((H - vh) / 2 - 70 * sc) + 'px', 'important');
-      st.setProperty('transform', sc < 1 ? 'scale(' + sc + ')' : 'none', 'important'); st.setProperty('transform-origin', '0 0', 'important');
+      var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, st = ifr.style;
+      st.setProperty('width', vw + 'px', 'important'); st.setProperty('height', (vh + 140) + 'px', 'important');
+      st.setProperty('left', Math.round((W - vw) / 2) + 'px', 'important'); st.setProperty('top', Math.round((H - vh) / 2 - 70) + 'px', 'important');
+      st.setProperty('transform', 'none', 'important');
     };
-    qSel.onchange = function () { qH = Number(this.value); store(YTQ_KEY, qH ? this.value : ''); lastFitKey = ''; fit(); if (qH && P && P.setPlaybackQuality) try { P.setPlaybackQuality(qOf()); } catch (e) {} wake(); };
     var ro = window.ResizeObserver ? new ResizeObserver(fit) : null;
     if (ro) ro.observe(crop); else window.addEventListener('resize', fit);
     var narrow = function () { el.classList.toggle('ibp-narrow', window.innerWidth < 420); };
@@ -216,7 +203,6 @@
     loadYT().then(function () {
       if (players.indexOf(me) < 0 || !document.body.contains(el)) return;
       var v = { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0, autoplay: opt.muted || opt.sound ? 1 : 0, mute: opt.muted ? 1 : 0 };
-      if (qH) v.vq = qOf();
       if (/^https?:/.test(location.origin)) v.origin = location.origin;
       P = me.P = new YT.Player(host, {
         videoId: vid, host: 'https://www.youtube-nocookie.com', playerVars: v,
