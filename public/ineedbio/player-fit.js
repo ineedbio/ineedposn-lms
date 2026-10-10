@@ -102,21 +102,21 @@
     scan();
   }
 
-  /* ytfit for the lesson player in app.js (course-page.js decides N, see YTFIT_DEFAULT there): app.js can't be edited,
-     so after its fit() writes the iframe's inline style this puts the enlarged layout back. Does nothing when ytfit is
-     off (iPhone / iPad, ?ytfit=0, YTFIT_DEFAULT = 0). In fullscreen it leaves app.js's own real-size layout alone; on
-     leaving fullscreen app.js fits again and this runs after it. The rewrite is idempotent (only writes when a value
-     differs), so the style observer settles after one pass. */
+  /* Enlarged layout for the lesson player in app.js (course-page.js decides it, see YT_TARGET_DESKTOP / YT_TARGET_IOS):
+     app.js can't be edited, so after its fit() writes the iframe's inline style this puts the enlarged layout back.
+     Does nothing when enlarging is off for this device. On iOS in fullscreen it leaves app.js's own real-size layout
+     alone; on leaving fullscreen app.js fits again and this runs after it. The rewrite is idempotent (only writes when
+     a value differs), so the style observer settles after one pass. */
   var Y = window.__ibYt, framed = typeof WeakSet === 'function' ? new WeakSet() : null;
   function applyFrame(ifr) {
     var crop = ifr.parentNode; if (!Y || !crop || !crop.classList || !crop.classList.contains('yt-crop')) return;
     var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
-    var pl = crop.closest('.player'); if (pl && inFs(pl)) return;
-    var L = Y.layout(W, H, false), st = ifr.style, want = { width: L.w + 'px', height: L.h + 'px', left: L.left + 'px', top: L.top + 'px', transform: L.tf, 'transform-origin': '0 0' };
+    var pl = crop.closest('.player'), full = !!(pl && inFs(pl)); if (full && !Y.cfg.fsZoom) return;
+    var L = Y.layout(W, H, full), st = ifr.style, want = { width: L.w + 'px', height: L.h + 'px', left: L.left + 'px', top: L.top + 'px', transform: L.tf, 'transform-origin': '0 0' };
     for (var k in want) if (st.getPropertyValue(k) !== want[k] || st.getPropertyPriority(k) !== 'important') st.setProperty(k, want[k], 'important');
   }
   function watchFrames() {
-    if (!Y || !Y.cfg.n || !framed) return;
+    if (!Y || !Y.cfg.on || !framed) return;
     Array.prototype.forEach.call(document.querySelectorAll('.player.sp:not([data-ibp]) .yt-crop iframe'), function (ifr) {
       if (framed.has(ifr)) return; framed.add(ifr);
       new MutationObserver(function () { applyFrame(ifr); }).observe(ifr, { attributes: true, attributeFilter: ['style'] });

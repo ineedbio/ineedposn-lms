@@ -87,42 +87,34 @@
     setTimeout(function () { d.classList.add('out'); setTimeout(function () { d.remove(); }, 260); }, 3000);
   }
 
-  /* Sharpness (ytfit): YouTube picks the stream from the size of the video inside the iframe, so the iframe is drawn N
-     times larger and shrunk back with transform: scale(1/N) — the picture on screen keeps its size and place.
-       computer (not handheld): N = YTFIT_DEFAULT (2) · Android and other handhelds (not iOS): N = 1.5 · iPhone / iPad: off
-     Never more than 1920 px wide in real pixels (CSS px × devicePixelRatio; 16:9, so the picture stays ≤ 1920×1080):
-     N is lowered to fit, and below 1 it is not used. Not in fullscreen (the box is big already): real size there.
-     Emergency off: ?ytfit=0 in the URL = off for that visit · YTFIT_DEFAULT = 0 below and redeploy = off for the whole
-     site (computer and Android). ?ytfit=1.5|2 still forces a value for testing; iPhone / iPad need &ytios=1 too.
+  /* Sharpness: YouTube picks the stream from the size of the video inside the iframe, so the iframe is drawn larger and
+     shrunk back with transform: scale() — the picture on screen keeps its size and place. Target = the height in real
+     pixels (CSS px × devicePixelRatio) of the picture YouTube draws; multiplier = target / (picture height × DPR),
+     never below 1 (no scaling), and the picture never bigger than the group's cap.
+       other (computers and Android): YT_TARGET_DESKTOP = 2160, cap 3840×2160 — like before r6, fullscreen too
+       iOS (iPhone, iPad, iPad that says it is a Mac): YT_TARGET_IOS = 1080, cap 1920×1080, never in fullscreen
+         (r6: a 4K iframe used more memory than Safari allows and the page froze; 1080 is about 4× less)
+     Emergency off: YT_TARGET_DESKTOP = 0 or YT_TARGET_IOS = 0 below and redeploy = no enlarging for that group ·
+     in the URL: ?ytfit=0 = off for that visit (every device) · ?ytios=0 = off on iOS for that visit.
      player-fit.js applies the same layout to the lesson player in app.js, which can't be edited. */
-  var YTFIT_DEFAULT = 2;
-  var YT_MAX_PX = 1920;
+  var YT_TARGET_DESKTOP = 2160;
+  var YT_TARGET_IOS = 1080;
   var IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1);
-  /** phone / tablet (iPad that says it is a Mac included) · a touch computer that also has a mouse is not (= app.js isHandheld) */
-  function isHandheld() {
-    var ua = navigator.userAgent || '';
-    if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;
-    if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return true;
-    return !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches);
-  }
   var YTFIT = (function () {
-    var q = null, asked = NaN;
-    try { q = new URLSearchParams(location.search); if (q.has('ytfit')) asked = parseFloat(q.get('ytfit')); } catch (e) {}
-    var hand = isHandheld();
-    if (asked === 0) return { n: 0, asked: 0, ios: IOS, blocked: false, src: 'url-off' };
-    if (asked === 1.5 || asked === 2) {
-      var blocked = IOS && !(q && q.get('ytios') === '1');
-      return { n: blocked ? 0 : asked, asked: asked, ios: IOS, blocked: blocked, src: 'url' };
-    }
-    var n = IOS ? 0 : !(YTFIT_DEFAULT > 1) ? 0 : hand ? Math.min(YTFIT_DEFAULT, 1.5) : YTFIT_DEFAULT;
-    return { n: n, asked: '', ios: IOS, blocked: false, src: IOS ? 'ios-off' : !(YTFIT_DEFAULT > 1) ? 'default-off' : hand ? 'default-handheld' : 'default-computer' };
+    var q = null;
+    try { q = new URLSearchParams(location.search); } catch (e) {}
+    var target = IOS ? YT_TARGET_IOS : YT_TARGET_DESKTOP, src = 'default';
+    if (q && q.get('ytfit') === '0') { target = 0; src = 'url ytfit=0'; }
+    else if (IOS && q && q.get('ytios') === '0') { target = 0; src = 'url ytios=0'; }
+    else if (!(target > 0)) { target = 0; src = 'constant 0'; }
+    return { group: IOS ? 'ios' : 'other', target: target, on: target > 0, capW: IOS ? 1920 : 3840, capH: IOS ? 1080 : 2160, fsZoom: !IOS, src: src };
   })();
   /** iframe layout inside a .yt-crop of W×H: the 16:9 picture is centred, the iframe is 140px taller (title/controls
-   *  cropped) · fs = fullscreen: real size, never enlarged */
+   *  cropped) · fs = fullscreen (iOS: real size there) */
   function ytLayout(W, H, fs) {
-    var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, w = vw, sc = 1, dpr = window.devicePixelRatio || 1;
-    if (YTFIT.n > 1 && !fs) {
-      var k = Math.min(YTFIT.n, YT_MAX_PX / (vw * dpr));
+    var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, w = vw, sc = 1, dpr = window.devicePixelRatio || 1, C = YTFIT;
+    if (C.on && (!fs || C.fsZoom)) {
+      var k = Math.min(C.target / (vh * dpr), C.capW / (vw * dpr), C.capH / (vh * dpr));
       if (k > 1.001) { w = Math.floor(vw * k); sc = vw / w; }
     }
     if (sc === 1) return { w: vw, h: vh + 140, left: Math.round((W - vw) / 2), top: Math.round((H - vh) / 2 - 70), tf: 'none', sc: 1 };

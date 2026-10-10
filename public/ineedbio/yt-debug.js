@@ -64,8 +64,9 @@
     try { o.state = P && P.getPlayerState ? P.getPlayerState() : m && m.playerState != null ? m.playerState : '?'; } catch (e) {}
     try { o.rate = P && P.getPlaybackRate ? P.getPlaybackRate() : m && m.playbackRate || '?'; } catch (e) {}
     var Y = window.__ibYt && window.__ibYt.cfg, sc = f.offsetWidth ? rc.width / f.offsetWidth : 1;
-    o.ytfit = Y ? Y.n + ' (' + Y.src + (Y.blocked ? ', ios blocked: add &ytios=1' : '') + ')' : '?';
-    o.scale = r1(sc * 1000) / 1000;
+    o.group = Y ? Y.group : '?';
+    o.target = Y ? (Y.on ? Y.target : 'off') + ' (' + Y.src + ', cap ' + Y.capW + 'x' + Y.capH + (Y.fsZoom ? '' : ', not in fullscreen') + ')' : '?';
+    o.multiplier = sc ? Math.round(1 / sc * 1000) / 1000 : '?';
     // what YouTube draws into (the iframe's own size, before the transform): this is what it picks the quality from
     o.iframe_css = px(f.offsetWidth, f.offsetHeight);
     o.render_picture_device_px = px(f.offsetWidth * dpr, Math.max(0, f.offsetHeight - 140) * dpr); // minus the 140px crop
