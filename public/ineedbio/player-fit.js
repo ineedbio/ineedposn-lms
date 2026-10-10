@@ -102,14 +102,17 @@
     scan();
   }
 
-  /* ?ytfit=1.5|2 for the lesson player in app.js (course-page.js has its own): app.js can't be edited, so after its
-     fit() writes the iframe's inline style this puts the experimental layout back. Does nothing unless ytfit is on.
-     The rewrite is idempotent (only writes when a value differs), so the style observer settles after one pass. */
+  /* ytfit for the lesson player in app.js (course-page.js decides N, see YTFIT_DEFAULT there): app.js can't be edited,
+     so after its fit() writes the iframe's inline style this puts the enlarged layout back. Does nothing when ytfit is
+     off (iPhone / iPad, ?ytfit=0, YTFIT_DEFAULT = 0). In fullscreen it leaves app.js's own real-size layout alone; on
+     leaving fullscreen app.js fits again and this runs after it. The rewrite is idempotent (only writes when a value
+     differs), so the style observer settles after one pass. */
   var Y = window.__ibYt, framed = typeof WeakSet === 'function' ? new WeakSet() : null;
   function applyFrame(ifr) {
     var crop = ifr.parentNode; if (!Y || !crop || !crop.classList || !crop.classList.contains('yt-crop')) return;
     var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
-    var L = Y.layout(W, H), st = ifr.style, want = { width: L.w + 'px', height: L.h + 'px', left: L.left + 'px', top: L.top + 'px', transform: L.tf, 'transform-origin': '0 0' };
+    var pl = crop.closest('.player'); if (pl && inFs(pl)) return;
+    var L = Y.layout(W, H, false), st = ifr.style, want = { width: L.w + 'px', height: L.h + 'px', left: L.left + 'px', top: L.top + 'px', transform: L.tf, 'transform-origin': '0 0' };
     for (var k in want) if (st.getPropertyValue(k) !== want[k] || st.getPropertyPriority(k) !== 'important') st.setProperty(k, want[k], 'important');
   }
   function watchFrames() {

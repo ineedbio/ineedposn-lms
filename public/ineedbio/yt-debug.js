@@ -63,15 +63,18 @@
     try { var vd = P && P.getVideoData ? P.getVideoData() : null; if (vd && vd.video_quality) o.video_quality = vd.video_quality; } catch (e) {}
     try { o.state = P && P.getPlayerState ? P.getPlayerState() : m && m.playerState != null ? m.playerState : '?'; } catch (e) {}
     try { o.rate = P && P.getPlaybackRate ? P.getPlaybackRate() : m && m.playbackRate || '?'; } catch (e) {}
+    var Y = window.__ibYt && window.__ibYt.cfg, sc = f.offsetWidth ? rc.width / f.offsetWidth : 1;
+    o.ytfit = Y ? Y.n + ' (' + Y.src + (Y.blocked ? ', ios blocked: add &ytios=1' : '') + ')' : '?';
+    o.scale = r1(sc * 1000) / 1000;
+    // what YouTube draws into (the iframe's own size, before the transform): this is what it picks the quality from
     o.iframe_css = px(f.offsetWidth, f.offsetHeight);
-    o.iframe_screen_css = px(rc.width, rc.height);
-    o.iframe_device_px = px(rc.width * dpr, rc.height * dpr);
-    o.picture_device_px = px(rc.width * dpr, Math.max(0, rc.height - 140 * (f.offsetHeight ? rc.height / f.offsetHeight : 1)) * dpr); // minus the 140px crop
+    o.render_picture_device_px = px(f.offsetWidth * dpr, Math.max(0, f.offsetHeight - 140) * dpr); // minus the 140px crop
+    // what is seen on screen (after the transform)
+    o.screen_picture_css = px(rc.width, Math.max(0, rc.height - 140 * sc));
+    o.screen_picture_device_px = px(rc.width * dpr, Math.max(0, rc.height - 140 * sc) * dpr);
     o.crop_css = crop && crop.classList && crop.classList.contains('yt-crop') ? px(crop.clientWidth, crop.clientHeight) : 'no .yt-crop';
     o.player_css = pl ? px(pl.clientWidth, pl.clientHeight) : '-';
     o.transform = cs.transform;
-    var Y = window.__ibYt && window.__ibYt.cfg;
-    if (Y && (Y.asked || Y.n)) o.ytfit = Y.asked + '->' + Y.n + (Y.blocked ? ' (ios blocked)' : '');
     return o;
   }
   var line = function (o) { return 'ytdebug ' + Object.keys(o).map(function (k) { return k + '=' + o[k]; }).join(' | ') + ' | ua=' + (navigator.userAgent || '').replace(/\s+/g, ' ').slice(0, 160); };
