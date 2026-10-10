@@ -5,7 +5,11 @@ import './ineedbio.css';
 export const metadata: Metadata = {
   title: 'INeedBio Classroom',
   description: 'ติวเข้ม ม.ปลาย กับ INeedBio — ชีวะ เคมี ฟิสิกส์ คณิต สอวน.',
-  icons: { icon: '/ineedbio/logo.webp' },
+  icons: { icon: '/ineedbio/logo.webp', apple: [{ url: '/ineedbio/icon-180.png', sizes: '180x180' }] },
+  // Add to Home Screen: opens without the Safari bars (iPhone can't fullscreen a video page otherwise). No service
+  // worker, nothing offline. The top strip under the status bar and the side insets are handled by pwa.js.
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, title: 'INeedBio', statusBarStyle: 'black-translucent' },
 };
 
 export const viewport: Viewport = {

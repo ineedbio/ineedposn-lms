@@ -81,11 +81,11 @@
   css.textContent =
     '@media (orientation:landscape) and (max-height:560px){' +
     '.player.sp:not(.fake-fs):not(:fullscreen){width:min(100%,calc((100vh - 16px) * 16 / 9));width:min(100%,calc((100svh - 16px) * 16 / 9));margin-inline:auto}}' +
-    '.player.fake-fs{position:fixed;inset:0;width:100vw;width:100dvw;height:100vh;height:100dvh;box-sizing:border-box;padding:0 env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);margin:0!important;max-width:none!important;background:#000;overflow:hidden}' +
+    '.player.fake-fs{position:fixed;inset:0;width:100vw;width:100dvw;height:100vh;height:100dvh;box-sizing:border-box;padding:0 env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);margin:0!important;max-width:none!important;border-radius:0!important;background:#000;overflow:hidden}' +
     '.yt-fitmode{display:none;width:auto!important;padding:0 8px;font-size:12.5px;white-space:nowrap}' +
     '@media (pointer:coarse){.player.fake-fs:not([data-fsfill="1"]) .yt-fitmode{display:grid}.player:fullscreen:not([data-fsfill="1"]) .yt-fitmode{display:grid}}' +
     '@media (pointer:coarse){.player:-webkit-full-screen:not([data-fsfill="1"]) .yt-fitmode{display:grid}}' +
-    'body.fake-fs-on main,body.fake-fs-on :has(> .player.fake-fs),body.fake-fs-on :has(.player.fake-fs){transform:none!important;animation:none!important;filter:none!important;contain:none!important;will-change:auto!important}' +
+    'body.fake-fs-on main,body.fake-fs-on :has(> .player.fake-fs),body.fake-fs-on :has(.player.fake-fs){transform:none!important;animation:none!important;filter:none!important;contain:none!important;will-change:auto!important;isolation:auto!important}' +
     '.player.fake-fs .yt-bar{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));padding-bottom:max(8px,env(safe-area-inset-bottom,0px))}' +
     '.yt-q{display:none!important}' +
     '.player:fullscreen .yt-crop iframe,.player:-webkit-full-screen .yt-crop iframe,.player.fake-fs .yt-crop iframe{transform:none!important}' +
@@ -102,9 +102,9 @@
     scan();
   }
 
-  /* Enlarged layout for the lesson player in app.js (course-page.js decides it, see YT_TARGET_DESKTOP / YT_TARGET_IOS):
+  /* Enlarged layout for the lesson player in app.js (course-page.js decides it, see YT_TARGET_* there):
      app.js can't be edited, so after its fit() writes the iframe's inline style this puts the enlarged layout back.
-     Does nothing when enlarging is off for this device. On iOS in fullscreen it leaves app.js's own real-size layout
+     Does nothing when enlarging is off for this device. On iPhone / iPad in fullscreen it leaves app.js's own real-size layout
      alone; on leaving fullscreen app.js fits again and this runs after it. The rewrite is idempotent (only writes when
      a value differs), so the style observer settles after one pass. */
   var Y = window.__ibYt, framed = typeof WeakSet === 'function' ? new WeakSet() : null;
@@ -126,7 +126,8 @@
 
   /* ?ytdebug=1: read-only measuring overlay (yt-debug.js), fetched only when the URL has it */
   if (/[?&]ytdebug=1(&|$)/.test(location.search)) {
-    var dbg = document.createElement('script'); dbg.src = '/ineedbio/yt-debug.js'; dbg.async = true; document.head.appendChild(dbg);
+    var dbgV = window.INEEDBIO_ASSETS && window.INEEDBIO_ASSETS['yt-debug.js'];
+    var dbg = document.createElement('script'); dbg.src = '/ineedbio/yt-debug.js' + (dbgV ? '?v=' + dbgV : ''); dbg.async = true; document.head.appendChild(dbg);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();

@@ -44,6 +44,7 @@
   function read() {
     var list = frames(), f = pick(list), dpr = window.devicePixelRatio || 1, vv = window.visualViewport;
     var o = {
+      files: versions(),
       page: (location.hash.match(/^#\/(\w+)/) || [, 'home'])[1],
       dpr: dpr,
       screen: screen.width + 'x' + screen.height,
@@ -76,7 +77,16 @@
     o.crop_css = crop && crop.classList && crop.classList.contains('yt-crop') ? px(crop.clientWidth, crop.clientHeight) : 'no .yt-crop';
     o.player_css = pl ? px(pl.clientWidth, pl.clientHeight) : '-';
     o.transform = cs.transform;
+    // the inline style on the iframe right now (whoever wrote it last): catches a layout being overwritten
+    o.style = ['width', 'height', 'transform'].map(function (k) { return k + ':' + (f.style.getPropertyValue(k) || '-'); }).join(' ');
     return o;
+  }
+  /** which build of each add-on this page runs (?v=<hash> on its script link) */
+  function versions() {
+    return ['course-page', 'player-fit', 'yt-debug', 'app'].map(function (n) {
+      var s = Array.prototype.filter.call(document.scripts, function (x) { return (x.src || '').indexOf('/ineedbio/' + n + '.js') >= 0; })[0];
+      return n + '@' + (s ? (s.src.match(/[?&]v=([\w-]+)/) || [, 'none'])[1] : 'not loaded');
+    }).join(',');
   }
   var line = function (o) { return 'ytdebug ' + Object.keys(o).map(function (k) { return k + '=' + o[k]; }).join(' | ') + ' | ua=' + (navigator.userAgent || '').replace(/\s+/g, ' ').slice(0, 160); };
 
