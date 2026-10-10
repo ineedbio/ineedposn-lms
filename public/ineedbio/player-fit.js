@@ -121,27 +121,9 @@
     });
   }
 
-  /* ?ytdebug=1: read-only overlay, refreshed once a second */
+  /* ?ytdebug=1: read-only measuring overlay (yt-debug.js), fetched only when the URL has it */
   if (/[?&]ytdebug=1(&|$)/.test(location.search)) {
-    var box = null;
-    setInterval(function () {
-      var ifr = document.querySelector('.player.sp .yt-crop iframe');
-      if (!box) {
-        box = document.createElement('pre');
-        box.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:2147483647;margin:0;padding:6px 8px;background:rgba(0,0,0,.78);color:#7CFC9A;font:11px/1.35 monospace;border-radius:6px;pointer-events:none;max-width:92vw;white-space:pre-wrap';
-        document.body.appendChild(box);
-      }
-      if (!ifr) { box.textContent = 'ytdebug: no player on this page'; return; }
-      var crop = ifr.parentNode, r = ifr.getBoundingClientRect(), pl = null, q = 'n/a';
-      try { pl = (window.YT && YT.get && YT.get(ifr.id)) || (window.__ibYtLast && window.__ibYtLast.getIframe && window.__ibYtLast.getIframe() === ifr ? window.__ibYtLast : null); } catch (e) {}
-      try { if (pl && pl.getPlaybackQuality) q = pl.getPlaybackQuality() + ' (levels: ' + (pl.getAvailableQualityLevels ? pl.getAvailableQualityLevels().join(',') : '-') + ')'; } catch (e) {}
-      var c = Y ? Y.cfg : { n: '?', asked: '?', ios: '?', blocked: '?' };
-      box.textContent = 'getPlaybackQuality: ' + q + '\n' +
-        'iframe layout: ' + ifr.offsetWidth + '×' + ifr.offsetHeight + ' · on screen: ' + r.width.toFixed(1) + '×' + r.height.toFixed(1) + '\n' +
-        '.yt-crop: ' + crop.clientWidth + '×' + crop.clientHeight + ' · dpr: ' + window.devicePixelRatio + '\n' +
-        'transform: ' + getComputedStyle(ifr).transform + '\n' +
-        'ytfit asked: ' + c.asked + ' · applied: ' + c.n + ' · ios: ' + c.ios + (c.blocked ? ' (blocked: add &ytios=1 after testing)' : '');
-    }, 1000);
+    var dbg = document.createElement('script'); dbg.src = '/ineedbio/yt-debug.js'; dbg.async = true; document.head.appendChild(dbg);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
