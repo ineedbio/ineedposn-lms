@@ -55,6 +55,7 @@
     if (!f) { o.player = 'none'; return o; }
     var pl = f.closest('.player'), crop = f.parentNode, rc = f.getBoundingClientRect(), cs = getComputedStyle(f);
     o.by = madeBy(f);
+    o.mode = pl ? pl.getAttribute('data-ibmode') || 'custom' : '-';
     o.fullscreen = document.fullscreenElement || document.webkitFullscreenElement ? 'native' : pl && pl.classList.contains('fake-fs') ? 'fake-fs' : 'no';
     var P = playerOf(f), m = fromMsg && f.contentWindow ? fromMsg.get(f.contentWindow) : null;
     o.api = P ? 'player' : m ? 'messages' : 'none';
