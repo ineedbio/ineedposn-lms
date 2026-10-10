@@ -87,22 +87,39 @@
     setTimeout(function () { d.classList.add('out'); setTimeout(function () { d.remove(); }, 260); }, 3000);
   }
 
-  /* Experimental sharpness test, off unless the URL has ?ytfit=1.5 or ?ytfit=2 (default 0 = iframe exactly the size of
-     the box). N > 1 draws the iframe N times larger (never wider than 1920 px, never scaled up) and shrinks it back
-     with transform: scale(1/N). iPhone / iPad ignore it unless the URL also has &ytios=1 (only after testing there).
+  /* Sharpness: YouTube picks the stream from the size of the video inside the iframe, so the iframe is drawn larger and
+     shrunk back with transform: scale() — the picture on screen keeps its size and place. Target = the height in real
+     pixels (CSS px × devicePixelRatio) of the picture YouTube draws; multiplier = target / (picture height × DPR),
+     never below 1 (no scaling), and the picture never bigger than the group's cap.
+       computer: YT_TARGET_DESKTOP = 2160 · Android: YT_TARGET_ANDROID = 2160 — cap 3840×2160, like before r6, fullscreen too
+       iOS (iPhone, iPad, iPad that says it is a Mac): YT_TARGET_IOS = 1080, cap 1920×1080, never in fullscreen
+         (r6: a 4K iframe used more memory than Safari allows and the page froze; 1080 is about 4× less)
+     Emergency off: YT_TARGET_DESKTOP / YT_TARGET_ANDROID / YT_TARGET_IOS = 0 below and redeploy = no enlarging for that
+     group · in the URL, for that visit: ?ytfit=0 = off on every device · ?ytandroid=0 = off on Android · ?ytios=0 = off on iOS.
      player-fit.js applies the same layout to the lesson player in app.js, which can't be edited. */
+  var YT_TARGET_DESKTOP = 2160;
+  var YT_TARGET_ANDROID = 2160;
+  var YT_TARGET_IOS = 1080;
   var IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1);
+  var ANDROID = !IOS && /Android/i.test(navigator.userAgent || '');
   var YTFIT = (function () {
-    var q = null, n = 0;
-    try { q = new URLSearchParams(location.search); n = parseFloat(q.get('ytfit')); } catch (e) {}
-    if (n !== 1.5 && n !== 2) n = 0;
-    var blocked = !!(n && IOS && !(q && q.get('ytios') === '1'));
-    return { n: blocked ? 0 : n, asked: n, ios: IOS, blocked: blocked };
+    var q = null;
+    try { q = new URLSearchParams(location.search); } catch (e) {}
+    var target = IOS ? YT_TARGET_IOS : ANDROID ? YT_TARGET_ANDROID : YT_TARGET_DESKTOP, src = 'default';
+    if (q && q.get('ytfit') === '0') { target = 0; src = 'url ytfit=0'; }
+    else if (IOS && q && q.get('ytios') === '0') { target = 0; src = 'url ytios=0'; }
+    else if (ANDROID && q && q.get('ytandroid') === '0') { target = 0; src = 'url ytandroid=0'; }
+    else if (!(target > 0)) { target = 0; src = 'constant 0'; }
+    return { group: IOS ? 'ios' : ANDROID ? 'android' : 'desktop', target: target, on: target > 0, capW: IOS ? 1920 : 3840, capH: IOS ? 1080 : 2160, fsZoom: !IOS, src: src };
   })();
-  /** iframe layout inside a .yt-crop of W×H: the 16:9 picture is centred, the iframe is 140px taller (title/controls cropped) */
-  function ytLayout(W, H) {
-    var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, w = vw, sc = 1;
-    if (YTFIT.n > 1) { var k = Math.min(YTFIT.n, 1920 / vw); if (k > 1.001) { w = Math.round(vw * k); sc = vw / w; } }
+  /** iframe layout inside a .yt-crop of W×H: the 16:9 picture is centred, the iframe is 140px taller (title/controls
+   *  cropped) · fs = fullscreen (iOS: real size there) */
+  function ytLayout(W, H, fs) {
+    var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, w = vw, sc = 1, dpr = window.devicePixelRatio || 1, C = YTFIT;
+    if (C.on && (!fs || C.fsZoom)) {
+      var k = Math.min(C.target / (vh * dpr), C.capW / (vw * dpr), C.capH / (vh * dpr));
+      if (k > 1.001) { w = Math.floor(vw * k); sc = vw / w; }
+    }
     if (sc === 1) return { w: vw, h: vh + 140, left: Math.round((W - vw) / 2), top: Math.round((H - vh) / 2 - 70), tf: 'none', sc: 1 };
     return { w: w, h: w * 9 / 16 + 140, left: (W - vw) / 2, top: (H - vh) / 2 - 70 * sc, tf: 'scale(' + sc + ')', sc: sc };
   }
@@ -205,10 +222,10 @@
     var fit = function () {
       var ifr = crop.querySelector('iframe'); if (!ifr) return;
       var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
-      var key = W + 'x' + H;
+      var full = isFs(), key = W + 'x' + H + (full ? 'f' : '') + 'x' + (window.devicePixelRatio || 1);
       if (lastFitKey === key) return;
       lastFitKey = key;
-      var L = ytLayout(W, H), st = ifr.style;
+      var L = ytLayout(W, H, full), st = ifr.style;
       st.setProperty('width', L.w + 'px', 'important'); st.setProperty('height', L.h + 'px', 'important');
       st.setProperty('left', L.left + 'px', 'important'); st.setProperty('top', L.top + 'px', 'important');
       st.setProperty('transform', L.tf, 'important'); st.setProperty('transform-origin', '0 0', 'important');
