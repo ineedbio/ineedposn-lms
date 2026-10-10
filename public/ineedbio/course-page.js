@@ -92,25 +92,32 @@
      pixels (CSS px × devicePixelRatio) of the picture YouTube draws; multiplier = target / (picture height × DPR),
      never below 1 (no scaling), and the picture never bigger than the group's cap.
        computer: YT_TARGET_DESKTOP = 2160 · Android: YT_TARGET_ANDROID = 2160 — cap 3840×2160, like before r6, fullscreen too
-       iOS (iPhone, iPad, iPad that says it is a Mac): YT_TARGET_IOS = 1080, cap 1920×1080, never in fullscreen
+       iPhone: YT_TARGET_IOS = 1080, cap 1920×1080, never in fullscreen
          (r6: a 4K iframe used more memory than Safari allows and the page froze; 1080 is about 4× less)
-     Emergency off: YT_TARGET_DESKTOP / YT_TARGET_ANDROID / YT_TARGET_IOS = 0 below and redeploy = no enlarging for that
-     group · in the URL, for that visit: ?ytfit=0 = off on every device · ?ytandroid=0 = off on Android · ?ytios=0 = off on iOS.
+       iPad (and an iPad that says it is a Mac): YT_TARGET_IPAD = 1440, cap 2560×1440, never in fullscreen
+         (its box is ~1600×900 real pixels already, so 1080 only gave ×1.2–1.3)
+     Emergency off: YT_TARGET_DESKTOP / YT_TARGET_ANDROID / YT_TARGET_IOS / YT_TARGET_IPAD = 0 below and redeploy = no
+     enlarging for that group · in the URL, for that visit: ?ytfit=0 = off on every device · ?ytandroid=0 = off on
+     Android · ?ytios=0 = off on iPhone and iPad · ?ytipad=0 = off on iPad only.
      player-fit.js applies the same layout to the lesson player in app.js, which can't be edited. */
   var YT_TARGET_DESKTOP = 2160;
   var YT_TARGET_ANDROID = 2160;
   var YT_TARGET_IOS = 1080;
+  var YT_TARGET_IPAD = 1440;
   var IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1);
+  var IPAD = IOS && !/iPhone|iPod/i.test(navigator.userAgent || ''); // "iPad" in the UA, or a Mac with a touch screen
   var ANDROID = !IOS && /Android/i.test(navigator.userAgent || '');
   var YTFIT = (function () {
     var q = null;
     try { q = new URLSearchParams(location.search); } catch (e) {}
-    var target = IOS ? YT_TARGET_IOS : ANDROID ? YT_TARGET_ANDROID : YT_TARGET_DESKTOP, src = 'default';
+    var target = IPAD ? YT_TARGET_IPAD : IOS ? YT_TARGET_IOS : ANDROID ? YT_TARGET_ANDROID : YT_TARGET_DESKTOP, src = 'default';
     if (q && q.get('ytfit') === '0') { target = 0; src = 'url ytfit=0'; }
     else if (IOS && q && q.get('ytios') === '0') { target = 0; src = 'url ytios=0'; }
+    else if (IPAD && q && q.get('ytipad') === '0') { target = 0; src = 'url ytipad=0'; }
     else if (ANDROID && q && q.get('ytandroid') === '0') { target = 0; src = 'url ytandroid=0'; }
     else if (!(target > 0)) { target = 0; src = 'constant 0'; }
-    return { group: IOS ? 'ios' : ANDROID ? 'android' : 'desktop', target: target, on: target > 0, capW: IOS ? 1920 : 3840, capH: IOS ? 1080 : 2160, fsZoom: !IOS, src: src };
+    return { group: IPAD ? 'ipad' : IOS ? 'iphone' : ANDROID ? 'android' : 'desktop', target: target, on: target > 0,
+      capW: IPAD ? 2560 : IOS ? 1920 : 3840, capH: IPAD ? 1440 : IOS ? 1080 : 2160, fsZoom: !IOS, src: src };
   })();
   /** iframe layout inside a .yt-crop of W×H: the 16:9 picture is centred, the iframe is 140px taller (title/controls
    *  cropped) · fs = fullscreen (iOS: real size there) */
