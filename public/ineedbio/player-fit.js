@@ -12,8 +12,9 @@
        normal / fullscreen "whole picture": the biggest 16:9 that fits, centred
        fullscreen "fill width" (data-fscover=1): as wide as the box, so taller than it; the player clips top and bottom
      The iframe is then sized from the crop by each player's own fit() (course-page.js / app.js): no transform.
-     YouTube's own player in the lesson room (.yt-native, app.js "ปุ่ม YouTube"): no 16:9 crop box — the sizes this
-     wrote are taken off so the box fills the player again (ineedbio.css); back in the site's player it fits again. */
+     YouTube's own player in the lesson room (.yt-native: app.js YT_NATIVE_ONLY, the only player since 7l): no 16:9
+     crop box — the sizes this wrote are taken off so the box fills the player again (ineedbio.css); back in the
+     site's player (if app.js's switch is turned back) it fits again. */
   var CROP_KEYS = ['position', 'left', 'top', 'width', 'height', 'right', 'bottom', 'overflow'];
   function fit(player) {
     var crop = player.querySelector('.yt-crop'); if (!crop) return;

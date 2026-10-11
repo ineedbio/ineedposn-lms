@@ -1,9 +1,10 @@
 // Course page tweaks for public/ineedbio/app.js, which must stay byte-identical to the zip (CHECKSUMS.txt).
-//  1) Free preview episodes ("ดูฟรี") play in the same player as paid lessons (a port of app.js's safePlayer:
-//     YouTube IFrame API with YouTube's own controls, title and share/copy-link hidden behind a shield, and the
-//     site's play/seek/quality/speed/fullscreen bar). The first free episode starts by itself in the course hero —
-//     muted, so browsers (iOS Safari included) allow it — with a "แตะเพื่อเปิดเสียง" button. "ดูฟรี" buttons
-//     open the same player in a modal. The clip ids are taken out of the page's attributes.
+//  1) Free preview episodes ("ดูฟรี") play in the same player as paid lessons: YouTube's own player with its
+//     controls (YT_NATIVE_ONLY in app.js · YT_NATIVE_BUTTON / YT_NATIVE_DEFAULT below). The site's own player (a port
+//     of app.js's safePlayer: YouTube's controls hidden behind a shield, the site's play/seek/speed/fullscreen bar,
+//     "แตะเพื่อเปิดเสียง") stays here for when those switches are turned back. The first free episode starts by itself
+//     in the course hero — muted, so browsers (iOS Safari included) allow it. "ดูฟรี" buttons open the same player
+//     in a modal. The clip ids are taken out of the page's attributes.
 //     course.detail only sends the YouTube id of free episodes, so no enrollment check is involved.
 //     Signed in with cells on: a free episode counts as study time — study.ping { lesson_id, preview: 1, pos }
 //     once per 60 seconds of real play (sound on, page in front), like app.js's startStudyPing.
@@ -132,17 +133,19 @@
   }
   window.__ibYt = { cfg: YTFIT, layout: ytLayout };
 
-  /* "ปุ่ม YouTube": the student may switch to YouTube's own player (its gear = pick 1080p, its fullscreen = the real one
-     on iPhone) and back. The site's player stays the default. Remembered on the device in ib_ytmode ('custom' |
-     'youtube'), the same key the lesson room will use. Only one video iframe at a time: the old player is destroyed
-     before the other one is made; the switch carries on from the same second, playing or not.
-     YT_NATIVE_BUTTON = false: no button anywhere (and everyone gets the site's player) · YT_NATIVE_DEFAULT = true: start
-     in YouTube's player until the student picks the other one. */
-  var YT_NATIVE_BUTTON = true;
-  var YT_NATIVE_DEFAULT = false;
+  /* Which player the free episodes use. Now (7l, like the lesson room's YT_NATIVE_ONLY in app.js): YouTube's own player
+     only (its gear = pick 1080p, its fullscreen = the real one on iPhone), from the start, no switch and no
+     "กลับตัวเล่นเดิม"; ib_ytmode is not read.
+     YT_NATIVE_BUTTON = true brings the switch back ("ปุ่ม YouTube" in the site's bar ↔ "← กลับตัวเล่นเดิม" under
+     YouTube's player), remembered on the device in ib_ytmode ('custom' | 'youtube'); YT_NATIVE_DEFAULT then picks the
+     player for someone who never switched. Without the switch, YT_NATIVE_DEFAULT = false = the site's player for everyone.
+     Only one video iframe at a time: the old player is destroyed before the other one is made; a switch carries on from
+     the same second, playing or not. */
+  var YT_NATIVE_BUTTON = false;
+  var YT_NATIVE_DEFAULT = true;
   var YTMODE_KEY = 'ib_ytmode';
   function ytMode() {
-    if (!YT_NATIVE_BUTTON) return 'custom';
+    if (!YT_NATIVE_BUTTON) return YT_NATIVE_DEFAULT ? 'youtube' : 'custom';
     var m = store(YTMODE_KEY);
     return m === 'youtube' || m === 'custom' ? m : YT_NATIVE_DEFAULT ? 'youtube' : 'custom';
   }
@@ -317,8 +320,9 @@
     return me;
   }
 
-  /** YouTube's own player (controls, gear, its fullscreen), not cropped or enlarged. "กลับตัวเล่นเดิม" sits under the
-      video, outside it. The play state classes are kept on the box, so studyPing counts study time the same way. */
+  /** YouTube's own player (controls, gear, its fullscreen), not cropped or enlarged. The line under the video, outside
+      it, holds the messages (error, "ชอบตอนนี้? …" at the end) and, with the switch on, "กลับตัวเล่นเดิม". The play
+      state classes are kept on the box, so studyPing counts study time the same way. */
   function mountNative(el, vid, opt) {
     var me = { el: el, P: null, t: null, ping: null, again: function () { mount(el, vid, { sound: true, lid: opt.lid }); } };
     players.push(me);
@@ -329,12 +333,13 @@
     el.innerHTML = '<div id="' + host + '"></div>';
     var bar = document.createElement('div');
     bar.className = 'ibp-modebar';
-    bar.innerHTML = '<button type="button" class="pill ghost s">← กลับตัวเล่นเดิม</button><span class="sm ink2">ใช้ปุ่มของ YouTube อยู่ · ฟันเฟือง = เลือกความชัด</span>';
+    bar.innerHTML = YT_NATIVE_BUTTON ? '<button type="button" class="pill ghost s">← กลับตัวเล่นเดิม</button><span class="sm ink2">ใช้ปุ่มของ YouTube อยู่ · ฟันเฟือง = เลือกความชัด</span>' : '<span class="sm ink2"></span>';
     el.parentNode.insertBefore(bar, el.nextSibling);
-    bar.querySelector('button').onclick = function () { switchTo('custom', el, vid, opt.lid, P); };
+    if (YT_NATIVE_BUTTON) bar.querySelector('button').onclick = function () { switchTo('custom', el, vid, opt.lid, P); };
     me.off = function () { bar.remove(); };
     var setState = function (c) { ['is-playing', 'is-paused', 'is-buffering', 'is-ended'].forEach(function (x) { el.classList.remove(x); }); if (c) el.classList.add(c); };
     var fail = function (t) { var sp = bar.querySelector('span'); if (sp) sp.textContent = t; };
+    var endMsg = function (t) { if (!YT_NATIVE_BUTTON) fail(t); };
     loadYT().then(function () {
       if (players.indexOf(me) < 0 || !document.body.contains(el)) return;
       var v = { controls: 1, fs: 1, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0, autoplay: opt.muted || opt.sound ? 1 : 0, mute: opt.muted ? 1 : 0 };
@@ -360,7 +365,8 @@
           onStateChange: function (e) {
             var s = e.data;
             setState(s === 1 ? 'is-playing' : s === 2 ? 'is-paused' : s === 3 ? 'is-buffering' : s === 0 ? 'is-ended' : '');
-            if (s === 1) pauseOthers(me);
+            if (s === 1) { pauseOthers(me); endMsg(''); }
+            else if (s === 0) endMsg('ชอบตอนนี้? ซื้อคอร์สเพื่อดูตอนอื่นต่อได้เลย');
           },
           onError: function (e) { fail(e.data === 101 || e.data === 150 ? 'คลิปนี้ไม่ได้เปิดให้ฝังในเว็บ แจ้งแอดมินทาง IG' : 'เล่นคลิปนี้ไม่ได้ ลองรีเฟรชหน้า หรือแจ้งแอดมินทาง IG'); }
         }
@@ -448,7 +454,7 @@
     '.player.ibp-narrow .yt-time{display:none}' +
     '.player .ibp-ytbtn{width:auto!important;display:inline-flex!important;align-items:center;gap:4px;padding:0 8px;font:600 12px/1 inherit;font-family:inherit;white-space:nowrap}' +
     '.player .ibp-ytbtn svg{width:16px;height:16px;flex:none} .player.ibp-narrow .ibp-ytbtn span{display:none}' +
-    '.ibp-modebar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:8px 0 0} .ibp-modebar .sm{font-size:12.5px}' +
+    '.ibp-modebar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:8px 0 0} .ibp-modebar .sm{font-size:12.5px} .ibp-modebar:has(> span:empty:only-child){margin:0}' +
     '.cover .upd,.nc-cv .upd{position:absolute;right:12px;top:12px;z-index:1;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}' +
     '.feat .cover .upd{right:14px;top:14px} .ci .cover .upd{display:none}' +
     '.nc-cv .upd{right:10px;top:10px;font-size:12px} .nc-cv .nc-off ~ .upd{top:40px}' +

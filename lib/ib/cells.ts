@@ -9,6 +9,7 @@ import { prisma } from "../prisma";
 import { rateLimit } from "../rate-limit";
 import { auth, checkPhoto, courseBySlug, enrollState, getSetting, log, photoOut, savePhoto, type Ctx, type Data } from "./api";
 import { couponUses } from "./shop";
+import { subjectKey } from "./subjects";
 import { clip, err, iso } from "./util";
 
 export const CELLS = {
@@ -273,24 +274,39 @@ export async function mySubmissions(_d: Data, { p }: Ctx) {
   };
 }
 
+/** A review a student wrote (not one an admin put in) · null source = the student's own (rows from before round 7m). */
+const studentReview = { OR: [{ source: null }, { source: { not: "admin" } }] } satisfies Prisma.ReviewWhereInput;
 export async function adminFeedback(d: Data) {
   const done = d.status === "done";
   const pick = done ? { status: { not: "pending" } } : { status: "pending" };
   const order = { createdAt: done ? "desc" : "asc" } as const;
-  const [revs, grades, nRev, nGrades] = await Promise.all([
-    prisma.review.findMany({ where: pick, orderBy: order, take: 200 }),
+  // The queue and its counter are the students' reviews only; the ones an admin put in are listed apart (added).
+  const [revs, added, grades, nRev, nGrades, courses] = await Promise.all([
+    prisma.review.findMany({ where: { ...pick, ...studentReview }, orderBy: order, take: 200 }),
+    prisma.review.findMany({ where: { source: "admin" }, orderBy: { createdAt: "desc" }, take: 300 }),
     prisma.gradeReport.findMany({ where: pick, orderBy: order, take: 200 }),
-    prisma.review.count({ where: { status: "pending" } }),
+    prisma.review.count({ where: { status: "pending", ...studentReview } }),
     prisma.gradeReport.count({ where: { status: "pending" } }),
+    prisma.course.findMany({ include: { subject: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
   ]);
-  const users = new Map((await prisma.user.findMany({ where: { id: { in: [...revs.map((x) => x.userId), ...grades.map((x) => x.userId)] } } })).map((u) => [u.id, u]));
-  const titles = new Map((await prisma.course.findMany({ where: { id: { in: revs.map((x) => x.courseId) } }, select: { id: true, title: true } })).map((c) => [c.id, c.title]));
-  const who = (id: string) => {
-    const u = users.get(id);
-    return u ? { user_id: u.id, name: fullName(u), nickname: u.nickname || "", school: u.school || "", grade: u.gradeLevel || "", email: u.email } : { name: id };
+  const uids = [...revs.map((x) => x.userId), ...grades.map((x) => x.userId)].filter((x): x is string => !!x);
+  const users = new Map((await prisma.user.findMany({ where: { id: { in: uids } } })).map((u) => [u.id, u]));
+  const cById = new Map(courses.map((c) => [c.id, c]));
+  const who = (id: string | null) => {
+    const u = id ? users.get(id) : undefined;
+    return u ? { user_id: u.id, name: fullName(u), nickname: u.nickname || "", school: u.school || "", grade: u.gradeLevel || "", email: u.email } : { name: id || "" };
   };
   return {
-    reviews: revs.map((x) => ({ id: x.id, user: who(x.userId), course: titles.get(x.courseId) || x.courseId, rating: x.rating, text: x.text, status: x.status, created_at: iso(x.createdAt) })),
+    reviews: revs.map((x) => ({
+      id: x.id, user: x.source === "admin" ? { name: x.displayName || "นักเรียน", nickname: x.displayName || "", school: x.displayGrade || "" } : who(x.userId),
+      course: cById.get(x.courseId)?.title || x.courseId, course_id: cById.get(x.courseId)?.slug || x.courseId, rating: x.rating, text: x.text, status: x.status, created_at: iso(x.createdAt),
+      source: x.source || "student", display_name: x.displayName || "", display_grade: x.displayGrade || "", note: x.source === "admin" ? x.note || "" : "",
+    })),
+    added: added.map((x) => ({
+      id: x.id, course_id: cById.get(x.courseId)?.slug || x.courseId, course: cById.get(x.courseId)?.title || x.courseId, rating: x.rating, text: x.text, status: x.status,
+      display_name: x.displayName || "", display_grade: x.displayGrade || "", note: x.note || "", created_at: iso(x.createdAt),
+    })),
+    courses: courses.map((c) => ({ course_id: c.slug, title: c.title, subject: subjectKey(c.subject), status: c.isPublished ? "published" : "draft" })),
     grades: grades.map((x) => ({
       id: x.id, user: who(x.userId), year: x.year, term: x.term, grade_level: x.gradeLevel, grades: x.grades, gpa: x.gpa, exam: x.exam, message: x.message,
       has_proof: !!x.proofBlobId, consent_publish: x.consentPublish, status: x.status, created_at: iso(x.createdAt),
@@ -304,22 +320,67 @@ export async function adminFeedbackDecide(d: Data, _c: Ctx, admin: User) {
   const isReview = d.kind !== "grades", ok = d.decision === "approve", id = String(d.id || "");
   const r = isReview ? await prisma.review.findUnique({ where: { id } }) : await prisma.gradeReport.findUnique({ where: { id } });
   if (!r) throw err("NOT_FOUND", "ไม่พบรายการ");
+  // An admin's own review (source "admin") has no account: never any cells.
+  const uid = "source" in r && r.source === "admin" ? null : r.userId;
   await prisma.$transaction(async (tx) => {
-    await lockStreak(tx, r.userId);
+    if (uid) await lockStreak(tx, uid);
     const data = { status: ok ? "approved" : "hidden", decidedBy: admin.id, decidedAt: new Date() };
     const where = { id, OR: [{ status: "pending" }, ...(ok ? [{ status: "hidden" }] : [])] };
     const n = isReview ? await tx.review.updateMany({ where, data }) : await tx.gradeReport.updateMany({ where, data });
     if (!n.count) throw err("ALREADY", "ตรวจรายการนี้ไปแล้ว");
-    if (ok) {
+    if (ok && uid) {
       const reason = isReview ? "review" : "grades";
       const cells = isReview ? CELLS.REVIEW : CELLS.GRADES + ("proofBlobId" in r && r.proofBlobId ? CELLS.GRADES_PROOF : 0);
-      if (!(await tx.cellLedger.findFirst({ where: { userId: r.userId, reason, ref: id } }))) {
-        await ledgerAdd(tx, r.userId, cells, reason, await today(), id);
-        await tx.streak.update({ where: { userId: r.userId }, data: { points: await ledgerSum(tx, r.userId) } });
+      if (!(await tx.cellLedger.findFirst({ where: { userId: uid, reason, ref: id } }))) {
+        await ledgerAdd(tx, uid, cells, reason, await today(), id);
+        await tx.streak.update({ where: { userId: uid }, data: { points: await ledgerSum(tx, uid) } });
       }
     }
   });
   await log(admin, (isReview ? "review." : "grades.") + (ok ? "approve" : "hide"), id);
+  return true;
+}
+
+/** An admin puts in a review a student sent another way (LINE, IG…): shown under the course at once, under the name
+ *  typed in, tied to no account, no cells. d: { review_id? (edit), course_ids[] (new: one row per course),
+ *  display_name, display_grade, rating 1–5, text, note (internal), hidden? }. Course pages read the reviews from the
+ *  database on every request (no course-list cache here), so nothing needs clearing afterwards. */
+export async function adminReviewSave(d: Data, _c: Ctx, admin: User) {
+  const name = clip(d.display_name, 40), grade = clip(d.display_grade, 60), rating = Math.round(Number(d.rating) || 0), text = clip(d.text, 1000), note = clip(d.note, 200);
+  if (!name) throw err("BAD_INPUT", "ใส่ชื่อที่จะแสดง เช่น ชื่อเล่นของน้อง");
+  if (rating < 1 || rating > 5) throw err("BAD_INPUT", "ให้ดาว 1–5 ดวง");
+  if (text.length < 5) throw err("BAD_INPUT", "ใส่ข้อความรีวิว");
+  const status = d.hidden ? "hidden" : "approved", ids: string[] = [];
+  if (d.review_id) {
+    const r = await prisma.review.findUnique({ where: { id: String(d.review_id) } });
+    if (!r) throw err("NOT_FOUND", "ไม่พบรีวิว");
+    if (r.source !== "admin") throw err("FORBIDDEN", "แก้ได้เฉพาะรีวิวที่แอดมินใส่เอง");
+    const c = d.course_id ? await courseBySlug(d.course_id) : await prisma.course.findUnique({ where: { id: r.courseId } });
+    if (!c) throw err("BAD_INPUT", "เลือกคอร์ส");
+    await prisma.review.update({ where: { id: r.id }, data: { courseId: c.id, displayName: name, displayGrade: grade, rating, text, note, status, decidedBy: admin.id, decidedAt: new Date() } });
+    ids.push(r.id);
+  } else {
+    const list: unknown[] = Array.isArray(d.course_ids) ? d.course_ids : d.course_id != null ? [d.course_id] : [];
+    const cids = list.map(String).filter((x, i, a) => x && a.indexOf(x) === i).slice(0, 40);
+    if (!cids.length) throw err("BAD_INPUT", "เลือกคอร์สอย่างน้อย 1 คอร์ส");
+    const found = await prisma.course.findMany({ where: { slug: { in: cids } }, select: { id: true, slug: true } });
+    for (const cid of cids) if (!found.some((c) => c.slug === cid)) throw err("BAD_INPUT", "ไม่พบคอร์ส " + cid);
+    const at = d.created_at && !isNaN(new Date(d.created_at).getTime()) && new Date(d.created_at) <= new Date() ? new Date(d.created_at) : new Date();
+    const rows = await prisma.$transaction(cids.map((cid) => prisma.review.create({
+      data: { userId: null, courseId: found.find((c) => c.slug === cid)!.id, rating, text, status, createdAt: at, decidedBy: admin.id, decidedAt: new Date(), source: "admin", displayName: name, displayGrade: grade, note },
+    })));
+    ids.push(...rows.map((x) => x.id));
+  }
+  await log(admin, "review.admin.save", ids.join(","));
+  return { ids };
+}
+/** Only an admin's own review can be deleted; a student's is hidden instead (admin.feedback.decide). */
+export async function adminReviewDelete(d: Data, _c: Ctx, admin: User) {
+  const r = await prisma.review.findUnique({ where: { id: String(d.review_id || "") } });
+  if (!r) throw err("NOT_FOUND", "ไม่พบรีวิว");
+  if (r.source !== "admin") throw err("FORBIDDEN", "ลบได้เฉพาะรีวิวที่แอดมินใส่เอง รีวิวจากนักเรียนใช้ \"ซ่อน\" แทน");
+  await prisma.review.delete({ where: { id: r.id } });
+  await log(admin, "review.admin.delete", r.id);
   return true;
 }
 
@@ -374,13 +435,14 @@ async function trialAdmin() {
   };
 }
 
-/** Approved reviews on the course page (newest 30). */
+/** Approved reviews on the course page (newest 30) · an admin's review shows the name and class typed in; its
+ *  internal note never leaves the server. */
 export async function courseReviews(courseId: string) {
   const rs = await prisma.review.findMany({ where: { courseId, status: "approved" }, orderBy: { createdAt: "desc" }, take: 30 });
-  const users = new Map((await prisma.user.findMany({ where: { id: { in: rs.map((r) => r.userId) } } })).map((u) => [u.id, u]));
+  const users = new Map((await prisma.user.findMany({ where: { id: { in: rs.map((r) => r.userId).filter((x): x is string => !!x) } } })).map((u) => [u.id, u]));
   return rs.map((r) => {
-    const u = users.get(r.userId);
-    return { nickname: u?.nickname || "นักเรียน", grade: u?.gradeLevel || "", rating: r.rating, text: r.text, created_at: iso(r.createdAt) };
+    const u = r.userId ? users.get(r.userId) : undefined;
+    return { nickname: r.displayName || u?.nickname || "นักเรียน", grade: r.source === "admin" ? r.displayGrade || "" : u?.gradeLevel || "", rating: r.rating, text: r.text, created_at: iso(r.createdAt) };
   });
 }
 export const hasReviewed = async (userId: string, courseId: string) => !!(await prisma.review.findUnique({ where: { userId_courseId: { userId, courseId } } }));

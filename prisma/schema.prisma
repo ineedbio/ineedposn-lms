@@ -559,7 +559,8 @@ model FinPeriod {
   cutoff   DateTime?
 }
 
-/// ปรับปรุงยอด: plus/minus on a teacher's transfer in a period (manual, or from re-cutting a period already paid).
+/// ปรับปรุงยอด: plus/minus on a teacher's transfer in a period (manual, from re-cutting a period already paid, or an
+/// advance bigger than the share of its period, carried over to the next open one).
 model FinAdjustment {
   id        String   @id // "AJ…"
   period    String // "YYYY-MM-1" / "YYYY-MM-2"
@@ -567,11 +568,37 @@ model FinAdjustment {
   subject   String
   amount    Float
   note      String   @default("")
-  source    String   @default("manual") // manual | recut
+  source    String   @default("manual") // manual | recut | advance
   createdBy String
   createdAt DateTime @default(now())
+  /// source "advance": the period whose advances went over the share (closing / re-cutting it writes the row,
+  /// reopening it removes it)
+  ref       String?
 
   @@index([period])
+}
+
+/// เบิกล่วงหน้า: a teacher asks for part of their share (after expenses) of the period still open; an admin transfers
+/// it (slip optional) or records one made without a request. Paid ones come off that period's transfer when it closes.
+model FinAdvance {
+  id          String    @id // "AV…"
+  period      String // the open period it comes off ("YYYY-MM-1" / "YYYY-MM-2")
+  userId      String
+  subject     String
+  amount      Float
+  status      String    @default("pending") // pending | paid | rejected | cancelled
+  note        String    @default("") // the teacher's reason, or the admin's note on one recorded without a request
+  reply       String    @default("") // the admin's answer (shown to the teacher)
+  requestedAt DateTime  @default(now())
+  requestedBy String // the teacher, or the admin who recorded it
+  decidedBy   String?
+  decidedAt   DateTime?
+  paidAt      DateTime?
+  slipBlobId  String? // transfer slip (private FileBlob, like FinPayout's), optional
+  account     String    @default("") // bank · account no · name at the time of the transfer
+
+  @@index([period])
+  @@index([userId])
 }
 
 model FinPayout {
@@ -726,16 +753,22 @@ model CellLedger {
 }
 
 /// Course review by an enrolled student: pending → approved (shown on the course page, +cells) / hidden.
+/// Or put in by an admin (source "admin": a review a student sent another way, LINE, IG…): no account (userId null),
+/// shown at once under the name typed in, no cells.
 model Review {
-  id        String    @id @default(cuid())
-  userId    String
-  courseId  String // Course.id
-  rating    Int
-  text      String
-  status    String    @default("pending")
-  createdAt DateTime  @default(now())
-  decidedBy String?
-  decidedAt DateTime?
+  id           String    @id @default(cuid())
+  userId       String? // null on an admin's review
+  courseId     String // Course.id
+  rating       Int
+  text         String
+  status       String    @default("pending")
+  createdAt    DateTime  @default(now())
+  decidedBy    String?
+  decidedAt    DateTime?
+  source       String? // "admin" · null / "" / "student" = the student's own
+  displayName  String? // admin's review: the name shown
+  displayGrade String? // admin's review: class / school shown (optional)
+  note         String? // admin's review: internal note, never on the course page
 
   @@unique([userId, courseId])
   @@index([courseId, status])
