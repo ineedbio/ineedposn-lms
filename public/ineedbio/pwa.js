@@ -6,7 +6,8 @@
 //  2) iPhone in Safari: the page can't put the player itself into real fullscreen (only a <video> of the page's own can),
 //     so the fullscreen button fills the page and Safari's bars stay. The first time that happens on a device, a small
 //     hint says how to get real fullscreen (landscape + Add to Home Screen). Once per device (localStorage), closable,
-//     gone by itself after a few seconds. Never shown in the Home Screen app.
+//     gone by itself after a few seconds. Never shown in the Home Screen app. Course page only: in the lesson room
+//     app.js's fullscreen button on iPhone goes to YouTube's own player, which plays in the phone's real fullscreen.
 (function () {
   'use strict';
   var ua = navigator.userAgent || '';
@@ -67,6 +68,7 @@
     var b = e.target && e.target.closest && e.target.closest('.player.sp [data-y=fs]');
     if (!b || seen()) return;
     var player = b.closest('.player');
+    if (!player.hasAttribute('data-ibp')) return; // the course page's players (course-page.js), not the lesson room
     setTimeout(function () { if (player.classList.contains('fake-fs')) hint(player); }, 400);
   }, true);
 })();

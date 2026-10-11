@@ -11,9 +11,16 @@
   /* The crop box is the 16:9 picture, sized from the player's real box (its padding is the notch safe area):
        normal / fullscreen "whole picture": the biggest 16:9 that fits, centred
        fullscreen "fill width" (data-fscover=1): as wide as the box, so taller than it; the player clips top and bottom
-     The iframe is then sized from the crop by each player's own fit() (course-page.js / app.js): no transform. */
+     The iframe is then sized from the crop by each player's own fit() (course-page.js / app.js): no transform.
+     YouTube's own player in the lesson room (.yt-native, app.js "ปุ่ม YouTube"): no 16:9 crop box — the sizes this
+     wrote are taken off so the box fills the player again (ineedbio.css); back in the site's player it fits again. */
+  var CROP_KEYS = ['position', 'left', 'top', 'width', 'height', 'right', 'bottom', 'overflow'];
   function fit(player) {
     var crop = player.querySelector('.yt-crop'); if (!crop) return;
+    if (player.classList.contains('yt-native')) {
+      if (crop.__ibFit) { CROP_KEYS.forEach(function (k) { crop.style.removeProperty(k); }); crop.__ibFit = ''; }
+      return;
+    }
     var W = player.clientWidth, H = player.clientHeight;
     if (!W || !H) return;
     var cs = getComputedStyle(player), pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0,
@@ -104,14 +111,16 @@
 
   /* Enlarged layout for the lesson player in app.js (course-page.js decides it, see YT_TARGET_* there):
      app.js can't be edited, so after its fit() writes the iframe's inline style this puts the enlarged layout back.
-     Does nothing when enlarging is off for this device. On iPhone / iPad in fullscreen it leaves app.js's own real-size layout
+     Does nothing when enlarging is off for this device, nor in YouTube's own player (.yt-native: app.js keeps that
+     iframe at the size of the box, never enlarged or cropped). On iPhone / iPad in fullscreen it leaves app.js's own real-size layout
      alone; on leaving fullscreen app.js fits again and this runs after it. The rewrite is idempotent (only writes when
      a value differs), so the style observer settles after one pass. */
   var Y = window.__ibYt, framed = typeof WeakSet === 'function' ? new WeakSet() : null;
   function applyFrame(ifr) {
     var crop = ifr.parentNode; if (!Y || !crop || !crop.classList || !crop.classList.contains('yt-crop')) return;
     var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
-    var pl = crop.closest('.player'), full = !!(pl && inFs(pl)); if (full && !Y.cfg.fsZoom) return;
+    var pl = crop.closest('.player'); if (pl && pl.classList.contains('yt-native')) return;
+    var full = !!(pl && inFs(pl)); if (full && !Y.cfg.fsZoom) return;
     var L = Y.layout(W, H, full), st = ifr.style, want = { width: L.w + 'px', height: L.h + 'px', left: L.left + 'px', top: L.top + 'px', transform: L.tf, 'transform-origin': '0 0' };
     for (var k in want) if (st.getPropertyValue(k) !== want[k] || st.getPropertyPriority(k) !== 'important') st.setProperty(k, want[k], 'important');
   }
