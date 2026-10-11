@@ -2955,7 +2955,7 @@ function advBind(f, adm, subs, P, pays) {
     submitForm('#arf', 'fin.advance.reject', '#arf-err', function () { back('ตอบคำขอแล้ว'); }, function () { return { adv_id: b.dataset.advrej }; });
   }; });
   $$('[data-advpay]').forEach(function (b) { b.onclick = function () { advPayModal(f, (f.adv_pending || []).filter(function (a) { return a.adv_id === b.dataset.advpay; })[0], subs, P, pays, back); }; });
-  var newAdv = function (preset) { api('fin.splits').then(function (r) { advPayModal(f, null, subs, P, pays, back, r.people.filter(function (x) { return (x.roles || [x.role]).indexOf('teacher') >= 0; }), preset); }).catch(function (e) { toast(e.message, true); }); };
+  var newAdv = function (preset) { api('fin.splits').then(function (r) { advPayModal(f, null, subs, P, pays, back, r.people.filter(function (x) { var rl = x.roles || [x.role]; return rl.indexOf('teacher') >= 0 || rl.indexOf('admin') >= 0 || pays.some(function (y) { return y.user_id === x.user_id; }); }).sort(function (a, b) { var ha = pays.some(function (y) { return y.user_id === a.user_id; }), hb = pays.some(function (y) { return y.user_id === b.user_id; }); return ha === hb ? 0 : ha ? -1 : 1; }), preset); }).catch(function (e) { toast(e.message, true); }); };
   if ($('#po-advnew')) $('#po-advnew').onclick = function () { newAdv(); };
   $$('[data-advfor]').forEach(function (b) { b.onclick = function () { newAdv({ u: b.dataset.advfor, s: b.dataset.s }); }; });
 }
