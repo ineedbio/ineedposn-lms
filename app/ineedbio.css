@@ -492,6 +492,7 @@ button.pav.s{color:var(--acc);border-color:var(--acc)}
 .capedit:hover,.capedit:focus-visible{opacity:1;background:var(--bg)}
 button.file{background:var(--bg);color:var(--ink);cursor:pointer;font:inherit;font-size:14px}
 .po-adj{display:block;color:var(--acc)!important;margin-top:2px}
+.po-advq{display:block;margin-top:4px;color:var(--ink2)!important}.po-advq b{color:var(--ok);display:inline!important;font-size:inherit!important}.po-advq .link{display:inline!important}.po-advq .link{margin-left:6px}
 .po-adv{display:block;color:var(--ink2)!important;margin-top:2px}.po-adv b{color:var(--ink)}
 .adv-box{display:grid;gap:10px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--bg2)}.adv-box .spread>div{display:grid;gap:2px}
 .adv-l{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:14px;color:var(--ink2)}.adv-l b{color:var(--ink);font-variant-numeric:tabular-nums}.adv-l .ok-t{color:var(--ok)}
