@@ -1194,8 +1194,12 @@ var PI = {
   fwd: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 5l7 7-7 7"/><text x="1" y="16" font-size="8" fill="currentColor" stroke="none" font-family="sans-serif">10</text></svg>',
   vol: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
   mute: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>',
-  fs: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>'
+  fs: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+  gear: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>'
 };
+/* โหมดปุ่ม YouTube: ใช้ตัวเล่นของ YouTube เอง (เลือกความชัดได้ · iPhone เต็มจอจริง) · จำไว้ใน ib_ytmode (ใช้คีย์เดียวกับหน้าคอร์ส) */
+var YT_NATIVE_BUTTON = true;
+function isIOS() { var ua = navigator.userAgent || ''; return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1); }
 function loadYT() {
   if (window.YT && window.YT.Player) return Promise.resolve();
   if (S.ytLoad) return S.ytLoad;
@@ -1218,6 +1222,7 @@ function stopPlayer() {
   var p = S.yt || S.ytPend; S.yt = null; S.ytPend = null;
   if (p) { try { p.destroy(); } catch (e) {} }
   S.ytCtl = null; document.body.classList.remove('fake-fs-on');
+  $$('.yt-modebar').forEach(function (x) { x.remove(); });
 }
 /** มือถือ/แท็บเล็ต (รวม iPad ที่แจ้งตัวเป็น Mac) · คอมจอสัมผัสที่มีเมาส์ไม่นับ */
 function isHandheld() {
@@ -1243,6 +1248,7 @@ function safePlayer(el, vid, wm, opt) {
     '<div class="yt-row"><button class="yt-b" data-y="toggle" aria-label="เล่น/หยุด">' + PI.play + '</button><button class="yt-b" data-y="back" aria-label="ย้อน 10 วินาที">' + PI.back + '</button><button class="yt-b" data-y="fwd" aria-label="ข้าม 10 วินาที">' + PI.fwd + '</button>' +
     '<button class="yt-b" data-y="mute" aria-label="เปิด/ปิดเสียง">' + PI.vol + '</button><span class="yt-time">0:00 / 0:00</span><span style="flex:1"></span>' +
     '<select class="yt-q" aria-label="ความชัด">' + QS.map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('') + '</select>' +
+    (YT_NATIVE_BUTTON ? '<button class="yt-b yt-ytm" data-y="ytm" aria-label="ใช้ปุ่มของ YouTube (เลือกความชัดได้ เต็มจอจริงบน iPhone)" title="ใช้ปุ่มของ YouTube · เลือกความชัดได้">' + PI.gear + '<span>YouTube</span></button>' : '') +
     '<select class="yt-rate" aria-label="ความเร็ว">' + YTRATES.map(function (r) { return '<option value="' + r + '"' + (r === 1 ? ' selected' : '') + '>' + r + 'x</option>'; }).join('') + '</select>' +
     '<button class="yt-b" data-y="fs" aria-label="เต็มจอ">' + PI.fs + '</button></div></div>';
   var P = null, dur = 0, drag = false, hideT = null, ended = false, posKey = opt.key ? 'ib_pos_' + opt.key : '';
@@ -1261,6 +1267,8 @@ function safePlayer(el, vid, wm, opt) {
   var jump = function (d) { if (!P) return; var t = Math.min(Math.max(0, (P.getCurrentTime() || 0) + d), Math.max(0, dur - 1)); P.seekTo(t, true); tick(); wake(); };
   var isFs = function () { return document.fullscreenElement === el || document.webkitFullscreenElement === el || el.classList.contains('fake-fs'); };
   var fs = function () {
+    // iPhone: หน้าเว็บสั่งเต็มจอให้ iframe ไม่ได้ (แถบ Safari ยังอยู่) → สลับไปตัวเล่น YouTube ที่เล่นแบบเต็มจอของเครื่อง
+    if (!isFs() && !nat && !(el.requestFullscreen || el.webkitRequestFullscreen) && isIOS() && YT_NATIVE_BUTTON) { setMode(true, false, true); return; }
     if (isFs()) { if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); el.classList.remove('fake-fs'); document.body.classList.remove('fake-fs-on'); return; }
     var rq = el.requestFullscreen || el.webkitRequestFullscreen;
     if (rq) { try { var r = rq.call(el); if (r && r.catch) r.catch(function () { el.classList.add('fake-fs'); document.body.classList.add('fake-fs-on'); }); return; } catch (e) {} }
@@ -1273,7 +1281,7 @@ function safePlayer(el, vid, wm, opt) {
   $('.yt-shield', el).ondblclick = function (e) { e.preventDefault(); fs(); };
   $('.yt-big', el).onclick = function () { toggle(); };
   el.onmousemove = wake; el.ontouchstart = wake;
-  $$('.yt-b', el).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var y = b.dataset.y; if (y === 'toggle') toggle(); else if (y === 'back') jump(-10); else if (y === 'fwd') jump(10); else if (y === 'mute') S.ytCtl.mute(); else if (y === 'fs') fs(); wake(); }; });
+  $$('.yt-b', el).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var y = b.dataset.y; if (y === 'toggle') toggle(); else if (y === 'back') jump(-10); else if (y === 'fwd') jump(10); else if (y === 'mute') S.ytCtl.mute(); else if (y === 'fs') fs(); else if (y === 'ytm') setMode(true, true); wake(); }; });
   seek.oninput = function () { drag = true; seek.style.setProperty('--p', (seek.value / 10) + '%'); time.textContent = fmtT(seek.value / 1000 * dur) + ' / ' + fmtT(dur); };
   seek.onchange = function () { drag = false; if (P && dur) { P.seekTo(seek.value / 1000 * dur, true); ended = false; } wake(); };
   var rateSel = $('.yt-rate', el), qSel = $('.yt-q', el);
@@ -1292,6 +1300,7 @@ function safePlayer(el, vid, wm, opt) {
   var crop = $('.yt-crop', el);
   var fit = function () {
     var ifr = $('iframe', crop); if (!ifr) return;
+    if (nat) { ['width', 'height', 'left', 'top'].forEach(function (k, i) { ifr.style.setProperty(k, i < 2 ? '100%' : '0', 'important'); }); ifr.style.setProperty('transform', 'none', 'important'); return; }
     var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
     var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, dpr = window.devicePixelRatio || 1, sc = 1;
     if (qH) sc = Math.min(1, vh * dpr / qH);
@@ -1305,19 +1314,26 @@ function safePlayer(el, vid, wm, opt) {
   var ro = window.ResizeObserver ? new ResizeObserver(fit) : null;
   if (ro) ro.observe(crop); else window.addEventListener('resize', fit);
   S.ytOff = function () { if (ro) ro.disconnect(); else window.removeEventListener('resize', fit); clearTimeout(hideT); };
-  loadYT().then(function () {
-    if (gen !== S.ytGen || !document.body.contains(el)) return;
+  var nat = YT_NATIVE_BUTTON && store('ib_ytmode') === 'youtube', bgen = 0;
+  var make = function (startAt, autoplay, fullOnPlay) {
+    var my = ++bgen;
+    el.classList.toggle('yt-native', nat);
     P = new YT.Player('yt-host', {
       videoId: vid, host: 'https://www.youtube-nocookie.com',
-      playerVars: (function () { var v = { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0 }; if (qH) v.vq = qOf(); if (/^https?:/.test(location.origin)) v.origin = location.origin; return v; })(),
+      playerVars: (function () {
+        var v = nat ? { controls: 1, fs: 1, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: fullOnPlay ? 0 : 1, cc_load_policy: 0 }
+          : { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0 };
+        if (!nat && qH) v.vq = qOf(); if (startAt) v.start = Math.floor(startAt); if (/^https?:/.test(location.origin)) v.origin = location.origin; return v; })(),
       events: {
         onReady: function () {
-          if (gen !== S.ytGen) { try { P.destroy(); } catch (e) {} return; }
+          if (gen !== S.ytGen || my !== bgen) { try { P.destroy(); } catch (e) {} return; }
           S.yt = P; S.ytPend = null; dur = P.getDuration() || 0; fit(); if (savedRate !== 1) setRate(savedRate);
-          var ifr = P.getIframe && P.getIframe(); if (ifr) { ifr.setAttribute('tabindex', '-1'); ifr.setAttribute('title', 'คลิปเรียน'); }
-          var sv = posKey ? Number(store(posKey)) : 0;
-          if (sv > 10 && (!dur || sv < dur - 20)) { P.cueVideoById({ videoId: vid, startSeconds: sv }); msg.textContent = 'ดูค้างไว้ที่ ' + fmtT(sv) + ' · กดเล่นเพื่อดูต่อ'; }
-          tick(); S.ytT = setInterval(tick, 250);
+          var ifr = P.getIframe && P.getIframe(); if (ifr) { if (!nat) ifr.setAttribute('tabindex', '-1'); ifr.setAttribute('title', 'คลิปเรียน'); }
+          if (startAt) { try { P.seekTo(startAt, true); } catch (e) {} }
+          else { var sv = posKey ? Number(store(posKey)) : 0;
+            if (sv > 10 && (!dur || sv < dur - 20)) { P.cueVideoById({ videoId: vid, startSeconds: sv }); msg.textContent = 'ดูค้างไว้ที่ ' + fmtT(sv) + ' · กดเล่นเพื่อดูต่อ'; } }
+          if (autoplay) P.playVideo();
+          tick(); clearInterval(S.ytT); S.ytT = setInterval(tick, 250);
         },
         onStateChange: function (e) {
           var s = e.data;
@@ -1331,6 +1347,32 @@ function safePlayer(el, vid, wm, opt) {
       }
     });
     S.ytPend = P;
+    // แถบ "กลับตัวเล่นเดิม" อยู่ใต้กรอบวิดีโอ (ไม่บังปุ่มของ YouTube)
+    $$('.yt-modebar').forEach(function (x) { x.remove(); });
+    if (nat) {
+      var mb2 = document.createElement('div'); mb2.className = 'yt-modebar';
+      mb2.innerHTML = '<span>' + (fullOnPlay ? 'กดเล่นแล้ววิดีโอจะเต็มจอ · ' : '') + 'ใช้ปุ่มของ YouTube อยู่ · กดฟันเฟืองเพื่อเลือกความชัด</span><button type="button" class="link sm">← กลับตัวเล่นเดิม</button>';
+      $('button', mb2).onclick = function () { setMode(false, true); };
+      el.insertAdjacentElement('afterend', mb2);
+    }
+  };
+  /** สลับโหมด: native = ตัวเล่น YouTube · persist = จำไว้ · fullOnPlay = iPhone เล่นแบบเต็มจอของเครื่อง */
+  var setMode = function (native, persist, fullOnPlay) {
+    if (!window.YT || !YT.Player) return;
+    var t = 0, playing = false;
+    try { t = P && P.getCurrentTime ? P.getCurrentTime() || 0 : 0; var st = P && P.getPlayerState ? P.getPlayerState() : -1; playing = st === 1 || st === 3; } catch (e) {}
+    if (persist) store('ib_ytmode', native ? 'youtube' : 'custom');
+    clearInterval(S.ytT); S.ytT = null;
+    try { if (P) P.destroy(); } catch (e) {}
+    P = null; S.yt = null; S.ytPend = null;
+    if (el.classList.contains('fake-fs')) { el.classList.remove('fake-fs'); document.body.classList.remove('fake-fs-on'); }
+    crop.innerHTML = '<div id="yt-host"></div>';
+    nat = native; ended = false; setState(t > 0 ? 'is-paused' : 'is-idle');
+    make(t, playing || !!fullOnPlay, fullOnPlay);
+  };
+  loadYT().then(function () {
+    if (gen !== S.ytGen || !document.body.contains(el)) return;
+    make(0, false, false);
   }).catch(function () { fail('โหลดเครื่องเล่นวิดีโอไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วรีเฟรชหน้า'); });
 }
 document.addEventListener('keydown', function (e) {

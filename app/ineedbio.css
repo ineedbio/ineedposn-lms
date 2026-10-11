@@ -614,6 +614,12 @@ div.f{display:grid;gap:6px;font-size:13px;color:var(--ink2)}
 @media (max-width:520px){.yt-b{width:32px}.yt-b[data-y=back],.yt-b[data-y=fwd]{display:none}}
 .player:fullscreen{border-radius:0;aspect-ratio:auto;width:100%;height:100%}
 .player:fullscreen .yt-crop iframe,.player.fake-fs .yt-crop iframe{left:50%;top:50%;width:min(100vw,177.78vh)!important;height:calc(min(56.25vw,100vh) + 140px)!important;transform:translate(-50%,-50%)}
+.player.yt-native .yt-shield,.player.yt-native .yt-bar,.player.yt-native .yt-cover{display:none!important}
+.player.yt-native .yt-crop iframe{position:absolute;left:0!important;top:0!important;width:100%!important;height:100%!important;transform:none!important}
+.yt-modebar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--muted)}
+.yt-ytm{display:inline-flex;align-items:center;gap:5px;width:auto!important;padding:0 8px!important;font-size:12.5px;font-weight:600}
+@media (max-width:420px){.yt-ytm span{display:none}}
+.yt-q{display:none!important} /* เลิกใช้ตัวเลือกความชัดแบบเดิม (YouTube ไม่รับแล้ว) · เลือกความชัดผ่านปุ่ม YouTube แทน */
 .player.fake-fs{position:fixed;inset:0;z-index:300;border-radius:0;aspect-ratio:auto;width:100vw;height:100vh;height:100dvh}
 body.fake-fs-on{overflow:hidden}
 
