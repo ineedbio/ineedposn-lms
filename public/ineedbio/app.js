@@ -1343,7 +1343,7 @@ function safePlayer(el, vid, wm, opt) {
           else if (s === 2) setState('is-paused');
           else if (s === 3) setState('is-buffering');
           else if (s === 0) { ended = true; setState('is-ended'); if (posKey) store(posKey, null); if (opt.onEnd) opt.onEnd(msg); }
-          if (nat) { var em = $('.yt-modebar .yt-endmsg'); if (em) setTimeout(function () { em.innerHTML = s === 0 ? msg.innerHTML : ''; }, 50); } // โหมด YouTube: ข้อความดูจบ/ตอนถัดไปย้ายมาไว้ใต้วิดีโอ
+          if (nat) { var em = $('.yt-modebar .yt-endmsg'); if (em) setTimeout(function () { em.innerHTML = s === 1 ? '' : msg.innerHTML; }, 50); } // โหมด YouTube: ข้อความดูจบ/ตอนถัดไปย้ายมาไว้ใต้วิดีโอ
           tick();
         },
         onError: function (e) { fail(e.data === 101 || e.data === 150 ? 'คลิปนี้ไม่ได้เปิดให้ฝังในเว็บ แจ้งแอดมินให้เปิด "อนุญาตการฝัง" ใน YouTube Studio' : 'เล่นคลิปนี้ไม่ได้ ลองรีเฟรชหน้า หรือแจ้งแอดมินทาง IG'); }
@@ -2887,7 +2887,8 @@ function aPayouts(shell) {
         var acc = p.account_no ? '<div class="po-acc"><span>ชื่อบัญชี ' + esc(p.account_name || '-') + '</span><b>' + esc(p.bank_name || '') + ' ' + esc(p.account_no) + '</b></div>'
           : '<div class="po-acc miss"><span>ยังไม่ได้ใส่บัญชีรับเงิน</span><b>' + (adm ? '<a href="#/admin/tprofile/' + esc(x.user_id) + '">เพิ่มในโปรไฟล์ผู้สอน</a>' : '<a href="#/admin/tprofile">เพิ่มในโปรไฟล์ของคุณ</a>') + '</b></div>';
         return '<div class="po-row">' + tAv(p.photo, 'po-av') + '<div class="po-nm"><b>' + esc(p.name || x.name) + '</b><small>' + ((x.courses || []).length ? 'จาก ' + x.courses.map(esc).join(', ') : x.share ? x.pct + '% ของวิชา' + esc(subs[k]) : 'ไม่มียอดขายในงวดนี้') + (x.held ? ' · หักเงินที่เข้าบัญชีตัวเอง ' + money2(x.held) : '') + '</small>' + (x.adjust ? '<small class="po-adj">ปรับปรุงยอด ' + (x.adjust > 0 ? '+' : '') + money2(x.adjust) + ' · ' + (x.adjust_notes || []).map(function (t) { return esc(t.replace(/^[+−]\S+\s*/, '')); }).join(', ') + '</small>' : '') +
-          (x.advance ? '<small class="po-adv">ส่วนแบ่ง ' + money2(x.share) + (x.held ? ' − เข้าบัญชีตัวเอง ' + money2(x.held) : '') + (x.adjust ? (x.adjust > 0 ? ' + ' : ' − ') + 'ปรับปรุง ' + money2(Math.abs(x.adjust)) : '') + ' − เบิกล่วงหน้า ' + money2(x.advance) + ' = <b>คงเหลือสุทธิ ' + money2(x.settle + (x.carry || 0)) + '</b>' + (x.carry ? ' · เบิกเกิน ' + money2(-x.carry) + ' ยกไปหักงวดถัดไป' : '') + '</small>' : '') + '</div>' + acc + '<div class="po-act">' + act + '</div></div>';
+          (x.advance ? '<small class="po-adv">ส่วนแบ่ง ' + money2(x.share) + (x.held ? ' − เข้าบัญชีตัวเอง ' + money2(x.held) : '') + (x.adjust ? (x.adjust > 0 ? ' + ' : ' − ') + 'ปรับปรุง ' + money2(Math.abs(x.adjust)) : '') + ' − เบิกล่วงหน้า ' + money2(x.advance) + ' = <b>คงเหลือสุทธิ ' + money2(x.settle + (x.carry || 0)) + '</b>' + (x.carry ? ' · เบิกเกิน ' + money2(-x.carry) + ' ยกไปหักงวดถัดไป' : '') + '</small>' : '') +
+          (adm && f.adv_open && x.adv ? '<small class="po-advq">เบิกได้อีก <b>' + money2(x.adv.available) + '</b>' + (x.adv.pending ? ' · รออนุมัติ ' + money2(x.adv.pending) : '') + ' <button class="link sm" data-advfor="' + esc(x.user_id) + '" data-s="' + esc(k) + '">บันทึกเบิก</button></small>' : '') + '</div>' + acc + '<div class="po-act">' + act + '</div></div>';
       };
       return '<div class="po-sj' + sc(k) + '"><div class="po-hd"><span class="po-dot">' + esc(subs[k]) + '</span><div class="po-calc"><span>ยอดขาย <b>' + money2(b.income) + '</b></span><span>− รายจ่าย <b>' + money2(b.expense) + '</b></span><span>= แบ่งได้ <b>' + money2(b.pool_all != null ? b.pool_all : b.pool) + '</b></span></div></div>' +
         (rows.length ? rows.map(row).join('') : '') +
@@ -2954,10 +2955,12 @@ function advBind(f, adm, subs, P, pays) {
     submitForm('#arf', 'fin.advance.reject', '#arf-err', function () { back('ตอบคำขอแล้ว'); }, function () { return { adv_id: b.dataset.advrej }; });
   }; });
   $$('[data-advpay]').forEach(function (b) { b.onclick = function () { advPayModal(f, (f.adv_pending || []).filter(function (a) { return a.adv_id === b.dataset.advpay; })[0], subs, P, pays, back); }; });
-  if ($('#po-advnew')) $('#po-advnew').onclick = function () { api('fin.splits').then(function (r) { advPayModal(f, null, subs, P, pays, back, r.people.filter(function (x) { return (x.roles || [x.role]).indexOf('teacher') >= 0; })); }).catch(function (e) { toast(e.message, true); }); };
+  var newAdv = function (preset) { api('fin.splits').then(function (r) { advPayModal(f, null, subs, P, pays, back, r.people.filter(function (x) { var rl = x.roles || [x.role]; return rl.indexOf('teacher') >= 0 || rl.indexOf('admin') >= 0 || pays.some(function (y) { return y.user_id === x.user_id; }); }).sort(function (a, b) { var ha = pays.some(function (y) { return y.user_id === a.user_id; }), hb = pays.some(function (y) { return y.user_id === b.user_id; }); return ha === hb ? 0 : ha ? -1 : 1; }), preset); }).catch(function (e) { toast(e.message, true); }); };
+  if ($('#po-advnew')) $('#po-advnew').onclick = function () { newAdv(); };
+  $$('[data-advfor]').forEach(function (b) { b.onclick = function () { newAdv({ u: b.dataset.advfor, s: b.dataset.s }); }; });
 }
 /** แอดมินโอนเบิกล่วงหน้า: อนุมัติคำขอ หรือบันทึกที่โอนให้เอง · สลิปไม่บังคับ แต่ควรแนบ (ส่งไปกับอีเมลแจ้งผู้สอน) */
-function advPayModal(f, req, subs, P, pays, back, people) {
+function advPayModal(f, req, subs, P, pays, back, people, preset) {
   var now = thInput(), avOf = function (u, sj) { var x = pays.filter(function (y) { return y.user_id === u && y.subject === sj; })[0]; return x && x.adv ? x.adv : { net: 0, pending: 0, available: 0 }; };
   var p = req ? P[req.user_id] || {} : {};
   openModal(mhead(req ? 'โอนเงินเบิกล่วงหน้า' : 'บันทึกเบิกล่วงหน้า', 'ลงในงวด ' + prLabel(f.open_period || f.period) + ' หักออกจากส่วนแบ่งตอนปิดยอด · ระบบส่งอีเมลแจ้งผู้สอน') +
@@ -2972,6 +2975,7 @@ function advPayModal(f, req, subs, P, pays, back, people) {
   var cur = function () { return req ? { u: req.user_id, s: req.subject } : { u: $('#f-user_id').value, s: $('#f-subject').value }; };
   var calc = function () { var c = cur(), a = avOf(c.u, c.s), v = Number(String($('#f-amount').value).replace(/[^\d.]/g, '')) || 0, left = a.net - (a.pending - (req ? req.amount : 0)) - v;
     $('#apf-calc').innerHTML = '<span>คงเหลือของผู้สอนตอนนี้ <b>' + money2(a.net) + '</b> − เบิก <b>' + money2(v) + '</b> = คงเหลือสุทธิ <b>' + money2(left) + '</b></span>' + (left < 0 ? '<span class="sm" style="color:var(--wait)">เกินส่วนแบ่งงวดนี้ ส่วนที่เกินจะยกไปหักงวดถัดไปเอง</span>' : ''); };
+  if (!req && preset) { $('#f-user_id').value = preset.u; $('#f-subject').value = preset.s; }
   if (!req) { var sync = function () { var u = people.filter(function (x) { return x.user_id === $('#f-user_id').value; })[0]; if (u && u.subjects.length && u.subjects.indexOf($('#f-subject').value) < 0) $('#f-subject').value = u.subjects[0]; calc(); }; $('#f-user_id').onchange = sync; $('#f-subject').onchange = calc; sync(); }
   $('#f-amount').oninput = calc; calc();
   $('#apf').onsubmit = function (e) {
