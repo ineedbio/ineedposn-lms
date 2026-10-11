@@ -76,7 +76,7 @@
   window.addEventListener('orientationchange', function () {
     later();
     setTimeout(function () {
-      var p = document.querySelector('.player.sp.is-playing:not(.fake-fs)');
+      var p = document.querySelector('.player.sp.is-playing:not(.fake-fs), .player.ibp-native.is-playing');
       if (p && window.innerWidth > window.innerHeight && window.innerHeight < 560) p.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }, 350);
   });
@@ -87,7 +87,13 @@
   var css = document.createElement('style');
   css.textContent =
     '@media (orientation:landscape) and (max-height:560px){' +
-    '.player.sp:not(.fake-fs):not(:fullscreen){width:min(100%,calc((100vh - 16px) * 16 / 9));width:min(100%,calc((100svh - 16px) * 16 / 9));margin-inline:auto}}' +
+    '.player.sp:not(.fake-fs):not(:fullscreen),.player.ibp-native:not(:fullscreen){width:min(100%,calc((100vh - 16px) * 16 / 9));width:min(100%,calc((100svh - 16px) * 16 / 9));margin-inline:auto}}' +
+    // YouTube's own player is on the page (lesson room .yt-native, course page .ibp-native): its buttons are inside the
+    // video, so nothing may catch a tap over it — the seasonal decorations that can be tapped (spider, peeking ghost)
+    // let taps through while it is there
+    'body:has(.player.yt-native) #ct-fx *,body:has(.player.ibp-native) #ct-fx *{pointer-events:none!important}' +
+    // phone held sideways: the video fills the screen and YouTube's buttons sit on its bottom edge, under the bottom menu
+    '@media (orientation:landscape) and (max-height:560px){body:has(.player.yt-native) .mnav,body:has(.player.ibp-native) .mnav{display:none!important}}' +
     '.player.fake-fs{position:fixed;inset:0;width:100vw;width:100dvw;height:100vh;height:100dvh;box-sizing:border-box;padding:0 env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);margin:0!important;max-width:none!important;border-radius:0!important;background:#000;overflow:hidden}' +
     '.yt-fitmode{display:none;width:auto!important;padding:0 8px;font-size:12.5px;white-space:nowrap}' +
     '@media (pointer:coarse){.player.fake-fs:not([data-fsfill="1"]) .yt-fitmode{display:grid}.player:fullscreen:not([data-fsfill="1"]) .yt-fitmode{display:grid}}' +

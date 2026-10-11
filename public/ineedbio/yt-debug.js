@@ -95,7 +95,11 @@
 
   var box = document.createElement('div'), pre = document.createElement('pre'), btn = document.createElement('button'), last = {};
   box.setAttribute('data-ytdebug', '1');
-  box.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:2147483647;max-width:min(94vw,560px);padding:6px 8px;background:rgba(0,0,0,.82);color:#7CFC9A;border-radius:8px;font:11px/1.35 ui-monospace,Menlo,monospace;pointer-events:none';
+  var LOOK = 'padding:6px 8px;background:rgba(0,0,0,.82);color:#7CFC9A;border-radius:8px;font:11px/1.35 ui-monospace,Menlo,monospace;text-align:left;';
+  var FIXED = 'position:fixed;left:6px;bottom:6px;z-index:2147483647;max-width:min(94vw,560px);pointer-events:none;' + LOOK;
+  // YouTube's own player has its buttons inside the video: the box goes under it (in the "กลับตัวเล่นเดิม" bar), never over it
+  var UNDER = 'position:static;flex-basis:100%;max-width:100%;margin:6px 0 0;box-sizing:border-box;pointer-events:auto;' + LOOK;
+  box.style.cssText = FIXED;
   pre.style.cssText = 'margin:0;white-space:pre-wrap;word-break:break-all';
   btn.type = 'button'; btn.textContent = 'คัดลอกผล';
   btn.style.cssText = 'pointer-events:auto;margin-top:6px;padding:6px 12px;border:0;border-radius:6px;background:#7CFC9A;color:#000;font:600 13px/1 system-ui,sans-serif;cursor:pointer';
@@ -115,8 +119,10 @@
 
   function tick() {
     // in native fullscreen only the fullscreen element is drawn: keep the overlay inside it
-    var host = document.fullscreenElement || document.webkitFullscreenElement || document.body;
-    if (box.parentNode !== host) host.appendChild(box);
+    var nat = document.querySelector('.player.yt-native, .player.ibp-native'), under = nat && nat.nextElementSibling;
+    if (under && !/(^|\s)(yt-modebar|ibp-modebar)(\s|$)/.test(under.className)) under = null;
+    var host = document.fullscreenElement || document.webkitFullscreenElement || under || document.body;
+    if (box.parentNode !== host) { host.appendChild(box); box.style.cssText = host === under ? UNDER : FIXED; }
     try { last = read(); } catch (e) { last = { error: String(e && e.message || e) }; }
     pre.textContent = Object.keys(last).map(function (k) { return k + ': ' + last[k]; }).join('\n');
   }
