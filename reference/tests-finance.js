@@ -83,4 +83,73 @@ t('manual adjustment in open period; locked after close; recut only latest', () 
   no(call('fin.reopen', { period: P }, adm), 'LOCKED');
   assert.equal(ok(call('fin.summary', {}, adm)).period, N2);
 });
+t('advance: teacher requests from share after expenses; admin pays; net = share − held − advance', () => {
+  const N3 = run("prNext_('" + N2 + "')");
+  const soon = s => new Date(Date.now() + s * 1000).toISOString();
+  sale('MATH-M4-T1', 1000, new Date().toISOString()); // T1 50% = 500 · T2 20% = 200
+  const t1 = ok(call('login', { email: 't1@x.com', password: 'secret123' }, null, 't1@x.com')).token;
+  const t2 = ok(call('login', { email: 't2@x.com', password: 'secret123' }, null, 't2@x.com')).token;
+  let m = ok(call('fin.summary', {}, t1, 't1@x.com'));
+  assert.equal(m.period, N2); assert.equal(m.adv_open, true);
+  assert.equal(m.adv_mine.find(x => x.subject === 'math').available, 500);
+  no(call('fin.advance.request', { subject: 'math', amount: 600 }, t1, 't1@x.com'), 'BAD_INPUT');
+  no(call('fin.advance.request', { subject: 'bio', amount: 100 }, t1, 't1@x.com'), 'BAD_INPUT');
+  no(call('fin.advance.request', { subject: 'math', amount: 100 }, ST.token), 'FORBIDDEN');
+  m = ok(call('fin.advance.request', { subject: 'math', amount: 300, note: 'ค่าเทอมน้อง' }, t1, 't1@x.com'));
+  assert.equal(m.adv_pending.length, 1); assert.equal(m.adv_mine.find(x => x.subject === 'math').available, 200);
+  no(call('fin.advance.request', { subject: 'math', amount: 250 }, t1, 't1@x.com'), 'BAD_INPUT'); // รวมคำขอที่รอแล้วเกิน
+  assert.equal(ok(call('fin.summary', {}, t2, 't2@x.com')).adv_pending.length, 0); // ผู้สอนอื่นไม่เห็น
+  let a = ok(call('fin.summary', {}, adm));
+  assert.equal(a.adv_pending.length, 1); assert.equal(a.pays.find(x => x.user_id === T1.user.user_id).adv.pending, 300);
+  const before = M.outbox.length;
+  a = ok(call('fin.advance.pay', { adv_id: a.adv_pending[0].adv_id, slip: PH }, adm));
+  assert.equal(M.outbox.length, before + 1); assert.match(M.outbox[M.outbox.length - 1].subject, /เบิกล่วงหน้า/);
+  no(call('fin.advance.pay', { adv_id: a.adv[0].adv_id }, adm), 'ALREADY');
+  const p1 = a.pays.find(x => x.user_id === T1.user.user_id && x.subject === 'math');
+  assert.equal(p1.share, 500); assert.equal(p1.advance, 300); assert.equal(p1.settle, 200); assert.equal(a.totals.advance, 300);
+  assert.equal(a.adv.length, 1); assert.equal(a.adv[0].has_slip, true);
+  ok(call('fin.advance.slip', { adv_id: a.adv[0].adv_id }, t1, 't1@x.com'));
+  no(call('fin.advance.slip', { adv_id: a.adv[0].adv_id }, t2, 't2@x.com'), 'FORBIDDEN');
+  // แอดมินโอนให้ T2 เองเกินส่วนแบ่ง (200) → ปิดยอดแล้วส่วนที่เกินยกไปหักงวดถัดไป ไม่ต้องให้ผู้สอนโอนคืน
+  a = ok(call('fin.advance.pay', { user_id: T2.user.user_id, subject: 'math', amount: 500, note: 'เบิกฉุกเฉิน' }, adm));
+  assert.equal(a.pays.find(x => x.user_id === T2.user.user_id).settle, -300);
+  run("closePeriod_('" + N2 + "', finCompute_('" + N2 + "'), 'test')"); // (fin.close ปิดล่วงหน้าเกิน 1 งวดไม่ได้)
+  const c = ok(call('fin.summary', { period: N2 }, adm));
+  const q2 = c.pays.find(x => x.user_id === T2.user.user_id), q1 = c.pays.find(x => x.user_id === T1.user.user_id);
+  assert.equal(q2.settle, 0); assert.equal(q2.carry, -300); assert.equal(q1.settle, 200);
+  assert.equal(c.payouts.find(x => x.user_id === T2.user.user_id).status, 'paid');
+  assert.equal(c.payouts.find(x => x.user_id === T1.user.user_id).amount, 200);
+  no(call('fin.advance.delete', { adv_id: c.adv.find(x => x.user_id === T2.user.user_id).adv_id }, adm), 'LOCKED');
+  const n3 = ok(call('fin.summary', {}, adm));
+  assert.equal(n3.period, N3);
+  const aj = n3.adjustments.find(x => x.user_id === T2.user.user_id);
+  assert.equal(aj.amount, -300); assert.equal(aj.source, 'advance');
+  no(call('fin.adjust.delete', { adj_id: aj.adj_id }, adm), 'LOCKED');
+  assert.equal(n3.pays.find(x => x.user_id === T2.user.user_id).settle, -300);
+  no(call('fin.advance.request', { subject: 'math', amount: 1 }, t2, 't2@x.com'), 'BAD_INPUT'); // ยังติดลบ เบิกไม่ได้
+});
+t('advance: cancel / reject / delete mistaken entry', () => {
+  const soon = s => new Date(Date.now() + s * 1000).toISOString();
+  sale('MATH-M4-T2', 1000, new Date().toISOString()); // T1 70% = 700
+  const t1 = ok(call('login', { email: 't1@x.com', password: 'secret123' }, null, 't1@x.com')).token;
+  let m = ok(call('fin.advance.request', { subject: 'math', amount: 100 }, t1, 't1@x.com'));
+  m = ok(call('fin.advance.cancel', { adv_id: m.adv_pending[0].adv_id }, t1, 't1@x.com'));
+  assert.equal(m.adv_pending.length, 0);
+  m = ok(call('fin.advance.request', { subject: 'math', amount: 700 }, t1, 't1@x.com'));
+  const id = m.adv_pending[0].adv_id;
+  no(call('fin.advance.reject', { adv_id: id }, t1, 't1@x.com'), 'FORBIDDEN');
+  ok(call('fin.advance.reject', { adv_id: id, reply: 'รอปิดยอดก่อนนะ' }, adm));
+  no(call('fin.advance.cancel', { adv_id: id }, t1, 't1@x.com'), 'ALREADY');
+  let a = ok(call('fin.advance.pay', { user_id: T1.user.user_id, subject: 'math', amount: 50 }, adm));
+  assert.equal(a.pays.find(x => x.user_id === T1.user.user_id).advance, 50);
+  a = ok(call('fin.advance.delete', { adv_id: a.adv.find(x => x.amount === 50).adv_id }, adm));
+  assert.ok(!a.pays.find(x => x.user_id === T1.user.user_id).advance);
+});
+t('reopen removes advance carry; close again recreates it once', () => {
+  const N3 = run("prNext_('" + N2 + "')");
+  ok(call('fin.reopen', { period: N2 }, adm));
+  assert.equal(ok(call('fin.summary', { period: N3 }, adm)).adjustments.filter(x => x.source === 'advance').length, 0);
+  run("closePeriod_('" + N2 + "', finCompute_('" + N2 + "'), 'test')");
+  assert.equal(ok(call('fin.summary', { period: N3 }, adm)).adjustments.filter(x => x.source === 'advance').length, 1);
+});
 console.log('\n' + n + ' tests passed');

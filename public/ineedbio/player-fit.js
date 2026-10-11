@@ -11,9 +11,17 @@
   /* The crop box is the 16:9 picture, sized from the player's real box (its padding is the notch safe area):
        normal / fullscreen "whole picture": the biggest 16:9 that fits, centred
        fullscreen "fill width" (data-fscover=1): as wide as the box, so taller than it; the player clips top and bottom
-     The iframe is then sized from the crop by each player's own fit() (course-page.js / app.js): no transform. */
+     The iframe is then sized from the crop by each player's own fit() (course-page.js / app.js): no transform.
+     YouTube's own player in the lesson room (.yt-native: app.js YT_NATIVE_ONLY, the only player since 7l): no 16:9
+     crop box — the sizes this wrote are taken off so the box fills the player again (ineedbio.css); back in the
+     site's player (if app.js's switch is turned back) it fits again. */
+  var CROP_KEYS = ['position', 'left', 'top', 'width', 'height', 'right', 'bottom', 'overflow'];
   function fit(player) {
     var crop = player.querySelector('.yt-crop'); if (!crop) return;
+    if (player.classList.contains('yt-native')) {
+      if (crop.__ibFit) { CROP_KEYS.forEach(function (k) { crop.style.removeProperty(k); }); crop.__ibFit = ''; }
+      return;
+    }
     var W = player.clientWidth, H = player.clientHeight;
     if (!W || !H) return;
     var cs = getComputedStyle(player), pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0,
@@ -69,7 +77,7 @@
   window.addEventListener('orientationchange', function () {
     later();
     setTimeout(function () {
-      var p = document.querySelector('.player.sp.is-playing:not(.fake-fs)');
+      var p = document.querySelector('.player.sp.is-playing:not(.fake-fs), .player.ibp-native.is-playing');
       if (p && window.innerWidth > window.innerHeight && window.innerHeight < 560) p.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }, 350);
   });
@@ -80,7 +88,13 @@
   var css = document.createElement('style');
   css.textContent =
     '@media (orientation:landscape) and (max-height:560px){' +
-    '.player.sp:not(.fake-fs):not(:fullscreen){width:min(100%,calc((100vh - 16px) * 16 / 9));width:min(100%,calc((100svh - 16px) * 16 / 9));margin-inline:auto}}' +
+    '.player.sp:not(.fake-fs):not(:fullscreen),.player.ibp-native:not(:fullscreen){width:min(100%,calc((100vh - 16px) * 16 / 9));width:min(100%,calc((100svh - 16px) * 16 / 9));margin-inline:auto}}' +
+    // YouTube's own player is on the page (lesson room .yt-native, course page .ibp-native): its buttons are inside the
+    // video, so nothing may catch a tap over it — the seasonal decorations that can be tapped (spider, peeking ghost)
+    // let taps through while it is there
+    'body:has(.player.yt-native) #ct-fx *,body:has(.player.ibp-native) #ct-fx *{pointer-events:none!important}' +
+    // phone held sideways: the video fills the screen and YouTube's buttons sit on its bottom edge, under the bottom menu
+    '@media (orientation:landscape) and (max-height:560px){body:has(.player.yt-native) .mnav,body:has(.player.ibp-native) .mnav{display:none!important}}' +
     '.player.fake-fs{position:fixed;inset:0;width:100vw;width:100dvw;height:100vh;height:100dvh;box-sizing:border-box;padding:0 env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);margin:0!important;max-width:none!important;border-radius:0!important;background:#000;overflow:hidden}' +
     '.yt-fitmode{display:none;width:auto!important;padding:0 8px;font-size:12.5px;white-space:nowrap}' +
     '@media (pointer:coarse){.player.fake-fs:not([data-fsfill="1"]) .yt-fitmode{display:grid}.player:fullscreen:not([data-fsfill="1"]) .yt-fitmode{display:grid}}' +
@@ -104,14 +118,16 @@
 
   /* Enlarged layout for the lesson player in app.js (course-page.js decides it, see YT_TARGET_* there):
      app.js can't be edited, so after its fit() writes the iframe's inline style this puts the enlarged layout back.
-     Does nothing when enlarging is off for this device. On iPhone / iPad in fullscreen it leaves app.js's own real-size layout
+     Does nothing when enlarging is off for this device, nor in YouTube's own player (.yt-native: app.js keeps that
+     iframe at the size of the box, never enlarged or cropped). On iPhone / iPad in fullscreen it leaves app.js's own real-size layout
      alone; on leaving fullscreen app.js fits again and this runs after it. The rewrite is idempotent (only writes when
      a value differs), so the style observer settles after one pass. */
   var Y = window.__ibYt, framed = typeof WeakSet === 'function' ? new WeakSet() : null;
   function applyFrame(ifr) {
     var crop = ifr.parentNode; if (!Y || !crop || !crop.classList || !crop.classList.contains('yt-crop')) return;
     var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
-    var pl = crop.closest('.player'), full = !!(pl && inFs(pl)); if (full && !Y.cfg.fsZoom) return;
+    var pl = crop.closest('.player'); if (pl && pl.classList.contains('yt-native')) return;
+    var full = !!(pl && inFs(pl)); if (full && !Y.cfg.fsZoom) return;
     var L = Y.layout(W, H, full), st = ifr.style, want = { width: L.w + 'px', height: L.h + 'px', left: L.left + 'px', top: L.top + 'px', transform: L.tf, 'transform-origin': '0 0' };
     for (var k in want) if (st.getPropertyValue(k) !== want[k] || st.getPropertyPriority(k) !== 'important') st.setProperty(k, want[k], 'important');
   }

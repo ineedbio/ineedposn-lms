@@ -648,7 +648,7 @@ function campSlide() {
   var end = pr.ends_at ? new Date(pr.ends_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '';
   var what = (pr.each ? 'ลดคอร์สละ ' : 'ลด ') + pr.label + (pr.all ? ' ทุกคอร์ส' : ' คอร์สที่ร่วมรายการ');
   return { label: 'ฮาโลวีน: สมัครสมาชิกใหม่' + what, html: '<div class="bbd-s bb-camp on" aria-hidden="false"><div class="bbd-in"><div><span class="bbd-k"><i></i>Hello-ween · โปรสมาชิกใหม่</span>' +
-    '<h2><span class="nw">ผีหลอก</span> <span class="nw">โจทย์หลอก</span> <span class="nw">เธอหลอก</span><br><em class="nw">อันไหนเจ็บกว่า?</em> 👻</h2><p class="sub">อย่างน้อย… โจทย์หลอก <b>เราช่วยได้</b> 🎃</p>' +
+    '<h2><span class="nw">ผีหลอก</span> <span class="nw">โจทย์หลอก</span> <span class="nw">เธอหลอก</span><br><em class="nw">อันไหนน่ากลัวกว่า?</em> 👻</h2><p class="sub">อย่างน้อย… โจทย์หลอก <b>เราช่วยได้</b> 🎃</p>' +
     '<div class="hw-deal"><span class="hw-pct">' + '−' + esc(pr.label) + '</span><span class="hw-dt"><b>ฮาโลวีนนี้ สมัครสมาชิกใหม่ <span class="nw">' + esc(what) + '</span></b>' +
     '<small>' + (end ? '📅 ถึง ' + esc(end) + ' เท่านั้น · ' : '') + 'ลดให้อัตโนมัติในตะกร้า ไม่ต้องใช้โค้ด</small></span></div>' +
     '<div class="bbd-cta">' + (S.user ? '<button type="button" class="bbtn pri" data-jump2="courses">เลือกคอร์สเลย</button>' : '<button class="bbtn pri" data-act="signup">สมัครสมาชิก รับส่วนลด ' + esc(pr.label) + '</button><button type="button" class="bbtn gh" data-jump2="courses">ดูคอร์สทั้งหมด</button>') + '</div></div>' +
@@ -1194,8 +1194,13 @@ var PI = {
   fwd: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 5l7 7-7 7"/><text x="1" y="16" font-size="8" fill="currentColor" stroke="none" font-family="sans-serif">10</text></svg>',
   vol: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
   mute: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>',
-  fs: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>'
+  fs: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+  gear: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>'
 };
+/* โหมดปุ่ม YouTube: ใช้ตัวเล่นของ YouTube เอง (เลือกความชัดได้ · iPhone เต็มจอจริง) · จำไว้ใน ib_ytmode (ใช้คีย์เดียวกับหน้าคอร์ส) */
+var YT_NATIVE_BUTTON = true;
+var YT_NATIVE_ONLY = true; // true = ใช้ตัวเล่น YouTube (มีปุ่มของ YouTube) อย่างเดียว ไม่มีปุ่มสลับ · false = ตัวเล่นของเว็บเป็นค่าเริ่มต้น + ปุ่มสลับ
+function isIOS() { var ua = navigator.userAgent || ''; return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1); }
 function loadYT() {
   if (window.YT && window.YT.Player) return Promise.resolve();
   if (S.ytLoad) return S.ytLoad;
@@ -1218,6 +1223,7 @@ function stopPlayer() {
   var p = S.yt || S.ytPend; S.yt = null; S.ytPend = null;
   if (p) { try { p.destroy(); } catch (e) {} }
   S.ytCtl = null; document.body.classList.remove('fake-fs-on');
+  $$('.yt-modebar').forEach(function (x) { x.remove(); });
 }
 /** มือถือ/แท็บเล็ต (รวม iPad ที่แจ้งตัวเป็น Mac) · คอมจอสัมผัสที่มีเมาส์ไม่นับ */
 function isHandheld() {
@@ -1243,6 +1249,7 @@ function safePlayer(el, vid, wm, opt) {
     '<div class="yt-row"><button class="yt-b" data-y="toggle" aria-label="เล่น/หยุด">' + PI.play + '</button><button class="yt-b" data-y="back" aria-label="ย้อน 10 วินาที">' + PI.back + '</button><button class="yt-b" data-y="fwd" aria-label="ข้าม 10 วินาที">' + PI.fwd + '</button>' +
     '<button class="yt-b" data-y="mute" aria-label="เปิด/ปิดเสียง">' + PI.vol + '</button><span class="yt-time">0:00 / 0:00</span><span style="flex:1"></span>' +
     '<select class="yt-q" aria-label="ความชัด">' + QS.map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('') + '</select>' +
+    (YT_NATIVE_BUTTON && !YT_NATIVE_ONLY ? '<button class="yt-b yt-ytm" data-y="ytm" aria-label="ใช้ปุ่มของ YouTube (เลือกความชัดได้ เต็มจอจริงบน iPhone)" title="ใช้ปุ่มของ YouTube · เลือกความชัดได้">' + PI.gear + '<span>YouTube</span></button>' : '') +
     '<select class="yt-rate" aria-label="ความเร็ว">' + YTRATES.map(function (r) { return '<option value="' + r + '"' + (r === 1 ? ' selected' : '') + '>' + r + 'x</option>'; }).join('') + '</select>' +
     '<button class="yt-b" data-y="fs" aria-label="เต็มจอ">' + PI.fs + '</button></div></div>';
   var P = null, dur = 0, drag = false, hideT = null, ended = false, posKey = opt.key ? 'ib_pos_' + opt.key : '';
@@ -1261,6 +1268,8 @@ function safePlayer(el, vid, wm, opt) {
   var jump = function (d) { if (!P) return; var t = Math.min(Math.max(0, (P.getCurrentTime() || 0) + d), Math.max(0, dur - 1)); P.seekTo(t, true); tick(); wake(); };
   var isFs = function () { return document.fullscreenElement === el || document.webkitFullscreenElement === el || el.classList.contains('fake-fs'); };
   var fs = function () {
+    // iPhone: หน้าเว็บสั่งเต็มจอให้ iframe ไม่ได้ (แถบ Safari ยังอยู่) → สลับไปตัวเล่น YouTube ที่เล่นแบบเต็มจอของเครื่อง
+    if (!isFs() && !nat && !(el.requestFullscreen || el.webkitRequestFullscreen) && isIOS() && YT_NATIVE_BUTTON) { setMode(true, false, true); return; }
     if (isFs()) { if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); el.classList.remove('fake-fs'); document.body.classList.remove('fake-fs-on'); return; }
     var rq = el.requestFullscreen || el.webkitRequestFullscreen;
     if (rq) { try { var r = rq.call(el); if (r && r.catch) r.catch(function () { el.classList.add('fake-fs'); document.body.classList.add('fake-fs-on'); }); return; } catch (e) {} }
@@ -1273,7 +1282,7 @@ function safePlayer(el, vid, wm, opt) {
   $('.yt-shield', el).ondblclick = function (e) { e.preventDefault(); fs(); };
   $('.yt-big', el).onclick = function () { toggle(); };
   el.onmousemove = wake; el.ontouchstart = wake;
-  $$('.yt-b', el).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var y = b.dataset.y; if (y === 'toggle') toggle(); else if (y === 'back') jump(-10); else if (y === 'fwd') jump(10); else if (y === 'mute') S.ytCtl.mute(); else if (y === 'fs') fs(); wake(); }; });
+  $$('.yt-b', el).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var y = b.dataset.y; if (y === 'toggle') toggle(); else if (y === 'back') jump(-10); else if (y === 'fwd') jump(10); else if (y === 'mute') S.ytCtl.mute(); else if (y === 'fs') fs(); else if (y === 'ytm') setMode(true, true); wake(); }; });
   seek.oninput = function () { drag = true; seek.style.setProperty('--p', (seek.value / 10) + '%'); time.textContent = fmtT(seek.value / 1000 * dur) + ' / ' + fmtT(dur); };
   seek.onchange = function () { drag = false; if (P && dur) { P.seekTo(seek.value / 1000 * dur, true); ended = false; } wake(); };
   var rateSel = $('.yt-rate', el), qSel = $('.yt-q', el);
@@ -1292,6 +1301,7 @@ function safePlayer(el, vid, wm, opt) {
   var crop = $('.yt-crop', el);
   var fit = function () {
     var ifr = $('iframe', crop); if (!ifr) return;
+    if (nat) { ['width', 'height', 'left', 'top'].forEach(function (k, i) { ifr.style.setProperty(k, i < 2 ? '100%' : '0', 'important'); }); ifr.style.setProperty('transform', 'none', 'important'); return; }
     var W = crop.clientWidth, H = crop.clientHeight; if (!W || !H) return;
     var vw = Math.min(W, H * 16 / 9), vh = vw * 9 / 16, dpr = window.devicePixelRatio || 1, sc = 1;
     if (qH) sc = Math.min(1, vh * dpr / qH);
@@ -1305,19 +1315,27 @@ function safePlayer(el, vid, wm, opt) {
   var ro = window.ResizeObserver ? new ResizeObserver(fit) : null;
   if (ro) ro.observe(crop); else window.addEventListener('resize', fit);
   S.ytOff = function () { if (ro) ro.disconnect(); else window.removeEventListener('resize', fit); clearTimeout(hideT); };
-  loadYT().then(function () {
-    if (gen !== S.ytGen || !document.body.contains(el)) return;
+  var nat = YT_NATIVE_ONLY || (YT_NATIVE_BUTTON && store('ib_ytmode') === 'youtube'), bgen = 0;
+  var make = function (startAt, autoplay, fullOnPlay) {
+    var my = ++bgen;
+    el.classList.toggle('yt-native', nat);
     P = new YT.Player('yt-host', {
       videoId: vid, host: 'https://www.youtube-nocookie.com',
-      playerVars: (function () { var v = { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0 }; if (qH) v.vq = qOf(); if (/^https?:/.test(location.origin)) v.origin = location.origin; return v; })(),
+      playerVars: (function () {
+        var v = nat ? { controls: 1, fs: 1, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: fullOnPlay ? 0 : 1, cc_load_policy: 0 }
+          : { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, cc_load_policy: 0 };
+        if (!nat && qH) v.vq = qOf(); if (startAt) v.start = Math.floor(startAt); if (/^https?:/.test(location.origin)) v.origin = location.origin; return v; })(),
       events: {
         onReady: function () {
-          if (gen !== S.ytGen) { try { P.destroy(); } catch (e) {} return; }
+          if (gen !== S.ytGen || my !== bgen) { try { P.destroy(); } catch (e) {} return; }
           S.yt = P; S.ytPend = null; dur = P.getDuration() || 0; fit(); if (savedRate !== 1) setRate(savedRate);
-          var ifr = P.getIframe && P.getIframe(); if (ifr) { ifr.setAttribute('tabindex', '-1'); ifr.setAttribute('title', 'คลิปเรียน'); }
-          var sv = posKey ? Number(store(posKey)) : 0;
-          if (sv > 10 && (!dur || sv < dur - 20)) { P.cueVideoById({ videoId: vid, startSeconds: sv }); msg.textContent = 'ดูค้างไว้ที่ ' + fmtT(sv) + ' · กดเล่นเพื่อดูต่อ'; }
-          tick(); S.ytT = setInterval(tick, 250);
+          var ifr = P.getIframe && P.getIframe(); if (ifr) { if (!nat) ifr.setAttribute('tabindex', '-1'); ifr.setAttribute('title', 'คลิปเรียน'); }
+          if (startAt) { try { P.seekTo(startAt, true); } catch (e) {} }
+          else { var sv = posKey ? Number(store(posKey)) : 0;
+            if (sv > 10 && (!dur || sv < dur - 20)) { P.cueVideoById({ videoId: vid, startSeconds: sv }); msg.textContent = 'ดูค้างไว้ที่ ' + fmtT(sv) + ' · กดเล่นเพื่อดูต่อ';
+              if (nat) { var em0 = $('.yt-modebar .yt-endmsg'); if (em0) em0.textContent = msg.textContent; } } }
+          if (autoplay) P.playVideo();
+          tick(); clearInterval(S.ytT); S.ytT = setInterval(tick, 250);
         },
         onStateChange: function (e) {
           var s = e.data;
@@ -1325,12 +1343,39 @@ function safePlayer(el, vid, wm, opt) {
           else if (s === 2) setState('is-paused');
           else if (s === 3) setState('is-buffering');
           else if (s === 0) { ended = true; setState('is-ended'); if (posKey) store(posKey, null); if (opt.onEnd) opt.onEnd(msg); }
+          if (nat) { var em = $('.yt-modebar .yt-endmsg'); if (em) setTimeout(function () { em.innerHTML = s === 0 ? msg.innerHTML : ''; }, 50); } // โหมด YouTube: ข้อความดูจบ/ตอนถัดไปย้ายมาไว้ใต้วิดีโอ
           tick();
         },
         onError: function (e) { fail(e.data === 101 || e.data === 150 ? 'คลิปนี้ไม่ได้เปิดให้ฝังในเว็บ แจ้งแอดมินให้เปิด "อนุญาตการฝัง" ใน YouTube Studio' : 'เล่นคลิปนี้ไม่ได้ ลองรีเฟรชหน้า หรือแจ้งแอดมินทาง IG'); }
       }
     });
     S.ytPend = P;
+    // แถบ "กลับตัวเล่นเดิม" อยู่ใต้กรอบวิดีโอ (ไม่บังปุ่มของ YouTube)
+    $$('.yt-modebar').forEach(function (x) { x.remove(); });
+    if (nat) {
+      var mb2 = document.createElement('div'); mb2.className = 'yt-modebar';
+      mb2.innerHTML = YT_NATIVE_ONLY ? '<div class="yt-endmsg"></div>' : '<span>' + (fullOnPlay ? 'กดเล่นแล้ววิดีโอจะเต็มจอ · ' : '') + 'ใช้ปุ่มของ YouTube อยู่ · กดฟันเฟืองเพื่อเลือกความชัด</span><button type="button" class="link sm">← กลับตัวเล่นเดิม</button><div class="yt-endmsg"></div>';
+      if (!YT_NATIVE_ONLY) $('button.link', mb2).onclick = function () { setMode(false, true); };
+      el.insertAdjacentElement('afterend', mb2);
+    }
+  };
+  /** สลับโหมด: native = ตัวเล่น YouTube · persist = จำไว้ · fullOnPlay = iPhone เล่นแบบเต็มจอของเครื่อง */
+  var setMode = function (native, persist, fullOnPlay) {
+    if (!window.YT || !YT.Player) return;
+    var t = 0, playing = false;
+    try { t = P && P.getCurrentTime ? P.getCurrentTime() || 0 : 0; var st = P && P.getPlayerState ? P.getPlayerState() : -1; playing = st === 1 || st === 3; } catch (e) {}
+    if (persist) store('ib_ytmode', native ? 'youtube' : 'custom');
+    clearInterval(S.ytT); S.ytT = null;
+    try { if (P) P.destroy(); } catch (e) {}
+    P = null; S.yt = null; S.ytPend = null;
+    if (el.classList.contains('fake-fs')) { el.classList.remove('fake-fs'); document.body.classList.remove('fake-fs-on'); }
+    crop.innerHTML = '<div id="yt-host"></div>';
+    nat = native; ended = false; setState(t > 0 ? 'is-paused' : 'is-idle');
+    make(t, playing || !!fullOnPlay, fullOnPlay);
+  };
+  loadYT().then(function () {
+    if (gen !== S.ytGen || !document.body.contains(el)) return;
+    make(0, false, false);
   }).catch(function () { fail('โหลดเครื่องเล่นวิดีโอไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วรีเฟรชหน้า'); });
 }
 document.addEventListener('keydown', function (e) {
@@ -1753,8 +1798,27 @@ function aFeedback(shell) {
     S.fbQ = r.counts.reviews + r.counts.grades;
     var who = function (u) { return '<b>' + esc(u.nickname || '') + '</b> <span class="sm muted">' + esc(u.name || '') + (u.grade ? ' · ' + esc(u.grade) : '') + (u.school ? ' · ' + esc(u.school) : '') + '</span>'; };
     var btns = function (kind, x) { return x.status === 'pending' ? '<div class="rowx"><button class="pill s" data-fb="approve" data-k="' + kind + '" data-id="' + esc(x.id) + '">อนุมัติ · ให้เซลล์</button><button class="pill ghost s" data-fb="hide" data-k="' + kind + '" data-id="' + esc(x.id) + '">ไม่เผยแพร่</button></div>' : '<span class="badge ' + (x.status === 'approved' ? 'b-ok' : 'b-soft') + '">' + (x.status === 'approved' ? 'อนุมัติแล้ว' : 'ไม่เผยแพร่') + '</span>'; };
-    shell('<h1>รีวิวและผลการเรียน</h1><p class="ink2 sm">นักเรียนไม่เห็นสถานะการตรวจ เห็นแค่ว่าส่งแล้ว เซลล์เข้าบัญชีเมื่อกดอนุมัติ รีวิวที่อนุมัติจะขึ้นในหน้าคอร์ส</p>' +
-      '<div class="seg" role="group">' + [['pending', 'รอตรวจ (' + (r.counts.reviews + r.counts.grades) + ')'], ['done', 'ตรวจแล้ว']].map(function (t) { return '<button data-fbt="' + t[0] + '" aria-pressed="' + (st === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+    var added = r.added || [];
+    var head = '<div class="spread"><h1>รีวิวและผลการเรียน</h1><button class="pill s" id="rv-add">+ เพิ่มรีวิวเอง</button></div><p class="ink2 sm">นักเรียนไม่เห็นสถานะการตรวจ เห็นแค่ว่าส่งแล้ว เซลล์เข้าบัญชีเมื่อกดอนุมัติ รีวิวที่อนุมัติจะขึ้นในหน้าคอร์ส</p>' +
+      '<div class="seg" role="group">' + [['pending', 'รอตรวจ (' + (r.counts.reviews + r.counts.grades) + ')'], ['done', 'ตรวจแล้ว'], ['added', 'ใส่เอง (' + added.length + ')']].map(function (t) { return '<button data-fbt="' + t[0] + '" aria-pressed="' + (st === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>';
+    var bindTop = function () {
+      $$('[data-fbt]').forEach(function (b) { b.onclick = function () { S.fbTab = b.dataset.fbt; aFeedback(shell); }; });
+      $('#rv-add').onclick = function () { reviewModal(r.courses || [], null, function () { S.fbTab = 'added'; aFeedback(shell); }); };
+    };
+    if (st === 'added') {
+      shell(head + '<p class="ink2 sm">คำรีวิวที่น้องส่งมาทางไลน์ ไอจี หรือที่อื่น แอดมินใส่ให้เองได้ ขึ้นใต้คอร์สทันที ไม่ผูกบัญชีนักเรียนและไม่ให้เซลล์ · หมายเหตุภายในไม่แสดงหน้าเว็บ</p>' +
+        (added.length ? '<div class="stack" style="gap:10px">' + added.map(function (x) {
+          return '<div class="card stack" style="gap:6px"><div class="spread"><span><b>' + esc(x.display_name) + '</b>' + (x.display_grade ? ' <span class="sm muted">' + esc(x.display_grade) + '</span>' : '') + '</span><span class="sm muted">' + thDate(x.created_at) + '</span></div>' +
+            '<div class="sm">' + esc(x.course) + ' · ' + stars(x.rating) + (x.status === 'hidden' ? ' <span class="badge b-soft">ซ่อนอยู่</span>' : ' <span class="badge b-ok">แสดงอยู่</span>') + '</div><p>' + esc(x.text) + '</p>' +
+            (x.note ? '<div class="sm muted">หมายเหตุ: ' + esc(x.note) + '</div>' : '') +
+            '<div class="rowx"><button class="pill quiet s" data-rved="' + esc(x.id) + '">แก้ไข</button><button class="pill ghost s" data-rvdel="' + esc(x.id) + '">ลบ</button><a class="link sm" href="#/course/' + esc(x.course_id) + '">ดูหน้าคอร์ส</a></div></div>'; }).join('') + '</div>'
+          : '<div class="empty"><p>ยังไม่มีรีวิวที่ใส่เอง กด "+ เพิ่มรีวิวเอง" ด้านบน</p></div>'));
+      bindTop();
+      $$('[data-rved]').forEach(function (b) { b.onclick = function () { reviewModal(r.courses || [], added.filter(function (x) { return x.id === b.dataset.rved; })[0], function () { aFeedback(shell); }); }; });
+      $$('[data-rvdel]').forEach(function (b) { b.onclick = function () { confirmBox('ลบรีวิวนี้?', 'รีวิวจะหายจากหน้าคอร์สทันที ถ้าแค่อยากซ่อนชั่วคราว ใช้ "แก้ไข" แล้วติ๊กซ่อน', 'ลบ', true).then(function (y) { if (!y) return; busy(b, true); api('admin.review.delete', { review_id: b.dataset.rvdel }).then(function () { toast('ลบแล้ว'); aFeedback(shell); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }); }; });
+      return;
+    }
+    shell(head +
       (st === 'pending' && r.trial && r.trial.summary.length ? '<h3 style="font-size:17px">คนที่ลองดูตอนฟรี เข้าใจแค่ไหน</h3><div class="tbl"><table style="min-width:520px"><thead><tr><th>คอร์ส</th><th class="num">ตอบ</th><th class="num">เข้าใจ</th><th class="num">บางส่วน</th><th class="num">ยังไม่เข้าใจ</th></tr></thead><tbody>' +
         r.trial.summary.map(function (x) { var pc = function (v) { return Math.round((v || 0) / x.n * 100) + '%'; }; return '<tr><td>' + esc(x.course) + '</td><td class="num">' + x.n + '</td><td class="num">' + pc(x.clear) + '</td><td class="num">' + pc(x.partly) + '</td><td class="num">' + pc(x.lost) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
         (r.trial.comments.length ? '<div class="stack" style="gap:8px;margin-bottom:10px">' + r.trial.comments.slice(0, 20).map(function (x) { return '<div class="card stack" style="gap:4px;padding:14px 16px"><span class="sm muted">' + esc(x.course) + ' · ' + esc(x.lesson || '') + ' · ' + ({ clear: 'เข้าใจ', partly: 'เข้าใจบางส่วน', lost: 'ยังไม่เข้าใจ' }[x.level] || '') + (x.member ? ' · สมาชิก' : ' · ไม่ได้ล็อกอิน') + ' · ' + thDate(x.created_at) + '</span><p>' + esc(x.text) + '</p></div>'; }).join('') + '</div>' : '') : '') +
@@ -1765,10 +1829,37 @@ function aFeedback(shell) {
           '<div class="rowx">' + x.grades.map(function (g) { return '<span class="badge b-soft">' + esc(g.subject) + ' ' + esc(g.grade) + '</span>'; }).join('') + (x.gpa ? '<span class="badge b-ok">GPA ' + esc(x.gpa) + '</span>' : '') + '</div>' +
           (x.exam ? '<div class="sm">ผลสอบ/รางวัล: ' + esc(x.exam) + '</div>' : '') + (x.message ? '<p>' + esc(x.message) + '</p>' : '') +
           '<div class="rowx sm"><span class="' + (x.consent_publish ? '' : 'muted') + '">' + (x.consent_publish ? 'ยินยอมให้โพสต์ (ชื่อเล่น)' : 'ไม่ยินยอมให้โพสต์') + '</span>' + (x.has_proof ? '<button class="link sm" data-proof="' + esc(x.id) + '">ดูใบเกรด</button>' : '<span class="muted">ไม่แนบใบเกรด</span>') + '</div>' + btns('grades', x) + '</div>'; }).join('') + '</div>' : '<p class="ink2 sm">ไม่มีรายการ</p>'));
-    $$('[data-fbt]').forEach(function (b) { b.onclick = function () { S.fbTab = b.dataset.fbt; aFeedback(shell); }; });
+    bindTop();
     $$('[data-fb]').forEach(function (b) { b.onclick = function () { busy(b, true); api('admin.feedback.decide', { kind: b.dataset.k, id: b.dataset.id, decision: b.dataset.fb }).then(function () { toast(b.dataset.fb === 'approve' ? 'อนุมัติแล้ว เซลล์เข้าบัญชีนักเรียน' : 'ซ่อนแล้ว'); aFeedback(shell); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
     $$('[data-proof]').forEach(function (b) { b.onclick = function () { api('admin.grades.proof', { id: b.dataset.proof }).then(function (ph) { openModal(mhead('ใบเกรด') + '<img src="data:' + esc(ph.mime) + ';base64,' + ph.base64 + '" alt="ใบเกรด" style="width:100%;border-radius:12px">', true); }).catch(function (e) { toast(e.message, true); }); }; });
   }).catch(function (e) { shell('<p class="err">' + esc(e.message) + '</p>'); });
+}
+/** แอดมินใส่รีวิวเอง: เลือกได้หลายคอร์ส (สร้างใหม่) · แก้ไข = คอร์สเดียว */
+function reviewModal(courses, x, done) {
+  var subs = S.cfg.subjects || {}, edit = !!x, rt = x ? x.rating : 5;
+  var groups = Object.keys(subs).concat(['']).map(function (k) {
+    var L = courses.filter(function (c) { return k ? c.subject === k : !subs[c.subject]; }); if (!L.length) return '';
+    return '<div class="rvm-g"><b>' + esc(subs[k] || 'อื่นๆ') + '</b>' + L.map(function (c) { return '<label class="chk-l"><input type="' + (edit ? 'radio' : 'checkbox') + '" name="rvc" value="' + esc(c.course_id) + '"' + (x && x.course_id === c.course_id ? ' checked' : '') + '> ' + esc(c.title) + (c.status !== 'published' ? ' <span class="sm muted">(ยังไม่เปิดขาย)</span>' : '') + '</label>'; }).join('') + '</div>';
+  }).join('');
+  openModal(mhead(edit ? 'แก้ไขรีวิว' : 'เพิ่มรีวิวเอง', 'ขึ้นใต้คอร์สที่เลือกทันที แสดงชื่อที่ใส่ ไม่ผูกบัญชีนักเรียน') +
+    '<form class="form" id="rvm">' +
+    '<div class="f">' + (edit ? 'คอร์ส' : 'คอร์ส (เลือกได้หลายคอร์ส)') + '<div class="rvm-cs">' + groups + '</div></div>' +
+    '<div class="row2">' + field('display_name', 'ชื่อที่แสดง', x ? x.display_name : '', { ph: 'เช่น น้องมิว' }) + field('display_grade', 'ชั้น / โรงเรียน (ไม่ใส่ก็ได้)', x ? x.display_grade : '', { ph: 'เช่น ม.5 เตรียมอุดมฯ' }) + '</div>' +
+    '<div class="f">คะแนน<div class="rowx" role="radiogroup" aria-label="คะแนน">' + [5, 4, 3, 2, 1].map(function (n) { return '<label class="chk-l"><input type="radio" name="rating" value="' + n + '"' + (n === rt ? ' checked' : '') + '> ' + n + ' ดาว</label>'; }).join('') + '</div></div>' +
+    field('text', 'ข้อความรีวิว', x ? x.text : '', { area: true, ph: 'คัดลอกคำรีวิวของน้องมาวาง' }) +
+    field('note', 'หมายเหตุภายใน (ไม่แสดงหน้าเว็บ)', x ? x.note : '', { ph: 'เช่น จากไลน์ 3 ต.ค. ขออนุญาตน้องแล้ว' }) +
+    (edit ? '<label class="chk-l"><input type="checkbox" name="hidden"' + (x.status === 'hidden' ? ' checked' : '') + '> ซ่อนจากหน้าคอร์สไว้ก่อน</label>' : '') +
+    '<p class="hint">ใส่เฉพาะรีวิวที่น้องเขียนจริงและยินยอมให้เผยแพร่</p>' +
+    '<p class="err" id="rvm-err" hidden></p><button class="pill">' + (edit ? 'บันทึก' : 'เพิ่มรีวิว') + '</button></form>');
+  $('#rvm').onsubmit = function (e) {
+    e.preventDefault(); var btn = $('#rvm button:not([type=button])'), er = $('#rvm-err'); er.hidden = true;
+    var cids = $$('#rvm [name=rvc]:checked').map(function (i) { return i.value; });
+    if (!cids.length) { er.textContent = 'เลือกคอร์สอย่างน้อย 1 คอร์ส'; er.hidden = false; return; }
+    var d = { display_name: $('#f-display_name').value, display_grade: $('#f-display_grade').value, rating: Number(($('#rvm [name=rating]:checked') || {}).value || 0), text: $('#f-text').value, note: $('#f-note').value };
+    if (edit) { d.review_id = x.id; d.course_id = cids[0]; d.hidden = !!($('#rvm [name=hidden]') || {}).checked; } else d.course_ids = cids;
+    busy(btn, true);
+    api('admin.review.save', d).then(function (r) { closeModal(); toast(edit ? 'บันทึกแล้ว' : 'เพิ่มแล้ว ' + r.ids.length + ' คอร์ส'); done(); }).catch(function (x2) { busy(btn, false); er.textContent = x2.message; er.hidden = false; });
+  };
 }
 function aCells(shell) {
   api('admin.cells').then(function (r) {
@@ -2008,7 +2099,7 @@ function viewAdmin(tab, arg) {
     ['การเงินและการขาย', [['payouts', 'ส่วนแบ่งผู้สอน'], ['finance', 'รายรับรายจ่าย'], ['bundles', 'แพ็กเกจ'], ['coupons', 'โค้ดส่วนลด'], ['accounts', 'บัญชีรับเงิน']]],
     ['ระบบ', [['teachers', 'ผู้สอน']].concat(hasRole('teacher') ? [['tprofile', 'โปรไฟล์ผู้สอนของฉัน']] : []).concat([['users', 'ผู้ใช้และยศ'], ['cells', 'เซลล์สะสม'], ['log', 'บันทึกการแก้ไข'], ['settings', 'ตั้งค่า']])]]
     : [['ผู้สอน · ' + mySubj().map(function (k) { return S.cfg.subjects[k]; }).join(' · '), [['dash', 'ภาพรวม'], ['courses', 'คอร์สของฉัน'], ['orders', 'คำสั่งซื้อ (ดูอย่างเดียว)'], ['payouts', 'ส่วนแบ่งของฉัน'], ['finance', 'รายรับรายจ่าย'], ['tprofile', 'โปรไฟล์ผู้สอน']]]];
-  groups.forEach(function (g) { g[1] = g[1].filter(function (t) { return (t[0] !== 'cells' || feat('cells')) && (t[0] !== 'feedback' || feat('reviews')); }); });
+  groups.forEach(function (g) { g[1] = g[1].filter(function (t) { return (t[0] !== 'cells' || feat('cells')); }); });
   var allowed = [].concat.apply([], groups.map(function (g) { return g[1].map(function (t) { return t[0]; }); })).concat(['course', 'tprofile']);
   if (allowed.indexOf(tab) < 0) tab = 'dash';
   var shell = function (body, skel) {
@@ -2771,28 +2862,32 @@ function aPayouts(shell) {
     var need = 0, paid = 0, sales = 0;
     f.by_subject.forEach(function (b) { sales += b.income; });
     pays.forEach(function (x) { if (x.settle > 0) { need += x.settle; var po = poOf(x); if (po && po.status === 'paid') paid += x.settle; } });
+    var advSum = pays.reduce(function (a, x) { return a + (x.advance || 0); }, 0);
     var st = f.closed ? '<span class="chip ok">ปิดยอดแล้ว · ตัดยอด ' + thDate(f.cutoff || f.closed_at, true) + '</span>' : f.pending_close ? '<span class="chip wait">รอปิดยอด · มีรายจ่ายรออนุมัติ</span>' : '<span class="chip soft">กำลังนับ · ยอดที่เข้ามาอยู่งวดนี้จนกว่าจะปิดยอด</span>';
     var html = '<div class="spread"><h1>' + (adm ? 'ส่วนแบ่งผู้สอน' : 'ส่วนแบ่งของฉัน') + '</h1><div class="rowx">' +
       '<button class="pill quiet s" id="po-prev" aria-label="งวดก่อน">←</button><b style="min-width:150px;text-align:center">' + esc(prLabel(pr)) + '</b><button class="pill quiet s" id="po-next" aria-label="งวดถัดไป"' + (pr >= f.max_period ? ' disabled' : '') + '>→</button></div></div>' +
       '<div class="rowx" style="justify-content:space-between">' + st + (adm ? '<div class="rowx">' + (f.pending_close ? '<a class="pill ghost s" href="#/admin/finance">ดูรายจ่ายรออนุมัติ</a>' : '') +
         (f.can_close ? '<button class="pill s" id="po-close">ปิดยอดตอนนี้</button>' : '') + (f.can_recut ? '<button class="pill quiet s" id="po-recut">แก้เวลาตัดยอด</button>' : '') +
         (f.closed && f.can_recut && !pos.some(function (p) { return p.status === 'paid' && p.amount; }) ? '<button class="pill quiet s" id="po-reopen">เปิดงวดใหม่</button>' : '') +
-        (!f.closed ? '<button class="pill quiet s" id="po-adj">+ ปรับปรุงยอด</button>' : '') + '<button class="pill quiet s" id="po-split">ตั้งส่วนแบ่ง</button></div>' : '') + '</div>' +
+        (!f.closed ? '<button class="pill quiet s" id="po-adj">+ ปรับปรุงยอด</button>' : '') + (f.adv_open ? '<button class="pill quiet s" id="po-advnew">+ เบิกล่วงหน้า</button>' : '') + '<button class="pill quiet s" id="po-split">ตั้งส่วนแบ่ง</button></div>' : '') + '</div>' +
       (f.rolled_in ? '<div class="note plain sm">มี ' + f.rolled_in + ' รายการที่เข้ามาหลังปิดยอดงวดก่อน ยกมารวมในงวดนี้แล้ว (ดูได้ในรายรับรายจ่าย ป้าย "ยกมา")</div>' : '') +
-      '<div class="kpis">' + [['ยอดขายงวดนี้', sales, ''], [adm ? 'ต้องโอนผู้สอน' : 'ส่วนแบ่งของฉัน', need, ''], ['โอนแล้ว', paid, ''], ['รอโอน', need - paid, need - paid > 0 ? ' wait' : '']].map(function (k) { return '<div class="kpi' + k[2] + '"><span>' + k[0] + '</span><b>' + money2(k[1]) + '</b></div>'; }).join('') + '</div>';
+      '<div class="kpis">' + [['ยอดขายงวดนี้', sales, ''], [adm ? 'ต้องโอนผู้สอน' : 'ส่วนแบ่งของฉัน', need, ''], ['โอนแล้ว', paid, ''], ['รอโอน', need - paid, need - paid > 0 ? ' wait' : '']].concat(advSum ? [['เบิกล่วงหน้าแล้ว', advSum, '']] : []).map(function (k) { return '<div class="kpi' + k[2] + '"><span>' + k[0] + '</span><b>' + money2(k[1]) + '</b></div>'; }).join('') + '</div>';
+    html += advPanel(f, adm, subs, P);
     var cards = Object.keys(subs).map(function (k) {
       var b = f.by_subject.filter(function (x) { return x.subject === k; })[0], rows = pays.filter(function (x) { return x.subject === k; });
       if (!b || (!b.income && !b.expense && !rows.length)) return '';
       var row = function (x) {
         var p = P[x.user_id] || {}, po = poOf(x), act;
-        if (x.settle < 0) act = '<span class="amt">' + money2(-x.settle) + '</span><span class="chip wait">ผู้สอนโอนคืน</span>';
+        if (x.settle < 0 && x.advance > 0 && !f.closed) act = '<span class="amt">' + money2(x.settle) + '</span><span class="chip wait">เบิกเกิน · หักงวดถัดไป</span>';
+        else if (x.settle < 0) act = '<span class="amt">' + money2(-x.settle) + '</span><span class="chip wait">ผู้สอนโอนคืน</span>';
         else if (!x.settle) act = '<span class="amt">฿0</span><span class="chip soft">ไม่ต้องโอน</span>';
         else if (!f.closed) act = '<span class="amt">' + money2(x.settle) + '</span><span class="chip soft">รอปิดยอด</span>';
         else if (po && po.status === 'paid') act = '<span class="amt">' + money2(x.settle) + '</span><span class="chip ok">โอนแล้ว ' + thDate(po.paid_at, true) + '</span>' + (po.has_slip ? '<button class="link sm" data-poslip="' + esc(po.payout_id) + '">ดูสลิป</button>' : '');
         else act = '<span class="amt">' + money2(x.settle) + '</span>' + (adm && po ? '<button class="pill s" data-popay="' + esc(po.payout_id) + '" data-u="' + esc(x.user_id) + '" data-s="' + esc(k) + '">แนบสลิปโอน</button>' : '<span class="chip wait">รอโอน</span>');
         var acc = p.account_no ? '<div class="po-acc"><span>ชื่อบัญชี ' + esc(p.account_name || '-') + '</span><b>' + esc(p.bank_name || '') + ' ' + esc(p.account_no) + '</b></div>'
           : '<div class="po-acc miss"><span>ยังไม่ได้ใส่บัญชีรับเงิน</span><b>' + (adm ? '<a href="#/admin/tprofile/' + esc(x.user_id) + '">เพิ่มในโปรไฟล์ผู้สอน</a>' : '<a href="#/admin/tprofile">เพิ่มในโปรไฟล์ของคุณ</a>') + '</b></div>';
-        return '<div class="po-row">' + tAv(p.photo, 'po-av') + '<div class="po-nm"><b>' + esc(p.name || x.name) + '</b><small>' + ((x.courses || []).length ? 'จาก ' + x.courses.map(esc).join(', ') : x.share ? x.pct + '% ของวิชา' + esc(subs[k]) : 'ไม่มียอดขายในงวดนี้') + (x.held ? ' · หักเงินที่เข้าบัญชีตัวเอง ' + money2(x.held) : '') + '</small>' + (x.adjust ? '<small class="po-adj">ปรับปรุงยอด ' + (x.adjust > 0 ? '+' : '') + money2(x.adjust) + ' · ' + (x.adjust_notes || []).map(function (t) { return esc(t.replace(/^[+−]\S+\s*/, '')); }).join(', ') + '</small>' : '') + '</div>' + acc + '<div class="po-act">' + act + '</div></div>';
+        return '<div class="po-row">' + tAv(p.photo, 'po-av') + '<div class="po-nm"><b>' + esc(p.name || x.name) + '</b><small>' + ((x.courses || []).length ? 'จาก ' + x.courses.map(esc).join(', ') : x.share ? x.pct + '% ของวิชา' + esc(subs[k]) : 'ไม่มียอดขายในงวดนี้') + (x.held ? ' · หักเงินที่เข้าบัญชีตัวเอง ' + money2(x.held) : '') + '</small>' + (x.adjust ? '<small class="po-adj">ปรับปรุงยอด ' + (x.adjust > 0 ? '+' : '') + money2(x.adjust) + ' · ' + (x.adjust_notes || []).map(function (t) { return esc(t.replace(/^[+−]\S+\s*/, '')); }).join(', ') + '</small>' : '') +
+          (x.advance ? '<small class="po-adv">ส่วนแบ่ง ' + money2(x.share) + (x.held ? ' − เข้าบัญชีตัวเอง ' + money2(x.held) : '') + (x.adjust ? (x.adjust > 0 ? ' + ' : ' − ') + 'ปรับปรุง ' + money2(Math.abs(x.adjust)) : '') + ' − เบิกล่วงหน้า ' + money2(x.advance) + ' = <b>คงเหลือสุทธิ ' + money2(x.settle + (x.carry || 0)) + '</b>' + (x.carry ? ' · เบิกเกิน ' + money2(-x.carry) + ' ยกไปหักงวดถัดไป' : '') + '</small>' : '') + '</div>' + acc + '<div class="po-act">' + act + '</div></div>';
       };
       return '<div class="po-sj' + sc(k) + '"><div class="po-hd"><span class="po-dot">' + esc(subs[k]) + '</span><div class="po-calc"><span>ยอดขาย <b>' + money2(b.income) + '</b></span><span>− รายจ่าย <b>' + money2(b.expense) + '</b></span><span>= แบ่งได้ <b>' + money2(b.pool_all != null ? b.pool_all : b.pool) + '</b></span></div></div>' +
         (rows.length ? rows.map(row).join('') : '') +
@@ -2801,10 +2896,10 @@ function aPayouts(shell) {
     }).join('');
     html += cards || '<div class="empty"><p>ยังไม่มียอดขายในงวดนี้</p></div>';
     if ((f.adjustments || []).length) html += '<h3 style="font-size:17px">ปรับปรุงยอดในงวดนี้</h3><div class="tbl"><table style="min-width:560px"><thead><tr><th>ผู้สอน</th><th>วิชา</th><th>เหตุผล</th><th class="num">ยอด</th><th></th></tr></thead><tbody>' +
-      f.adjustments.map(function (a) { return '<tr><td>' + esc((P[a.user_id] || {}).name || a.name) + '</td><td>' + esc(subs[a.subject] || a.subject) + '</td><td class="sm">' + esc(a.note) + (a.source === 'recut' ? ' <span class="chip soft">อัตโนมัติ</span>' : '') + '</td><td class="num">' + (a.amount > 0 ? '+' : '') + money2(a.amount) + '</td><td>' + (adm && !f.closed && a.source !== 'recut' ? '<button class="link sm" data-adjdel="' + esc(a.adj_id) + '">ลบ</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+      f.adjustments.map(function (a) { return '<tr><td>' + esc((P[a.user_id] || {}).name || a.name) + '</td><td>' + esc(subs[a.subject] || a.subject) + '</td><td class="sm">' + esc(a.note) + (a.source === 'recut' || a.source === 'advance' ? ' <span class="chip soft">อัตโนมัติ</span>' : '') + '</td><td class="num">' + (a.amount > 0 ? '+' : '') + money2(a.amount) + '</td><td>' + (adm && !f.closed && (a.source || 'manual') === 'manual' ? '<button class="link sm" data-adjdel="' + esc(a.adj_id) + '">ลบ</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
     if (!adm && hist.length) html += '<h3 style="font-size:17px">ย้อนหลัง</h3><div class="tbl"><table style="min-width:560px"><thead><tr><th>งวด</th><th>วิชา</th><th class="num">ส่วนแบ่ง</th><th class="num">ยอดโอน</th><th>สถานะ</th><th></th></tr></thead><tbody>' +
       hist.map(function (h) { return '<tr><td>' + esc(h.label) + '</td><td>' + esc(subs[h.subject] || h.subject) + '</td><td class="num">' + money2(h.share) + '</td><td class="num">' + money2(h.amount) + '</td><td>' + (h.status === 'paid' ? '<span class="chip ok">โอนแล้ว ' + thDate(h.paid_at) + '</span>' : '<span class="chip wait">รอโอน</span>') + '</td><td>' + (h.has_slip ? '<button class="link sm" data-poslip="' + esc(h.payout_id) + '">ดูสลิป</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
-    html += '<p class="hint">วิธีคิด: ยอดขายของวิชา − รายจ่ายที่อนุมัติแล้วของวิชา = ยอดที่แบ่ง แบ่งให้ผู้สอนที่ติ๊กในคอร์สนั้น และส่วนที่ไม่ใช่ผู้สอน (เช่น ค่าหลังบ้าน) ตามที่ตั้งไว้ ณ วันที่ขาย ถ้าน้องโอนเข้าบัญชีผู้สอนโดยตรง หักออกจากยอดที่ต้องโอน · ปิดยอดอัตโนมัติวันที่ 15 และสิ้นเดือน หรือแอดมินกดปิดยอดเองได้ทุกเมื่อ ยอดที่เข้ามาหลังเวลาตัดยอดยกไปงวดถัดไปเอง</p>';
+    html += '<p class="hint">วิธีคิด: ยอดขายของวิชา − รายจ่ายที่อนุมัติแล้วของวิชา = ยอดที่แบ่ง แบ่งให้ผู้สอนที่ติ๊กในคอร์สนั้น และส่วนที่ไม่ใช่ผู้สอน (เช่น ค่าหลังบ้าน) ตามที่ตั้งไว้ ณ วันที่ขาย ถ้าน้องโอนเข้าบัญชีผู้สอนโดยตรง หักออกจากยอดที่ต้องโอน · ปิดยอดอัตโนมัติวันที่ 15 และสิ้นเดือน หรือแอดมินกดปิดยอดเองได้ทุกเมื่อ ยอดที่เข้ามาหลังเวลาตัดยอดยกไปงวดถัดไปเอง · เบิกล่วงหน้า: เบิกจากส่วนแบ่ง (หลังหักรายจ่าย) ของงวดที่กำลังนับ ส่วนแบ่ง − ยอดที่เบิก = คงเหลือสุทธิ ถ้าเบิกเกินจะยกไปหักงวดถัดไป ไม่ต้องโอนคืน</p>';
     shell(html);
     $('#po-prev').onclick = function () { S.poP = prAdd(pr, -1); viewAdmin('payouts'); };
     $('#po-next').onclick = function () { S.poP = prAdd(pr, 1); viewAdmin('payouts'); };
@@ -2812,12 +2907,83 @@ function aPayouts(shell) {
     if ($('#po-close')) $('#po-close').onclick = function () { cutoffModal(f, false); };
     if ($('#po-recut')) $('#po-recut').onclick = function () { cutoffModal(f, true); };
     if ($('#po-adj')) $('#po-adj').onclick = function () { adjustModal(f); };
+    advBind(f, adm, subs, P, pays);
     $$('[data-adjdel]').forEach(function (b) { b.onclick = function () { busy(b, true); api('fin.adjust.delete', { adj_id: b.dataset.adjdel }).then(function () { toast('ลบแล้ว'); viewAdmin('payouts'); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
     $$('[data-posp]').forEach(function (b) { b.onclick = function () { splitsModal(b.dataset.posp); }; });
     if ($('#po-reopen')) $('#po-reopen').onclick = function () { confirmBox('เปิดงวด ' + prLabel(pr) + ' ใหม่?', 'ตัวเลขจะคำนวณใหม่ ทำได้เฉพาะเมื่อยังไม่ได้โอนเงินผู้สอนของงวดนี้', 'เปิดงวดใหม่', true).then(function (y) { if (y) api('fin.reopen', { period: pr }).then(function () { toast('เปิดงวดใหม่แล้ว'); viewAdmin('payouts'); }).catch(function (e) { toast(e.message, true); }); }); };
     $$('[data-popay]').forEach(function (b) { b.onclick = function () { var x = pays.filter(function (y) { return y.user_id === b.dataset.u && y.subject === b.dataset.s; })[0]; payModal(b.dataset.popay, x, P[b.dataset.u] || {}, subs[b.dataset.s], pr); }; });
     $$('[data-poslip]').forEach(function (b) { b.onclick = function () { busy(b, true); api('fin.payout.slip', { payout_id: b.dataset.poslip }).then(function (r) { busy(b, false); openModal(mhead('สลิปการโอน') + (r.mime === 'application/pdf' ? '<iframe title="สลิป" style="width:100%;height:70vh;border:0" src="data:application/pdf;base64,' + r.base64 + '"></iframe>' : '<img class="phbig" alt="สลิปการโอน" src="data:' + esc(r.mime) + ';base64,' + r.base64 + '">')); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
   }).catch(function (e) { shell('<h1>ส่วนแบ่งผู้สอน</h1><p class="err">' + esc(e.message) + '</p>'); });
+}
+/** เบิกล่วงหน้า: ผู้สอนเห็นยอดที่เบิกได้ + ปุ่มขอเบิก · แอดมินเห็นคำขอรออนุมัติ · ทุกคนเห็นรายการของงวด */
+var ADV_ST = { paid: ['โอนแล้ว', 'ok'], rejected: ['ไม่อนุมัติ', 'soft'], cancelled: ['ยกเลิกแล้ว', 'soft'], pending: ['รออนุมัติ', 'wait'] };
+function advPanel(f, adm, subs, P) {
+  var h = '', pend = f.adv_pending || [], list = f.adv || [], nm = function (a) { return esc((P[a.user_id] || {}).name || a.name || ''); };
+  if (!adm && f.adv_open && (f.adv_mine || []).length) {
+    h += '<div class="adv-box"><div class="spread"><div><b>เบิกล่วงหน้า</b><span class="sm ink2">เบิกจากส่วนแบ่ง (หลังหักรายจ่าย) ของงวดนี้ได้ ยอดที่เบิกจะหักออกตอนปิดยอด</span></div>' +
+      (f.adv_mine.some(function (a) { return a.available > 0; }) ? '<button class="pill s" id="adv-req">ขอเบิกล่วงหน้า</button>' : '') + '</div>' +
+      f.adv_mine.map(function (a) { return '<div class="adv-l"><span class="po-dot' + sc(a.subject) + '">' + esc(subs[a.subject] || a.subject) + '</span><span>คงเหลือตอนนี้ <b>' + money2(a.net) + '</b></span>' + (a.paid ? '<span>เบิกไปแล้ว <b>' + money2(a.paid) + '</b></span>' : '') + (a.pending ? '<span>รออนุมัติ <b>' + money2(a.pending) + '</b></span>' : '') + '<span>เบิกได้อีก <b class="ok-t">' + money2(a.available) + '</b></span></div>'; }).join('') + '</div>';
+  }
+  if (pend.length) h += '<h3 style="font-size:17px">' + (adm ? 'คำขอเบิกล่วงหน้า รออนุมัติ (' + pend.length + ')' : 'คำขอเบิกของฉัน') + '</h3><div class="stack" style="gap:8px">' + pend.map(function (a) {
+    return '<div class="card adv-req"><div><b>' + (adm ? nm(a) + ' · ' : '') + money2(a.amount) + '</b><span class="sm ink2">วิชา' + esc(subs[a.subject] || a.subject) + ' · ขอเมื่อ ' + thDate(a.requested_at, true) + (a.note ? ' · ' + esc(a.note) : '') + '</span></div><div class="rowx">' +
+      (adm ? '<button class="pill s" data-advpay="' + esc(a.adv_id) + '">โอนแล้ว · แนบสลิป</button><button class="pill ghost s" data-advrej="' + esc(a.adv_id) + '">ไม่อนุมัติ</button>' : '<span class="chip wait">รออนุมัติ</span><button class="link sm" data-advcan="' + esc(a.adv_id) + '">ยกเลิก</button>') + '</div></div>'; }).join('') + '</div>';
+  if (list.length) h += '<h3 style="font-size:17px">เบิกล่วงหน้าในงวดนี้</h3><div class="tbl"><table style="min-width:600px"><thead><tr>' + (adm ? '<th>ผู้สอน</th>' : '') + '<th>วิชา</th><th>สถานะ</th><th>หมายเหตุ</th><th class="num">ยอด</th><th></th></tr></thead><tbody>' + list.map(function (a) {
+    var st = ADV_ST[a.status] || [a.status, 'soft'];
+    return '<tr>' + (adm ? '<td>' + nm(a) + '</td>' : '') + '<td>' + esc(subs[a.subject] || a.subject) + '</td><td><span class="chip ' + st[1] + '">' + st[0] + (a.status === 'paid' && a.paid_at ? ' ' + thDate(a.paid_at, true) : '') + '</span></td><td class="sm">' + esc([a.note, a.reply].filter(String).join(' · ')) + (a.by_admin ? ' <span class="chip soft">แอดมินบันทึก</span>' : '') + '</td><td class="num">' + (a.status === 'paid' ? money2(-a.amount) : money2(a.amount)) + '</td><td>' +
+      (a.has_slip ? '<button class="link sm" data-advslip="' + esc(a.adv_id) + '">ดูสลิป</button> ' : '') + (adm && !f.closed && a.status === 'paid' ? '<button class="link sm" data-advdel="' + esc(a.adv_id) + '">ลบ</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  return h;
+}
+function advBind(f, adm, subs, P, pays) {
+  var back = function (msg) { closeModal(); toast(msg); S.poP = null; viewAdmin('payouts'); };
+  if ($('#adv-req')) $('#adv-req').onclick = function () {
+    var av = (f.adv_mine || []).filter(function (a) { return a.available > 0; });
+    openModal(mhead('ขอเบิกล่วงหน้า', 'แอดมินจะโอนให้และแนบสลิป ยอดนี้หักออกจากส่วนแบ่งงวด ' + prLabel(f.period) + ' ตอนปิดยอด') +
+      '<form class="form" id="avf">' + field('subject', 'วิชา', av[0].subject, { options: av.map(function (a) { return [a.subject, (subs[a.subject] || a.subject) + ' · เบิกได้ ' + money2(a.available)]; }) }) +
+      field('amount', 'ยอดที่ขอเบิก (บาท)', '', { mode: 'decimal', ph: 'ไม่เกิน ' + money2(av[0].available), req: true }) + field('note', 'เหตุผล (ไม่ใส่ก็ได้)', '', { ph: 'แอดมินเห็นข้อความนี้' }) +
+      '<div class="co-ex" id="avf-calc"></div><p class="err" id="avf-err" hidden></p><button class="pill">ส่งคำขอ</button></form>');
+    var calc = function () { var a = av.filter(function (x) { return x.subject === $('#f-subject').value; })[0], v = Number(String($('#f-amount').value).replace(/[^\d.]/g, '')) || 0; $('#f-amount').placeholder = 'ไม่เกิน ' + money2(a.available); $('#avf-calc').innerHTML = '<span>คงเหลือตอนนี้ <b>' + money2(a.net) + '</b>' + (a.pending ? ' (รออนุมัติ ' + money2(a.pending) + ')' : '') + ' − ขอเบิก <b>' + money2(v) + '</b> = คงเหลือสุทธิ <b>' + money2(a.net - a.pending - v) + '</b></span><span class="sm">ยอดขายที่เข้ามาเพิ่มในงวดนี้จะเพิ่มส่วนแบ่ง · รายจ่ายที่อนุมัติเพิ่มจะลดส่วนแบ่ง</span>'; };
+    $('#f-subject').onchange = calc; $('#f-amount').oninput = calc; calc();
+    submitForm('#avf', 'fin.advance.request', '#avf-err', function () { back('ส่งคำขอแล้ว แอดมินจะได้รับอีเมลแจ้ง'); }, function () { return { amount: String($('#f-amount').value).replace(/[^\d.]/g, '') }; });
+  };
+  $$('[data-advcan]').forEach(function (b) { b.onclick = function () { busy(b, true); api('fin.advance.cancel', { adv_id: b.dataset.advcan }).then(function () { back('ยกเลิกคำขอแล้ว'); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
+  $$('[data-advslip]').forEach(function (b) { b.onclick = function () { busy(b, true); api('fin.advance.slip', { adv_id: b.dataset.advslip }).then(function (r) { busy(b, false); openModal(mhead('สลิปเบิกล่วงหน้า') + (r.mime === 'application/pdf' ? '<iframe title="สลิป" style="width:100%;height:70vh;border:0" src="data:application/pdf;base64,' + r.base64 + '"></iframe>' : '<img class="phbig" alt="สลิปการโอน" src="data:' + esc(r.mime) + ';base64,' + r.base64 + '">')); }).catch(function (e) { busy(b, false); toast(e.message, true); }); }; });
+  if (!adm) return;
+  $$('[data-advdel]').forEach(function (b) { b.onclick = function () { confirmBox('ลบรายการเบิกนี้?', 'ใช้เมื่อบันทึกผิดเท่านั้น ยอดจะกลับไปเป็นส่วนแบ่งคงเหลือ', 'ลบ', true).then(function (y) { if (y) api('fin.advance.delete', { adv_id: b.dataset.advdel }).then(function () { toast('ลบแล้ว'); viewAdmin('payouts'); }).catch(function (e) { toast(e.message, true); }); }); }; });
+  $$('[data-advrej]').forEach(function (b) { b.onclick = function () {
+    openModal(mhead('ไม่อนุมัติคำขอเบิก', 'ผู้สอนเห็นเหตุผลที่ใส่') + '<form class="form" id="arf">' + field('reply', 'เหตุผล (ไม่ใส่ก็ได้)', '', { ph: 'เช่น รอปิดยอดสิ้นเดือนก่อนนะ' }) + '<p class="err" id="arf-err" hidden></p><button class="pill">ไม่อนุมัติ</button></form>');
+    submitForm('#arf', 'fin.advance.reject', '#arf-err', function () { back('ตอบคำขอแล้ว'); }, function () { return { adv_id: b.dataset.advrej }; });
+  }; });
+  $$('[data-advpay]').forEach(function (b) { b.onclick = function () { advPayModal(f, (f.adv_pending || []).filter(function (a) { return a.adv_id === b.dataset.advpay; })[0], subs, P, pays, back); }; });
+  if ($('#po-advnew')) $('#po-advnew').onclick = function () { api('fin.splits').then(function (r) { advPayModal(f, null, subs, P, pays, back, r.people.filter(function (x) { return (x.roles || [x.role]).indexOf('teacher') >= 0; })); }).catch(function (e) { toast(e.message, true); }); };
+}
+/** แอดมินโอนเบิกล่วงหน้า: อนุมัติคำขอ หรือบันทึกที่โอนให้เอง · สลิปไม่บังคับ แต่ควรแนบ (ส่งไปกับอีเมลแจ้งผู้สอน) */
+function advPayModal(f, req, subs, P, pays, back, people) {
+  var now = thInput(), avOf = function (u, sj) { var x = pays.filter(function (y) { return y.user_id === u && y.subject === sj; })[0]; return x && x.adv ? x.adv : { net: 0, pending: 0, available: 0 }; };
+  var p = req ? P[req.user_id] || {} : {};
+  openModal(mhead(req ? 'โอนเงินเบิกล่วงหน้า' : 'บันทึกเบิกล่วงหน้า', 'ลงในงวด ' + prLabel(f.open_period || f.period) + ' หักออกจากส่วนแบ่งตอนปิดยอด · ระบบส่งอีเมลแจ้งผู้สอน') +
+    (req ? '<div class="po-sum">' + tAv(p.photo, 'po-av') + '<div><b>' + esc(p.name || req.name) + '</b><span>วิชา' + esc(subs[req.subject] || req.subject) + (req.note ? ' · ' + esc(req.note) : '') + '</span></div><b class="amt">' + money2(req.amount) + '</b></div>' +
+      (p.account_no ? '<div class="accbox"><div><span>ธนาคาร</span><b>' + esc(p.bank_name || '-') + '</b></div><div><span>เลขบัญชี</span><b class="mono-n">' + esc(p.account_no) + '</b></div><div><span>ชื่อบัญชี</span><b>' + esc(p.account_name || '-') + '</b></div></div>' : '') : '') +
+    '<form class="form" id="apf">' + (req ? '' : field('user_id', 'ผู้สอน', '', { options: people.map(function (x) { return [x.user_id, x.name + ' · ' + x.full]; }) }) + field('subject', 'วิชา', '', { options: Object.keys(subs).map(function (k) { return [k, subs[k]]; }) })) +
+    '<div class="row2">' + field('amount', 'ยอดที่โอน (บาท)', req ? req.amount : '', { mode: 'decimal', req: true }) + '<label class="f" for="ap-at">เวลาที่โอน<input class="i" type="datetime-local" id="ap-at" value="' + now + '" max="' + now + '"></label></div>' +
+    '<div class="co-ex" id="apf-calc"></div>' +
+    '<label class="f" for="ap-file">สลิปการโอน (รูปหรือ PDF · แนะนำให้แนบ)<input class="i" type="file" id="ap-file" accept="image/*,application/pdf"></label>' +
+    field(req ? 'reply' : 'note', 'หมายเหตุ (ไม่ใส่ก็ได้)', '', { ph: 'ผู้สอนเห็นข้อความนี้' }) +
+    '<p class="err" id="apf-err" hidden></p><button class="pill">บันทึกว่าโอนแล้ว</button></form>');
+  var cur = function () { return req ? { u: req.user_id, s: req.subject } : { u: $('#f-user_id').value, s: $('#f-subject').value }; };
+  var calc = function () { var c = cur(), a = avOf(c.u, c.s), v = Number(String($('#f-amount').value).replace(/[^\d.]/g, '')) || 0, left = a.net - (a.pending - (req ? req.amount : 0)) - v;
+    $('#apf-calc').innerHTML = '<span>คงเหลือของผู้สอนตอนนี้ <b>' + money2(a.net) + '</b> − เบิก <b>' + money2(v) + '</b> = คงเหลือสุทธิ <b>' + money2(left) + '</b></span>' + (left < 0 ? '<span class="sm" style="color:var(--wait)">เกินส่วนแบ่งงวดนี้ ส่วนที่เกินจะยกไปหักงวดถัดไปเอง</span>' : ''); };
+  if (!req) { var sync = function () { var u = people.filter(function (x) { return x.user_id === $('#f-user_id').value; })[0]; if (u && u.subjects.length && u.subjects.indexOf($('#f-subject').value) < 0) $('#f-subject').value = u.subjects[0]; calc(); }; $('#f-user_id').onchange = sync; $('#f-subject').onchange = calc; sync(); }
+  $('#f-amount').oninput = calc; calc();
+  $('#apf').onsubmit = function (e) {
+    e.preventDefault(); var btn = $('#apf button:not([type=button])'), er = $('#apf-err'), file = $('#ap-file').files[0]; er.hidden = true;
+    var d = { amount: String($('#f-amount').value).replace(/[^\d.]/g, ''), paid_at: new Date($('#ap-at').value + ':00+07:00').toISOString() };
+    if (req) { d.adv_id = req.adv_id; d.reply = $('#f-reply').value; } else { d.user_id = $('#f-user_id').value; d.subject = $('#f-subject').value; d.note = $('#f-note').value; }
+    busy(btn, true);
+    var send = function (slip) { if (slip) d.slip = slip; api('fin.advance.pay', d).then(function () { back('บันทึกแล้ว ส่งอีเมลแจ้งผู้สอนแล้ว'); }).catch(function (x2) { busy(btn, false); er.textContent = x2.message; er.hidden = false; }); };
+    if (!file) send(null);
+    else if (file.type === 'application/pdf') { var rd = new FileReader(); rd.onload = function () { send({ mime: 'application/pdf', base64: String(rd.result).split(',')[1] }); }; rd.readAsDataURL(file); }
+    else compressImage(file).then(send).catch(function () { busy(btn, false); er.textContent = 'เปิดไฟล์สลิปไม่ได้'; er.hidden = false; });
+  };
 }
 function thInput(iso) { return new Date((iso ? new Date(iso).getTime() : Date.now()) + 7 * 36e5).toISOString().slice(0, 16); }
 /** ปิดยอด / แก้เวลาตัดยอด: ยอดที่อนุมัติหลังเวลานี้ยกไปงวดถัดไปเอง */

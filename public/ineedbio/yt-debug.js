@@ -55,6 +55,11 @@
     if (!f) { o.player = 'none'; return o; }
     var pl = f.closest('.player'), crop = f.parentNode, rc = f.getBoundingClientRect(), cs = getComputedStyle(f);
     o.by = madeBy(f);
+    // course page: data-ibmode (course-page.js) · lesson room: class yt-native (app.js) · + the player's own settings
+    o.mode = pl ? pl.getAttribute('data-ibmode') || (pl.classList.contains('yt-native') ? 'youtube' : 'custom') : '-';
+    // YouTube's own player: the whole iframe is the picture (no 140px crop) and it is never enlarged
+    var nat = o.mode === 'youtube', cut = nat ? 0 : 140;
+    o.player_vars = ['controls', 'fs', 'playsinline'].map(function (k) { var m = (f.src || '').match(new RegExp('[?&]' + k + '=(\\d)')); return k + '=' + (m ? m[1] : '?'); }).join(',');
     o.fullscreen = document.fullscreenElement || document.webkitFullscreenElement ? 'native' : pl && pl.classList.contains('fake-fs') ? 'fake-fs' : 'no';
     var P = playerOf(f), m = fromMsg && f.contentWindow ? fromMsg.get(f.contentWindow) : null;
     o.api = P ? 'player' : m ? 'messages' : 'none';
@@ -66,14 +71,14 @@
     try { o.rate = P && P.getPlaybackRate ? P.getPlaybackRate() : m && m.playbackRate || '?'; } catch (e) {}
     var Y = window.__ibYt && window.__ibYt.cfg, sc = f.offsetWidth ? rc.width / f.offsetWidth : 1;
     o.group = Y ? Y.group : '?';
-    o.target = Y ? (Y.on ? Y.target : 'off') + ' (' + Y.src + ', cap ' + Y.capW + 'x' + Y.capH + (Y.fsZoom ? '' : ', not in fullscreen') + ')' : '?';
+    o.target = nat ? 'none (YouTube player, not enlarged · its gear picks the quality)' : Y ? (Y.on ? Y.target : 'off') + ' (' + Y.src + ', cap ' + Y.capW + 'x' + Y.capH + (Y.fsZoom ? '' : ', not in fullscreen') + ')' : '?';
     o.multiplier = sc ? Math.round(1 / sc * 1000) / 1000 : '?';
     // what YouTube draws into (the iframe's own size, before the transform): this is what it picks the quality from
     o.iframe_css = px(f.offsetWidth, f.offsetHeight);
-    o.render_picture_device_px = px(f.offsetWidth * dpr, Math.max(0, f.offsetHeight - 140) * dpr); // minus the 140px crop
+    o.render_picture_device_px = px(f.offsetWidth * dpr, Math.max(0, f.offsetHeight - cut) * dpr); // minus the 140px crop (site's player)
     // what is seen on screen (after the transform)
-    o.screen_picture_css = px(rc.width, Math.max(0, rc.height - 140 * sc));
-    o.screen_picture_device_px = px(rc.width * dpr, Math.max(0, rc.height - 140 * sc) * dpr);
+    o.screen_picture_css = px(rc.width, Math.max(0, rc.height - cut * sc));
+    o.screen_picture_device_px = px(rc.width * dpr, Math.max(0, rc.height - cut * sc) * dpr);
     o.crop_css = crop && crop.classList && crop.classList.contains('yt-crop') ? px(crop.clientWidth, crop.clientHeight) : 'no .yt-crop';
     o.player_css = pl ? px(pl.clientWidth, pl.clientHeight) : '-';
     o.transform = cs.transform;
@@ -92,7 +97,12 @@
 
   var box = document.createElement('div'), pre = document.createElement('pre'), btn = document.createElement('button'), last = {};
   box.setAttribute('data-ytdebug', '1');
-  box.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:2147483647;max-width:min(94vw,560px);padding:6px 8px;background:rgba(0,0,0,.82);color:#7CFC9A;border-radius:8px;font:11px/1.35 ui-monospace,Menlo,monospace;pointer-events:none';
+  var LOOK = 'padding:6px 8px;background:rgba(0,0,0,.82);color:#7CFC9A;border-radius:8px;font:11px/1.35 ui-monospace,Menlo,monospace;text-align:left;';
+  var FIXED = 'position:fixed;left:6px;bottom:6px;z-index:2147483647;max-width:min(94vw,560px);pointer-events:none;' + LOOK;
+  // YouTube's own player has its buttons inside the video: the box goes under it (in the line under the video,
+  // .yt-modebar / .ibp-modebar), never over it
+  var UNDER = 'position:static;flex-basis:100%;max-width:100%;margin:6px 0 0;box-sizing:border-box;pointer-events:auto;' + LOOK;
+  box.style.cssText = FIXED;
   pre.style.cssText = 'margin:0;white-space:pre-wrap;word-break:break-all';
   btn.type = 'button'; btn.textContent = 'คัดลอกผล';
   btn.style.cssText = 'pointer-events:auto;margin-top:6px;padding:6px 12px;border:0;border-radius:6px;background:#7CFC9A;color:#000;font:600 13px/1 system-ui,sans-serif;cursor:pointer';
@@ -112,8 +122,10 @@
 
   function tick() {
     // in native fullscreen only the fullscreen element is drawn: keep the overlay inside it
-    var host = document.fullscreenElement || document.webkitFullscreenElement || document.body;
-    if (box.parentNode !== host) host.appendChild(box);
+    var nat = document.querySelector('.player.yt-native, .player.ibp-native'), under = nat && nat.nextElementSibling;
+    if (under && !/(^|\s)(yt-modebar|ibp-modebar)(\s|$)/.test(under.className)) under = null;
+    var host = document.fullscreenElement || document.webkitFullscreenElement || under || document.body;
+    if (box.parentNode !== host) { host.appendChild(box); box.style.cssText = host === under ? UNDER : FIXED; }
     try { last = read(); } catch (e) { last = { error: String(e && e.message || e) }; }
     pre.textContent = Object.keys(last).map(function (k) { return k + ': ' + last[k]; }).join('\n');
   }

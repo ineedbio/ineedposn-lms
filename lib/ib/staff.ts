@@ -4,14 +4,14 @@
 // renaming a chapter and syncing lessons from YouTube playlists.
 // Code.gs "Enrollments" rows are Payment rows here; access itself is the Enrollment row (ACTIVE,
 // not expired). Teachers are INSTRUCTOR users with User.subjects.
-import type { Course, Expense, Lesson, Payment, Prisma, Subject, User } from "@prisma/client";
+import type { Course, Expense, FinAdvance, Lesson, Payment, Prisma, Subject, User } from "@prisma/client";
 import { prisma } from "../prisma";
 import { subjectKey } from "./subjects";
 import {
   activate, adminEmails, auth, courseBySlug, getSetting, ig, isAdminUser, isStaffUser, isTeacherUser, log, rate, rolesOf, setSetting, siteUrlOf, subjectsOf, teachSubjects, canSubject,
   type Ctx, type Data,
 } from "./api";
-import { sendNotice, sendPayoutEmail } from "./mail";
+import { sendAdvanceEmail, sendNotice, sendPayoutEmail } from "./mail";
 import * as team from "./team";
 import { APP, bkkDate, clip, err, esc, iso, randToken, trim } from "./util";
 
@@ -305,9 +305,14 @@ type SubjRow = {
   /** parts that are not teachers (ค่าหลังบ้าน …): kept by INeedBio · pool_all = everything shared, pool = the teachers' part */
   others?: { label: string; pct: number; amount: number }[]; kept?: number; pool_all?: number;
 };
-type TeacherRow = { user_id: string; name: string; subjects: string[]; share: number; held: number; settle?: number; adjust?: number };
-/** What one person gets from one subject in a period (a payout row when the period closes). */
-type PayRow = { subject: string; user_id: string; name: string; pct: number; share: number; held: number; settle: number; courses: string[]; adjust?: number; adjust_notes?: string[] };
+type TeacherRow = { user_id: string; name: string; subjects: string[]; share: number; held: number; settle?: number; adjust?: number; advance?: number; carry?: number };
+/** What one person gets from one subject in a period (a payout row when the period closes) · advance = เบิกล่วงหน้า
+ *  paid in the period · carry = the part of it over the share, taken off in the next period (set when closing) ·
+ *  adv = what can still be asked for now (fin.summary, open period only). */
+type PayRow = {
+  subject: string; user_id: string; name: string; pct: number; share: number; held: number; settle: number; courses: string[]; adjust?: number; adjust_notes?: string[];
+  advance?: number; carry?: number; adv?: AdvAvail;
+};
 
 /** The whole period (all subjects); trimmed to what the viewer may see afterwards. Money is counted in the period it
  *  is assigned to (assignPeriod): its own, or the next open one when it came in after its period's cutoff.
@@ -316,7 +321,7 @@ async function finCompute(pr: string, opt: { cutoff?: string } = {}) {
   const range = periodRange(pr), CM = await cutoffMap(opt.cutoff ? { [pr]: opt.cutoff } : undefined);
   // Money rolled in comes from earlier periods: look back far enough (a chain of early closings is at most a few periods).
   const wide = { gte: new Date(range.gte.getTime() - 100 * 864e5), lt: range.lt };
-  const [users, courses, teachers, pct, SS, pays0, exps0, accs, adjRows] = await Promise.all([
+  const [users, courses, teachers, pct, SS, pays0, exps0, accs, adjRows, advRows] = await Promise.all([
     prisma.user.findMany({ where: { role: { in: ["ADMIN", "INSTRUCTOR"] } } }),
     prisma.course.findMany({ include: { subject: true } }),
     teachersAll(),
@@ -326,6 +331,7 @@ async function finCompute(pr: string, opt: { cutoff?: string } = {}) {
     prisma.expense.findMany({ where: { date: { lt: range.lt } } }),
     prisma.payAccount.findMany(),
     prisma.finAdjustment.findMany({ where: pr.length === 7 ? { period: { startsWith: pr } } : { period: pr }, orderBy: { createdAt: "asc" } }),
+    prisma.finAdvance.findMany({ where: { status: "paid", ...(pr.length === 7 ? { period: { startsWith: pr } } : { period: pr }) }, orderBy: { requestedAt: "asc" } }),
   ]);
   const rolled: Record<string, string> = {};
   const pays = pays0.filter((e) => {
@@ -437,7 +443,18 @@ async function finCompute(pr: string, opt: { cutoff?: string } = {}) {
     const S0 = subj[a.subject];
     if (S0) { S0.pool = r2(S0.pool + a.amount); S0.platform = r2(S0.platform - a.amount); (S0 as SubjRow & { adjust?: number }).adjust = r2(((S0 as SubjRow & { adjust?: number }).adjust || 0) + a.amount); }
   }
-  const tlist = Object.values(tt).map((t) => ({ ...t, share: r2(t.share), held: r2(t.held), adjust: r2(t.adjust || 0), settle: r2(r2(t.share) - r2(t.held) + r2(t.adjust || 0)) })).sort((a, b) => b.share - a.share);
+  // เบิกล่วงหน้า paid in this period: off what is left · share (after expenses) − money into their own account ± ปรับปรุงยอด − advances = net
+  const advances = advRows.map((a) => ({ adv_id: a.id, period: a.period, user_id: a.userId, name: uname(a.userId), subject: a.subject, amount: r2(a.amount), note: a.note, paid_at: iso(a.paidAt) }));
+  for (const a of advances) {
+    let x = paysOut.find((y) => y.user_id === a.user_id && y.subject === a.subject);
+    if (!x) { x = { subject: a.subject, user_id: a.user_id, name: a.name, pct: 0, share: 0, held: 0, settle: 0, courses: [] }; paysOut.push(x); }
+    x.advance = r2((x.advance || 0) + a.amount); x.settle = r2(x.settle - a.amount);
+    const t = teacherRow(a.user_id);
+    t.advance = (t.advance || 0) + a.amount; if (!t.subjects.includes(a.subject)) t.subjects.push(a.subject);
+  }
+  const tlist = Object.values(tt).map((t) => ({
+    ...t, share: r2(t.share), held: r2(t.held), adjust: r2(t.adjust || 0), advance: r2(t.advance || 0), settle: r2(r2(t.share) - r2(t.held) + r2(t.adjust || 0) - r2(t.advance || 0)),
+  })).sort((a, b) => b.share - a.share);
   const totals: Record<string, number> = { income: 0, expense: 0, platform: 0, teachers: 0, kept: 0 };
   for (const k of Object.keys(subj)) {
     const S0 = subj[k];
@@ -448,7 +465,8 @@ async function finCompute(pr: string, opt: { cutoff?: string } = {}) {
   for (const k of Object.keys(totals)) totals[k] = r2(totals[k]);
   totals.shared = r2(shared); totals.net = r2(totals.income - totals.expense);
   totals.adjust = r2(adjustments.reduce((a, x) => a + x.amount, 0));
-  return { income, expenses, by_subject: Object.values(subj), teachers: tlist as TeacherRow[], pays: paysOut, totals, free, adjustments };
+  totals.advance = r2(advances.reduce((a, x) => a + x.amount, 0));
+  return { income, expenses, by_subject: Object.values(subj), teachers: tlist as TeacherRow[], pays: paysOut, totals, free, adjustments, advances };
 }
 type FinData = Awaited<ReturnType<typeof finCompute>>;
 function finScope(r: FinData, me: User, subject: string) {
@@ -462,6 +480,7 @@ function finScope(r: FinData, me: User, subject: string) {
     teachers: admin ? r.teachers.filter((t) => allSubj || t.subjects.some((s) => want.includes(s))) : r.teachers.filter((t) => t.user_id === me.id),
     pays: (r.pays || []).filter((x) => (allSubj || want.includes(x.subject)) && (admin || x.user_id === me.id)),
     adjustments: (r.adjustments || []).filter((x) => (allSubj || want.includes(x.subject)) && (admin || x.user_id === me.id)),
+    advances: (r.advances || []).filter((x) => (allSubj || want.includes(x.subject)) && (admin || x.user_id === me.id)),
     free: r.free,
   };
   if (allSubj) out.totals = r.totals;
@@ -510,6 +529,7 @@ export async function finSummary(d: Data, _c: Ctx, me: User) {
     profiles[x.user_id] = { name: t?.display_name || x.name, photo: t?.photo_url || "", bank_name: see ? t?.bank_name || "" : "", account_name: see ? t?.account_name || "" : "", account_no: see ? t?.account_no || "" : "" };
   }
   out.profiles = profiles;
+  await advanceInfo(out, pr, me, row ? null : live);
   return out;
 }
 const dateOfDay = (day: string) => new Date(day + "T12:00:00+07:00");
@@ -689,8 +709,11 @@ export async function finRecut(d: Data, c: Ctx, me: User) {
   const r = await finCompute(pr, { cutoff: cut });
   if (r.expenses.some((x) => x.status === "pending")) throw err("BAD_INPUT", "ยังมีรายจ่ายรออนุมัติในช่วงนี้ อนุมัติหรือไม่อนุมัติก่อน");
   const nxt = prNext(pr), why = "ปรับจากงวด " + periodLabel(pr) + " (แก้เวลาตัดยอด)", now = new Date();
+  const carry = await advanceCarry(pr, r, me.id);
   await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT 1 FROM "FinPeriod" WHERE period = ${pr} FOR UPDATE`;
+    await tx.finAdjustment.deleteMany({ where: carry.old });
+    for (const data of carry.rows) await tx.finAdjustment.create({ data });
     await tx.finPeriod.update({ where: { period: pr }, data: { cutoff: new Date(cut), snapshot: snapOf(r) } });
     const pos = await tx.finPayout.findMany({ where: { period: pr } }), seen = new Set<string>();
     const adj = (uid: string, sj: string, amt: number) =>
@@ -734,13 +757,176 @@ export async function finAdjustDelete(d: Data, c: Ctx, me: User) {
   if (!a) throw err("NOT_FOUND", "ไม่พบรายการ");
   if (await isClosed(a.period)) throw err("LOCKED", "งวดนี้ปิดยอดแล้ว ลบไม่ได้");
   if (a.source === "recut") throw err("LOCKED", "รายการนี้มาจากการแก้เวลาตัดยอด ลบไม่ได้ ใช้ปรับปรุงยอดเพิ่มแทน");
+  if (a.source === "advance") throw err("LOCKED", "รายการนี้คือยอดเบิกล่วงหน้าที่เกินส่วนแบ่งงวดก่อน ลบไม่ได้ ใช้ปรับปรุงยอดเพิ่มแทน");
   await prisma.finAdjustment.delete({ where: { id: a.id } });
   await log(me, "finance.adjust.delete", a.id + " " + a.amount);
   return finSummary({ period: a.period }, c, me);
 }
+// ───── เบิกล่วงหน้า: a teacher asks for part of their share (after expenses) of the period still open; an admin transfers
+// it (slip optional) or records one made without a request; what was paid comes off that period's transfer at closing ─────
+type AdvAvail = { net: number; pending: number; paid: number; available: number };
+/** Closing / re-cutting a period where advances went over the share: the teacher doesn't transfer the rest back — it
+ *  becomes a minus ปรับปรุงยอด (source "advance", ref = this period) in the next open period, and this period's
+ *  transfer is ฿0. Sets carry / settle on r (the snapshot keeps them) and returns the rows to write with the closing
+ *  (old = the earlier carry of this period, replaced). */
+async function advanceCarry(pr: string, r: FinData, by: string) {
+  let nxt = prNext(pr);
+  for (let i = 0; i < 24 && (await isClosed(nxt)); i++) nxt = prNext(nxt);
+  const rows: Prisma.FinAdjustmentUncheckedCreateInput[] = [];
+  for (const t of r.pays) {
+    if (!((t.advance || 0) > 0) || !(t.settle < 0)) continue;
+    const c = r2(Math.max(t.settle, -(t.advance || 0)));
+    if (!c) continue;
+    t.carry = c; t.settle = r2(t.settle - c);
+    const tc = r.teachers.find((x) => x.user_id === t.user_id);
+    if (tc) { tc.carry = r2((tc.carry || 0) + c); tc.settle = r2((tc.settle || 0) - c); }
+    rows.push({ id: "AJ" + shortId(8), period: nxt, userId: t.user_id, subject: t.subject, amount: c, note: "เบิกล่วงหน้าเกินส่วนแบ่งงวด " + periodLabel(pr) + " ยกมาหัก", source: "advance", createdBy: by || "auto", ref: pr });
+  }
+  return { old: { source: "advance", ref: pr } satisfies Prisma.FinAdjustmentWhereInput, rows };
+}
+/** What a teacher can still ask for in one subject: the net of the open period (after expenses, money into their own
+ *  account, ปรับปรุงยอด and what was advanced already) − requests waiting for an answer. */
+function advanceAvail(live: FinData, uid: string, sj: string, rows: FinAdvance[]): AdvAvail {
+  const x = live.pays.find((y) => y.user_id === uid && y.subject === sj);
+  const pend = rows.filter((a) => a.status === "pending" && a.userId === uid && a.subject === sj).reduce((a, b) => a + (Number(b.amount) || 0), 0);
+  const net = x ? x.settle : 0;
+  return { net: r2(net), pending: r2(pend), paid: r2(x ? x.advance || 0 : 0), available: r2(Math.max(0, net - pend)) };
+}
+async function advanceOut(rows: FinAdvance[]) {
+  const ids = Array.from(new Set(rows.map((a) => a.userId))), names = new Map<string, string>();
+  const users = await prisma.user.findMany({ where: { id: { in: ids } } });
+  for (const id of ids) names.set(id, (await team.profileOf(id))?.display_name || users.find((u) => u.id === id)?.nickname || "");
+  return rows.map((a) => ({
+    adv_id: a.id, period: a.period, label: periodLabel(a.period), user_id: a.userId, name: names.get(a.userId) || "", subject: a.subject, amount: r2(a.amount), status: a.status,
+    note: a.note || "", reply: a.reply || "", requested_at: iso(a.requestedAt), by_admin: !!a.requestedBy && a.requestedBy !== a.userId, paid_at: iso(a.paidAt), has_slip: !!a.slipBlobId,
+  }));
+}
+/** What the ส่วนแบ่ง page needs: adv = the period's advances (answered) · adv_pending = requests waiting (any period) ·
+ *  in the open period: pays[].adv = what each one can still ask for, adv_mine = the teacher's own per subject.
+ *  live = this period computed just now (open, not closed), so it isn't computed twice. */
+async function advanceInfo(out: Record<string, any>, pr: string, me: User, live: FinData | null) {
+  const admin = isAdminUser(me), rows = await prisma.finAdvance.findMany({ where: admin ? {} : { userId: me.id }, orderBy: { requestedAt: "asc" } });
+  out.adv = await advanceOut(rows.filter((a) => inAssigned(a.period, pr) && a.status !== "pending"));
+  out.adv_pending = await advanceOut(rows.filter((a) => a.status === "pending"));
+  out.adv_open = pr === (await openPeriod()) && !out.closed;
+  if (out.adv_open) {
+    const L = live || (await finCompute(pr));
+    for (const x of out.pays as PayRow[]) x.adv = advanceAvail(L, x.user_id, x.subject, rows);
+    if (!admin) out.adv_mine = subjectsOf(me).map((sj) => ({ ...advanceAvail(L, me.id, sj, rows), subject: sj })).filter((a) => a.net > 0 || a.pending > 0 || a.paid > 0);
+  }
+}
+export async function finAdvanceRequest(d: Data, c: Ctx, me: User) {
+  const sj = String(d.subject || "");
+  if (!subjectsOf(me).includes(sj)) throw err("BAD_INPUT", "เลือกวิชาที่คุณสอน");
+  const amt = r2(String(d.amount || "").replace(/[^\d.]/g, ""));
+  if (!(amt > 0)) throw err("BAD_INPUT", "ใส่ยอดที่จะเบิก");
+  const pr = await openPeriod(), note = clip(d.note, 200);
+  // One request at a time per teacher (Code.gs: withLock_), so two at once can't both pass the limits.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"ib.advance:" + me.id}))`;
+    const rows = await tx.finAdvance.findMany({ where: { userId: me.id, status: "pending" } });
+    if (rows.length >= 3) throw err("LIMIT", "มีคำขอรออนุมัติอยู่แล้ว รอแอดมินตอบก่อน");
+    const av = advanceAvail(await finCompute(pr), me.id, sj, rows);
+    if (amt > av.available) throw err("BAD_INPUT", av.available > 0 ? "เบิกได้ไม่เกิน ฿" + av.available.toLocaleString("en-US") + " ในตอนนี้" : "ตอนนี้ยังไม่มียอดคงเหลือให้เบิก");
+    await tx.finAdvance.create({ data: { id: "AV" + shortId(8), period: pr, userId: me.id, subject: sj, amount: amt, status: "pending", note, requestedBy: me.id } });
+  }, { maxWait: 15000, timeout: 30000 });
+  await log(me, "finance.advance.request", sj + " ฿" + amt);
+  try {
+    const to = (await prisma.user.findMany({ where: { role: "ADMIN", isBanned: false } })).filter((u) => isAdminUser(u) && u.email).map((u) => u.email).slice(0, 5);
+    const who = (await team.profileOf(me.id))?.display_name || me.nickname || me.firstName || "";
+    const txt = who + " ขอเบิกล่วงหน้า ฿" + amt.toLocaleString("en-US") + " วิชา" + (APP.SUBJECTS[sj] || sj) + (note ? " · " + note : "");
+    const site = await siteUrlOf();
+    await sendNotice(to, "คำขอเบิกล่วงหน้า " + who + " ฿" + amt.toLocaleString("en-US"), "คำขอเบิกล่วงหน้า", esc(txt) + "<br><br>", site + "/#/admin/payouts", "เปิดหน้าส่วนแบ่งผู้สอน", await ig());
+  } catch (e) { console.error("[ib] advance request email", e); }
+  return finSummary({ period: pr }, c, me);
+}
+export async function finAdvanceCancel(d: Data, c: Ctx, me: User) {
+  const a = await prisma.finAdvance.findUnique({ where: { id: String(d.adv_id || "") } });
+  if (!a) throw err("NOT_FOUND", "ไม่พบรายการ");
+  if (a.userId !== me.id && !isAdminUser(me)) throw err("FORBIDDEN", "ยกเลิกได้เฉพาะคำขอของคุณ");
+  const n = await prisma.finAdvance.updateMany({ where: { id: a.id, status: "pending" }, data: { status: "cancelled", decidedBy: me.id, decidedAt: new Date() } });
+  if (!n.count) throw err("ALREADY", "คำขอนี้ตอบไปแล้ว");
+  await log(me, "finance.advance.cancel", a.id);
+  return finSummary({}, c, me);
+}
+/** An admin transfers an advance: approves a request (adv_id) or records one paid without a request (user_id,
+ *  subject, amount) · the slip is optional (kept private like a payout slip, and sent with the email to the teacher) ·
+ *  it goes in the period open now. */
+export async function finAdvancePay(d: Data, c: Ctx, me: User) {
+  const slip = d.slip && d.slip.base64 ? d.slip : null;
+  if (slip) {
+    if (!/^image\/(jpeg|png|webp)$|^application\/pdf$/.test(slip.mime || "")) throw err("BAD_INPUT", "สลิปต้องเป็นรูปหรือ PDF");
+    if (String(slip.base64).length * 0.75 > APP.SLIP_MAX_BYTES) throw err("BAD_INPUT", "ไฟล์สลิปใหญ่เกิน 3 MB");
+  }
+  let amt = d.amount != null && d.amount !== "" ? r2(String(d.amount).replace(/[^\d.]/g, "")) : 0;
+  const pr = await openPeriod();
+  let a0: FinAdvance | null = null;
+  if (d.adv_id) {
+    a0 = await prisma.finAdvance.findUnique({ where: { id: String(d.adv_id) } });
+    if (!a0) throw err("NOT_FOUND", "ไม่พบคำขอ");
+    if (a0.status !== "pending") throw err("ALREADY", "คำขอนี้ตอบไปแล้ว");
+    if (!amt) amt = r2(a0.amount);
+  } else {
+    const u = await prisma.user.findUnique({ where: { id: String(d.user_id || "") } });
+    if (!u || !isStaffUser(u)) throw err("BAD_INPUT", "เลือกผู้สอน");
+    if (!APP.SUBJECTS[String(d.subject || "")]) throw err("BAD_INPUT", "เลือกวิชา");
+  }
+  if (!(amt > 0)) throw err("BAD_INPUT", "ใส่ยอดที่โอน");
+  const uid = a0 ? a0.userId : String(d.user_id), sj = a0 ? a0.subject : String(d.subject), t = await team.profileOf(uid);
+  const account = [t?.bank_name, t?.account_no, t?.account_name].filter(Boolean).join(" · ");
+  const paidAt = d.paid_at && !isNaN(new Date(d.paid_at).getTime()) ? new Date(d.paid_at) : new Date();
+  const data = slip ? Buffer.from(String(slip.base64), "base64") : null;
+  const id = await prisma.$transaction(async (tx) => {
+    const b = slip && data ? await tx.fileBlob.create({ data: { mime: slip.mime, data, isPublic: false } }) : null;
+    const row = { period: pr, amount: amt, status: "paid", decidedBy: me.id, decidedAt: new Date(), paidAt, slipBlobId: b ? b.id : null, reply: clip(d.reply, 200), account };
+    if (a0) {
+      const n = await tx.finAdvance.updateMany({ where: { id: a0.id, status: "pending" }, data: row });
+      if (!n.count) throw err("ALREADY", "คำขอนี้ตอบไปแล้ว");
+      return a0.id;
+    }
+    return (await tx.finAdvance.create({ data: { ...row, id: "AV" + shortId(8), userId: uid, subject: sj, note: clip(d.note, 200), requestedBy: me.id } })).id;
+  });
+  await log(me, "finance.advance.paid", id + " " + uid + " " + sj + " ฿" + amt);
+  try {
+    const u = await prisma.user.findUnique({ where: { id: uid } });
+    if (u) await sendAdvanceEmail(u.email, t?.display_name || u.nickname || "", {
+      subject: APP.SUBJECTS[sj] || sj, label: periodLabel(pr), amount: amt, account, note: clip(d.reply || d.note, 200),
+    }, slip && data ? { mime: slip.mime, data, name: "advance_" + id + (slip.mime === "application/pdf" ? ".pdf" : ".jpg") } : null, await ig());
+  } catch (e) { console.error("[ib] advance email", e); }
+  return finSummary({ period: pr }, c, me);
+}
+export async function finAdvanceReject(d: Data, c: Ctx, me: User) {
+  const a = await prisma.finAdvance.findUnique({ where: { id: String(d.adv_id || "") } });
+  if (!a) throw err("NOT_FOUND", "ไม่พบคำขอ");
+  const n = await prisma.finAdvance.updateMany({ where: { id: a.id, status: "pending" }, data: { status: "rejected", reply: clip(d.reply, 200), decidedBy: me.id, decidedAt: new Date() } });
+  if (!n.count) throw err("ALREADY", "คำขอนี้ตอบไปแล้ว");
+  await log(me, "finance.advance.reject", a.id);
+  return finSummary({}, c, me);
+}
+/** Delete an advance recorded by mistake: only while its period is not closed. */
+export async function finAdvanceDelete(d: Data, c: Ctx, me: User) {
+  const a = await prisma.finAdvance.findUnique({ where: { id: String(d.adv_id || "") } });
+  if (!a) throw err("NOT_FOUND", "ไม่พบรายการ");
+  if (a.status === "paid" && (await isClosed(a.period))) throw err("LOCKED", "งวดนี้ปิดยอดแล้ว ลบไม่ได้ ใช้ปรับปรุงยอดแทน");
+  await prisma.finAdvance.delete({ where: { id: a.id } });
+  await log(me, "finance.advance.delete", a.id + " ฿" + a.amount);
+  return finSummary({ period: a.period }, c, me);
+}
+/** The advance's slip: admins see every one, a teacher only theirs. */
+export async function finAdvanceSlip(d: Data, _c: Ctx, me: User) {
+  const a = await prisma.finAdvance.findUnique({ where: { id: String(d.adv_id || "") } });
+  if (!a || !a.slipBlobId) throw err("NOT_FOUND", "ไม่มีสลิป");
+  if (!isAdminUser(me) && a.userId !== me.id) throw err("FORBIDDEN", "ดูได้เฉพาะสลิปของคุณ");
+  const out = await blobOut("blob:" + a.slipBlobId);
+  if (!out) throw err("NOT_FOUND", "ไม่มีสลิป");
+  return out;
+}
 async function closePeriod(pr: string, r: FinData, by: string, cutoff?: string) {
+  const carry = await advanceCarry(pr, r, by);
   try {
     await prisma.$transaction([
+      prisma.finAdjustment.deleteMany({ where: carry.old }),
+      ...carry.rows.map((data) => prisma.finAdjustment.create({ data })),
       prisma.finPeriod.create({ data: { period: pr, closedBy: by, cutoff: cutoff ? new Date(cutoff) : new Date(), snapshot: { by_subject: r.by_subject, teachers: r.teachers, pays: r.pays, totals: r.totals } as unknown as Prisma.InputJsonValue } }),
       ...r.pays.map((t) =>
         prisma.finPayout.create({
@@ -753,6 +939,13 @@ async function closePeriod(pr: string, r: FinData, by: string, cutoff?: string) 
     if ((e as { code?: string }).code === "P2002") return; // closed a moment ago by someone else
     throw e;
   }
+}
+/** Local tests only (api.ts registers it with IB_TEST_HOOKS=1, never in production): the reference tests'
+ *  run("closePeriod_(pr, finCompute_(pr), 'test')"). */
+export async function testClosePeriod(d: Data) {
+  const pr = checkPeriod(d.period);
+  await closePeriod(pr, await finCompute(pr), "test");
+  return true;
 }
 /** Daily cron: close the half month that just ended (skipped while an expense still waits for approval). */
 export async function autoCloseFinance() {
@@ -771,7 +964,10 @@ export async function finReopen(d: Data, c: Ctx, me: User) {
   if (pr.length > 7 && (await lastClosed()) !== pr) throw err("LOCKED", "เปิดใหม่ได้เฉพาะงวดที่ปิดล่าสุด");
   const pays = await prisma.finPayout.findMany({ where: { period: pr } });
   if (pays.some((x) => x.status === "paid" && x.amount !== 0)) throw err("LOCKED", "มีการจ่ายเงินผู้สอนของงวดนี้แล้ว เปิดงวดใหม่ไม่ได้ ลงรายการปรับปรุงในงวดถัดไปแทน");
-  await prisma.$transaction([prisma.finPayout.deleteMany({ where: { period: pr } }), prisma.finPeriod.delete({ where: { period: pr } })]);
+  await prisma.$transaction([
+    prisma.finPayout.deleteMany({ where: { period: pr } }), prisma.finPeriod.delete({ where: { period: pr } }),
+    prisma.finAdjustment.deleteMany({ where: { source: "advance", ref: pr } }), // the advance carried over from this period
+  ]);
   await log(me, "finance.reopen", pr);
   return finSummary({ period: pr }, c, me);
 }

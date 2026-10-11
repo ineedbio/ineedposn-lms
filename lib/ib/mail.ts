@@ -290,6 +290,26 @@ export async function sendPayoutEmail(
   await send(to, "โอนส่วนแบ่งแล้ว " + baht(x.amount) + " · " + x.subject + " " + x.label, shell("โอนส่วนแบ่งแล้ว", inner, ig), [{ filename: slip.name, content: slip.data, contentType: slip.mime }]);
 }
 
+/** Code.gs advanceMail_: an advance (เบิกล่วงหน้า) has been transferred — subject, the period it comes off, amount,
+ *  account, the admin's note; the slip attached when there is one. */
+export async function sendAdvanceEmail(
+  to: string, name: string, x: { subject: string; label: string; amount: number; account: string; note: string },
+  slip: { mime: string; data: Buffer; name: string } | null, ig: string
+) {
+  if (!to || (await remainingQuota()) < 1) return;
+  const a = "฿" + Number(x.amount).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const rows: [string, string][] = [
+    ["ประเภท", "เบิกล่วงหน้า"], ["วิชา", x.subject], ["หักจากงวด", x.label], ["ยอดที่โอน", a], ["โอนเข้า", x.account || "—"], ...(x.note ? [["หมายเหตุ", x.note] as [string, string]] : []),
+  ];
+  const inner =
+    '<tr><td style="padding:0 32px 8px;"><p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc(name) + "<br>INeedBio โอนเงินเบิกล่วงหน้าวิชา" + esc(x.subject) +
+    " ให้แล้ว ยอดนี้จะหักออกจากส่วนแบ่งงวด " + esc(x.label) + (slip ? " แนบสลิปมากับอีเมลนี้" : "") + "</p>" +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;">' +
+    rows.map((r) => '<tr><td style="padding:7px 0;color:#8a8a8a;border-bottom:1px solid #efefed;">' + esc(r[0]) + '</td><td align="right" style="padding:7px 0;color:#0c0c0c;border-bottom:1px solid #efefed;">' + esc(r[1]) + "</td></tr>").join("") +
+    "</table></td></tr>";
+  await send(to, "โอนเงินเบิกล่วงหน้าแล้ว " + a + " · " + x.subject, shell("โอนเงินเบิกล่วงหน้าแล้ว", inner, ig), slip ? [{ filename: slip.name, content: slip.data, contentType: slip.mime }] : []);
+}
+
 /** Code.gs teacherInviteMail_: the invite to fill in the teacher profile — subjects taught, what is still missing,
  *  a button to /#/admin/tprofile and the email to sign in with. */
 export function teacherInviteHtml(x: { name: string; subjects: string; todo: string[]; link: string; email: string }, ig: string) {

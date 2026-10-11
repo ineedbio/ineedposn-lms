@@ -1095,6 +1095,8 @@ const ROUTES: Record<string, Handler> = {
   "admin.cells": adminOnly((d) => cells.adminCells(d)),
   "admin.feedback": adminOnly((d) => cells.adminFeedback(d)),
   "admin.feedback.decide": adminOnly(cells.adminFeedbackDecide),
+  "admin.review.save": adminOnly(cells.adminReviewSave),
+  "admin.review.delete": adminOnly(cells.adminReviewDelete),
   "admin.grades.proof": adminOnly((d) => cells.adminGradesProof(d)),
   "learn.file": staff.learnFile,
 
@@ -1153,6 +1155,12 @@ const ROUTES: Record<string, Handler> = {
   "fin.recut": adminOnly(staff.finRecut),
   "fin.adjust.save": adminOnly(staff.finAdjustSave),
   "fin.adjust.delete": adminOnly(staff.finAdjustDelete),
+  "fin.advance.request": staffOnly(staff.finAdvanceRequest),
+  "fin.advance.cancel": staffOnly(staff.finAdvanceCancel),
+  "fin.advance.pay": adminOnly(staff.finAdvancePay),
+  "fin.advance.reject": adminOnly(staff.finAdvanceReject),
+  "fin.advance.delete": adminOnly(staff.finAdvanceDelete),
+  "fin.advance.slip": staffOnly(staff.finAdvanceSlip),
   "fin.payout.paid": adminOnly(staff.finPayoutPaid),
   "fin.payout.pay": adminOnly(staff.finPayoutPay),
   "fin.payout.slip": staffOnly(staff.finPayoutSlip),
@@ -1185,6 +1193,9 @@ const ROUTES: Record<string, Handler> = {
   "admin.legacy.decide": adminOnly(staff.adminLegacyDecide),
   "admin.legacy.release": adminOnly(staff.adminLegacyRelease),
   "admin.legacy.delete": adminOnly(staff.adminLegacyDelete),
+  // Local tests only (IB_TEST_HOOKS=1 on the test server, never in production): close a period the way the half-month
+  // closing does, also one that fin.close may not close yet (the reference tests call closePeriod_ directly).
+  ...(process.env.IB_TEST_HOOKS === "1" && process.env.NODE_ENV !== "production" ? { "test.fin.close": adminOnly((d) => staff.testClosePeriod(d)) } : {}),
 };
 
 const ORDER_KEYS = new Set(["order_number", "order_numbers", "orderNumber"]);

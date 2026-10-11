@@ -47,7 +47,8 @@ var SCHEMA = {
                 'submitted_at','note','decided_by','decided_at','created_at','expires_at'],
   Expenses:    ['expense_id','date','subject','category','amount','note','receipt_file_id','status','created_by','created_at','decided_by','decided_at'],
   Periods:     ['period','closed_at','closed_by','snapshot','cutoff'],
-  Adjustments: ['adj_id','period','user_id','subject','amount','note','source','created_by','created_at'],
+  Adjustments: ['adj_id','period','user_id','subject','amount','note','source','created_by','created_at','ref'],
+  Advances:    ['adv_id','period','user_id','subject','amount','status','note','reply','requested_at','requested_by','decided_by','decided_at','paid_at','slip_file_id','account'],
   Payouts:     ['payout_id','period','user_id','subjects','share','held','amount','status','paid_at','paid_by','note','created_at','subject','slip_file_id','account'],
   TeacherProfiles: ['user_id','display_name','title','bio','photo_url','bank_name','account_name','account_no','updated_at'],
   LegacyStudents: ['legacy_id','first_name','last_name','nickname','norm','course_ids','batch','status','user_id','claimed_at','match','note','created_at'],
@@ -55,7 +56,7 @@ var SCHEMA = {
   StudyDays:   ['user_id','day','minutes','credited','updated_at'],
   Streaks:     ['user_id','streak','best','last_day','freezes','points','theme','last_redeem_at','updated_at'],
   CellLedger:  ['entry_id','user_id','delta','reason','day','ref','created_at'],
-  Reviews:     ['review_id','user_id','course_id','rating','text','status','created_at','decided_by','decided_at'],
+  Reviews:     ['review_id','user_id','course_id','rating','text','status','created_at','decided_by','decided_at','source','display_name','display_grade','note'],
   TrialFeedback: ['fb_id','course_id','lesson','level','text','user_id','device_id','created_at'],
   GradeReports: ['report_id','user_id','year','term','grade_level','grades','gpa','exam','message','proof_file_id','consent_publish','status','created_at','decided_by','decided_at']
 };
@@ -150,6 +151,8 @@ var ROUTES = {
   'my.submissions':    mySubmissions_,
   'admin.feedback':    adminOnly_(adminFeedback_),
   'admin.feedback.decide': adminOnly_(adminFeedbackDecide_),
+  'admin.review.save': adminOnly_(adminReviewSave_),
+  'admin.review.delete': adminOnly_(adminReviewDelete_),
   'admin.grades.proof': adminOnly_(adminGradesProof_),
   'admin.cells':       adminOnly_(adminCells_),
   // แอดมิน
@@ -211,6 +214,12 @@ var ROUTES = {
   'fin.recut':         adminOnly_(finRecut_),
   'fin.adjust.save':   adminOnly_(finAdjustSave_),
   'fin.adjust.delete': adminOnly_(finAdjustDelete_),
+  'fin.advance.request': staffOnly_(finAdvanceRequest_),
+  'fin.advance.cancel': staffOnly_(finAdvanceCancel_),
+  'fin.advance.pay':   adminOnly_(finAdvancePay_),
+  'fin.advance.reject': adminOnly_(finAdvanceReject_),
+  'fin.advance.delete': adminOnly_(finAdvanceDelete_),
+  'fin.advance.slip':  staffOnly_(finAdvanceSlip_),
   'fin.payout.paid':   adminOnly_(finPayoutPaid_),
   'fin.payout.pay':    adminOnly_(finPayoutPay_),
   'fin.payout.slip':   staffOnly_(finPayoutSlip_),
@@ -1485,12 +1494,16 @@ function adminFeedback_(d) {
   var pick = function (x) { return st === 'pending' ? x.status === 'pending' : x.status !== 'pending'; };
   var sort = function (a, b) { return a.created_at < b.created_at ? (st === 'pending' ? -1 : 1) : (st === 'pending' ? 1 : -1); };
   return {
-    reviews: read_('Reviews').filter(pick).sort(sort).slice(0, 200).map(function (x) { var c = courses.filter(function (y) { return y.course_id === x.course_id; })[0];
-      return { id: x.review_id, user: who(x.user_id), course: c ? c.title : x.course_id, rating: Number(x.rating) || 0, text: x.text, status: x.status, created_at: x.created_at }; }),
+    reviews: read_('Reviews').filter(function (x) { return pick(x) && x.source !== 'admin'; }).sort(sort).slice(0, 200).map(function (x) { var c = courses.filter(function (y) { return y.course_id === x.course_id; })[0];
+      return { id: x.review_id, user: x.source === 'admin' ? { name: x.display_name || 'นักเรียน', nickname: x.display_name || '', school: x.display_grade || '' } : who(x.user_id), course: c ? c.title : x.course_id, course_id: x.course_id, rating: Number(x.rating) || 0, text: x.text, status: x.status, created_at: x.created_at,
+        source: x.source || 'student', display_name: x.display_name || '', display_grade: x.display_grade || '', note: x.source === 'admin' ? x.note || '' : '' }; }),
+    added: read_('Reviews').filter(function (x) { return x.source === 'admin'; }).sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 300).map(function (x) { var c = courses.filter(function (y) { return y.course_id === x.course_id; })[0];
+      return { id: x.review_id, course_id: x.course_id, course: c ? c.title : x.course_id, rating: Number(x.rating) || 0, text: x.text, status: x.status, display_name: x.display_name || '', display_grade: x.display_grade || '', note: x.note || '', created_at: x.created_at }; }),
+    courses: courses.map(function (c) { return { course_id: c.course_id, title: c.title, subject: c.subject, status: c.status }; }),
     grades: read_('GradeReports').filter(pick).sort(sort).slice(0, 200).map(function (x) {
       return { id: x.report_id, user: who(x.user_id), year: x.year, term: x.term, grade_level: x.grade_level, grades: jsonParse_(x.grades, []), gpa: x.gpa, exam: x.exam, message: x.message,
         has_proof: !!x.proof_file_id, consent_publish: !!x.consent_publish, status: x.status, created_at: x.created_at }; }),
-    counts: { reviews: read_('Reviews').filter(function (x) { return x.status === 'pending'; }).length, grades: read_('GradeReports').filter(function (x) { return x.status === 'pending'; }).length },
+    counts: { reviews: read_('Reviews').filter(function (x) { return x.status === 'pending' && x.source !== 'admin'; }).length, grades: read_('GradeReports').filter(function (x) { return x.status === 'pending'; }).length },
     trial: trialAdmin_()
   };
 }
@@ -1502,13 +1515,56 @@ function adminFeedbackDecide_(d, p, admin) {
     if (!r) throw err_('NOT_FOUND', 'ไม่พบรายการ');
     if (r.status !== 'pending' && !(ok && r.status === 'hidden')) throw err_('ALREADY', 'ตรวจรายการนี้ไปแล้ว');
     update_(kind, r._row, { status: ok ? 'approved' : 'hidden', decided_by: admin.user_id, decided_at: now_() });
-    if (ok) {
+    if (ok && r.source !== 'admin') {
       var reason = kind === 'Reviews' ? 'review' : 'grades';
       var already = read_('CellLedger').some(function (x) { return x.user_id === r.user_id && x.reason === reason && x.ref === r[idk]; });
       var n = kind === 'Reviews' ? CELLS.REVIEW : CELLS.GRADES + (r.proof_file_id ? CELLS.GRADES_PROOF : 0);
       if (!already) { ledgerAdd_(r.user_id, n, reason, thDay_(), r[idk]); var st = streakRow_(r.user_id, true); update_('Streaks', st._row, { points: ledgerSum_(r.user_id) }); }
     }
     log_(admin, kind === 'Reviews' ? 'review.' + (ok ? 'approve' : 'hide') : 'grades.' + (ok ? 'approve' : 'hide'), d.id);
+  });
+  cache_().remove('pub_courses');
+  return true;
+}
+/** แอดมินใส่รีวิวเอง (เช่น คำรีวิวที่น้องส่งมาทางไลน์/ไอจี) · ขึ้นใต้คอร์สทันที · ไม่ผูกบัญชีนักเรียน ไม่ให้เซลล์
+ *  d: { review_id? (แก้), course_ids[] (สร้างใหม่ได้หลายคอร์สพร้อมกัน), display_name, display_grade, rating 1–5, text, note, hidden? } */
+function adminReviewSave_(d, p, admin) {
+  var name = clip_(d.display_name, 40), grade = clip_(d.display_grade, 60), rating = Math.round(Number(d.rating) || 0), text = clip_(String(d.text || '').trim(), 1000), note = clip_(d.note, 200);
+  if (!name) throw err_('BAD_INPUT', 'ใส่ชื่อที่จะแสดง เช่น ชื่อเล่นของน้อง');
+  if (rating < 1 || rating > 5) throw err_('BAD_INPUT', 'ให้ดาว 1–5 ดวง');
+  if (text.length < 5) throw err_('BAD_INPUT', 'ใส่ข้อความรีวิว');
+  var st = d.hidden ? 'hidden' : 'approved', ids = [];
+  var courses = read_('Courses'), has = function (cid) { return courses.some(function (c) { return c.course_id === cid; }); };
+  withLock_(function () {
+    ensureCols_('Reviews');
+    if (d.review_id) {
+      var r = findOne_('Reviews', function (x) { return x.review_id === d.review_id; });
+      if (!r) throw err_('NOT_FOUND', 'ไม่พบรีวิว');
+      if (r.source !== 'admin') throw err_('FORBIDDEN', 'แก้ได้เฉพาะรีวิวที่แอดมินใส่เอง');
+      var cid = d.course_id ? String(d.course_id) : r.course_id; if (!has(cid)) throw err_('BAD_INPUT', 'เลือกคอร์ส');
+      update_('Reviews', r._row, { course_id: cid, display_name: name, display_grade: grade, rating: rating, text: text, note: note, status: st, decided_by: admin.user_id, decided_at: now_() });
+      ids.push(r.review_id);
+    } else {
+      var cids = (Array.isArray(d.course_ids) ? d.course_ids : [d.course_id]).map(String).filter(function (c, i, a) { return c && a.indexOf(c) === i; }).slice(0, 40);
+      if (!cids.length) throw err_('BAD_INPUT', 'เลือกคอร์สอย่างน้อย 1 คอร์ส');
+      cids.forEach(function (cid) { if (!has(cid)) throw err_('BAD_INPUT', 'ไม่พบคอร์ส ' + cid); });
+      var at = d.created_at && !isNaN(new Date(d.created_at)) && new Date(d.created_at) <= new Date() ? new Date(d.created_at).toISOString() : now_();
+      cids.forEach(function (cid) {
+        var id = 'RV' + id_(); ids.push(id);
+        append_('Reviews', { review_id: id, user_id: '', course_id: cid, rating: rating, text: text, status: st, created_at: at, decided_by: admin.user_id, decided_at: now_(), source: 'admin', display_name: name, display_grade: grade, note: note });
+      });
+    }
+    log_(admin, 'review.admin.save', ids.join(','));
+  });
+  cache_().remove('pub_courses');
+  return { ids: ids };
+}
+function adminReviewDelete_(d, p, admin) {
+  withLock_(function () {
+    var r = findOne_('Reviews', function (x) { return x.review_id === d.review_id; });
+    if (!r) throw err_('NOT_FOUND', 'ไม่พบรีวิว');
+    if (r.source !== 'admin') throw err_('FORBIDDEN', 'ลบได้เฉพาะรีวิวที่แอดมินใส่เอง รีวิวจากนักเรียนใช้ "ซ่อน" แทน');
+    deleteRows_('Reviews', [r]); log_(admin, 'review.admin.delete', r.review_id);
   });
   cache_().remove('pub_courses');
   return true;
@@ -1554,7 +1610,7 @@ function courseReviews_(cid) {
   var users = read_('Users');
   return read_('Reviews').filter(function (x) { return x.course_id === cid && x.status === 'approved'; }).sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 30).map(function (x) {
     var u = users.filter(function (y) { return y.user_id === x.user_id; })[0];
-    return { nickname: u ? u.nickname : 'นักเรียน', grade: u ? u.grade : '', rating: Number(x.rating) || 0, text: x.text, created_at: x.created_at };
+    return { nickname: x.display_name || (u ? u.nickname : '') || 'นักเรียน', grade: x.source === 'admin' ? x.display_grade || '' : u ? u.grade : '', rating: Number(x.rating) || 0, text: x.text, created_at: x.created_at };
   });
 }
 function siteUrl_() { return String(getSetting_('site_url') || 'https://ineedbio.shop').replace(/\/+$/, ''); }
@@ -2641,7 +2697,18 @@ function finCompute_(pr, opt) {
     tt[a.user_id].adjust = (tt[a.user_id].adjust || 0) + a.amount; if (tt[a.user_id].subjects.indexOf(a.subject) < 0) tt[a.user_id].subjects.push(a.subject);
     if (subj[a.subject]) { subj[a.subject].pool = r2_(subj[a.subject].pool + a.amount); subj[a.subject].platform = r2_(subj[a.subject].platform - a.amount); subj[a.subject].adjust = r2_((subj[a.subject].adjust || 0) + a.amount); }
   });
-  var tlist = Object.keys(tt).map(function (k) { var t = tt[k]; t.share = r2_(t.share); t.held = r2_(t.held); t.adjust = r2_(t.adjust || 0); t.settle = r2_(t.share - t.held + t.adjust); return t; })
+  // เบิกล่วงหน้า (จ่ายแล้ว) ในงวดนี้: หักออกจากยอดคงเหลือ · ส่วนแบ่ง (หลังหักรายจ่าย) − เงินเข้าบัญชีตัวเอง ± ปรับปรุง − เบิกล่วงหน้า = คงเหลือสุทธิ
+  var advs = read_('Advances').filter(function (a) { return a.status === 'paid' && inAssigned_(String(a.period), pr); }).map(function (a) {
+    return { adv_id: a.adv_id, period: a.period, user_id: a.user_id, name: uname(a.user_id), subject: a.subject, amount: r2_(a.amount), note: a.note || '', paid_at: a.paid_at };
+  });
+  advs.forEach(function (a) {
+    var x = pays.filter(function (y) { return y.user_id === a.user_id && y.subject === a.subject; })[0];
+    if (!x) { x = { subject: a.subject, user_id: a.user_id, name: a.name, pct: 0, share: 0, held: 0, settle: 0, courses: [] }; pays.push(x); }
+    x.advance = r2_((x.advance || 0) + a.amount); x.settle = r2_(x.settle - a.amount);
+    tt[a.user_id] = tt[a.user_id] || { user_id: a.user_id, name: a.name, subjects: [], share: 0, held: 0 };
+    tt[a.user_id].advance = (tt[a.user_id].advance || 0) + a.amount; if (tt[a.user_id].subjects.indexOf(a.subject) < 0) tt[a.user_id].subjects.push(a.subject);
+  });
+  var tlist = Object.keys(tt).map(function (k) { var t = tt[k]; t.share = r2_(t.share); t.held = r2_(t.held); t.adjust = r2_(t.adjust || 0); t.advance = r2_(t.advance || 0); t.settle = r2_(t.share - t.held + t.adjust - t.advance); return t; })
     .sort(function (a, b) { return b.share - a.share; });
   var totals = { income: 0, expense: 0, platform: 0, teachers: 0, kept: 0 };
   Object.keys(subj).forEach(function (k) { if (subj[k].pool_all == null) { subj[k].pool_all = subj[k].pool; subj[k].others = []; subj[k].kept = 0; } totals.income += subj[k].income; totals.expense += subj[k].expense; totals.platform += subj[k].platform; totals.teachers += subj[k].pool; totals.kept += subj[k].kept; });
@@ -2649,7 +2716,8 @@ function finCompute_(pr, opt) {
   Object.keys(totals).forEach(function (k) { totals[k] = r2_(totals[k]); });
   totals.shared = r2_(shared); totals.net = r2_(totals.income - totals.expense);
   totals.adjust = r2_(adjs.reduce(function (a, x) { return a + x.amount; }, 0));
-  return { income: income, expenses: expenses, by_subject: Object.keys(subj).map(function (k) { return subj[k]; }), teachers: tlist, pays: pays, totals: totals, free: free, adjustments: adjs };
+  totals.advance = r2_(advs.reduce(function (a, x) { return a + x.amount; }, 0));
+  return { income: income, expenses: expenses, by_subject: Object.keys(subj).map(function (k) { return subj[k]; }), teachers: tlist, pays: pays, totals: totals, free: free, adjustments: adjs, advances: advs };
 }
 /** ตัดข้อมูลให้เหลือเฉพาะที่ผู้ดูมีสิทธิ์เห็น */
 function finScope_(r, me, subject) {
@@ -2663,6 +2731,7 @@ function finScope_(r, me, subject) {
     teachers: admin ? r.teachers.filter(function (t) { return allSubj || t.subjects.some(function (s) { return want.indexOf(s) >= 0; }); }) : r.teachers.filter(function (t) { return t.user_id === me.user_id; }),
     pays: (r.pays || []).filter(function (x) { return (allSubj || want.indexOf(x.subject) >= 0) && (admin || x.user_id === me.user_id); }),
     adjustments: (r.adjustments || []).filter(function (x) { return (allSubj || want.indexOf(x.subject) >= 0) && (admin || x.user_id === me.user_id); }),
+    advances: (r.advances || []).filter(function (x) { return (allSubj || want.indexOf(x.subject) >= 0) && (admin || x.user_id === me.user_id); }),
     free: r.free
   };
   if (allSubj) out.totals = r.totals;
@@ -2693,6 +2762,7 @@ function finSummary_(d, p, me) {
   out.profiles = {};
   (out.pays || []).forEach(function (x) { if (out.profiles[x.user_id]) return; var t = profileOf_(x.user_id) || {}; out.profiles[x.user_id] = { name: t.display_name || x.name, photo: t.photo_url || '', bank_name: isAdmin_(me) || x.user_id === me.user_id ? t.bank_name || '' : '', account_name: isAdmin_(me) || x.user_id === me.user_id ? t.account_name || '' : '', account_no: isAdmin_(me) || x.user_id === me.user_id ? t.account_no || '' : '' }; });
   out.label = periodLabel_(pr);
+  advanceInfo_(out, pr, me);
   return out;
 }
 function finExpenseSave_(d, p, me) {
@@ -2810,6 +2880,7 @@ function finRecut_(d, p, me) {
     if (lastClosed_() !== pr) throw err_('LOCKED', 'แก้เวลาตัดยอดได้เฉพาะงวดที่ปิดล่าสุด');
     var r = finCompute_(pr, { cutoff: cut });
     if (r.expenses.some(function (x) { return x.status === 'pending'; })) throw err_('BAD_INPUT', 'ยังมีรายจ่ายรออนุมัติในช่วงนี้ อนุมัติหรือไม่อนุมัติก่อน');
+    advanceCarry_(pr, r, me.user_id);
     update_('Periods', row._row, { cutoff: cut, snapshot: JSON.stringify({ by_subject: r.by_subject, teachers: r.teachers, pays: r.pays, totals: r.totals }) });
     var nxt = prNext_(pr), pos = read_('Payouts').filter(function (x) { return x.period === pr; }), seen = {};
     var adj = function (uid, sj, amt, why) { if (Math.abs(amt) < 0.005) return; append_('Adjustments', { adj_id: 'AJ' + id_().slice(-8), period: nxt, user_id: uid, subject: sj, amount: String(r2_(amt)), note: why, source: 'recut', created_by: me.user_id, created_at: now_() }); };
@@ -2847,15 +2918,160 @@ function finAdjustDelete_(d, p, me) {
     var a = findOne_('Adjustments', function (r) { return r.adj_id === d.adj_id; }); if (!a) throw err_('NOT_FOUND', 'ไม่พบรายการ');
     if (isClosed_(a.period)) throw err_('LOCKED', 'งวดนี้ปิดยอดแล้ว ลบไม่ได้');
     if (a.source === 'recut') throw err_('LOCKED', 'รายการนี้มาจากการแก้เวลาตัดยอด ลบไม่ได้ ใช้ปรับปรุงยอดเพิ่มแทน');
+    if (a.source === 'advance') throw err_('LOCKED', 'รายการนี้คือยอดเบิกล่วงหน้าที่เกินส่วนแบ่งงวดก่อน ลบไม่ได้ ใช้ปรับปรุงยอดเพิ่มแทน');
     pr = a.period; deleteRows_('Adjustments', [a]); log_(me, 'finance.adjust.delete', a.adj_id + ' ' + a.amount);
   });
   return finSummary_({ period: pr }, p, me);
+}
+// ───── เบิกล่วงหน้า: ผู้สอนขอเบิกจากส่วนแบ่ง (หลังหักรายจ่าย) ของงวดที่กำลังนับ แอดมินโอนพร้อมสลิป ยอดที่เบิกหักออกตอนปิดยอด ─────
+/** เบิกเกินส่วนแบ่งของงวด: ยอดที่เกินไม่ให้ผู้สอนโอนคืน แต่ยกไปหักในงวดถัดไปที่ยังเปิด (ปรับปรุงยอด source 'advance', ref = งวดนี้) */
+function advanceCarry_(pr, r, by) {
+  ensureCols_('Adjustments');
+  deleteRows_('Adjustments', read_('Adjustments').filter(function (a) { return a.source === 'advance' && a.ref === pr; }));
+  var nxt = prNext_(pr); for (var i = 0; i < 24 && isClosed_(nxt); i++) nxt = prNext_(nxt);
+  (r.pays || []).forEach(function (t) {
+    if (!(t.advance > 0) || !(t.settle < 0)) return;
+    var c = r2_(Math.max(t.settle, -t.advance)); if (!c) return;
+    t.carry = c; t.settle = r2_(t.settle - c);
+    var tc = (r.teachers || []).filter(function (x) { return x.user_id === t.user_id; })[0]; if (tc) { tc.carry = r2_((tc.carry || 0) + c); tc.settle = r2_(tc.settle - c); }
+    append_('Adjustments', { adj_id: 'AJ' + id_().slice(-8), period: nxt, user_id: t.user_id, subject: t.subject, amount: String(c), note: 'เบิกล่วงหน้าเกินส่วนแบ่งงวด ' + periodLabel_(pr) + ' ยกมาหัก', source: 'advance', created_by: by || 'auto', created_at: now_(), ref: pr });
+  });
+}
+/** ยอดที่ขอเบิกได้ตอนนี้ ของผู้สอน × วิชา: คงเหลือสุทธิของงวดที่เปิดอยู่ (หลังหักรายจ่าย เงินเข้าบัญชีตัวเอง ปรับปรุงยอด และที่เบิกไปแล้ว) − คำขอที่รออนุมัติ */
+function advanceAvail_(live, uid, sj, advRows) {
+  var x = (live.pays || []).filter(function (y) { return y.user_id === uid && y.subject === sj; })[0];
+  var pend = advRows.filter(function (a) { return a.status === 'pending' && a.user_id === uid && a.subject === sj; }).reduce(function (a, b) { return a + (Number(b.amount) || 0); }, 0);
+  var net = x ? x.settle : 0;
+  return { net: r2_(net), pending: r2_(pend), paid: r2_(x ? x.advance || 0 : 0), available: r2_(Math.max(0, net - pend)) };
+}
+function advOut_(a, users, me) {
+  var u = users.filter(function (x) { return x.user_id === a.user_id; })[0] || {}, t = profileOf_(a.user_id) || {};
+  return { adv_id: a.adv_id, period: a.period, label: periodLabel_(String(a.period)), user_id: a.user_id, name: t.display_name || u.nickname || '', subject: a.subject, amount: r2_(a.amount), status: a.status,
+    note: a.note || '', reply: a.reply || '', requested_at: a.requested_at || '', by_admin: !!a.requested_by && a.requested_by !== a.user_id, paid_at: a.paid_at || '', has_slip: !!a.slip_file_id };
+}
+/** ข้อมูลเบิกล่วงหน้าที่หน้า "ส่วนแบ่ง" ใช้ · adv = รายการของงวดที่ดู · adv_pending = คำขอที่รออนุมัติทุกงวด · pays[].adv = ยอดที่ขอเบิกได้ (เฉพาะงวดที่เปิดอยู่) */
+function advanceInfo_(out, pr, me) {
+  var admin = isAdmin_(me), mine = subjectsOf_(me), rows = read_('Advances'), users = read_('Users');
+  var see = function (a) { return admin || a.user_id === me.user_id; };
+  out.adv = rows.filter(function (a) { return see(a) && inAssigned_(String(a.period), pr) && a.status !== 'pending'; }).map(function (a) { return advOut_(a, users, me); });
+  out.adv_pending = rows.filter(function (a) { return see(a) && a.status === 'pending'; }).map(function (a) { return advOut_(a, users, me); });
+  out.adv_open = pr === openPeriod_() && !out.closed;
+  if (out.adv_open) {
+    var live = finCompute_(pr);
+    (out.pays || []).forEach(function (x) { x.adv = advanceAvail_(live, x.user_id, x.subject, rows); });
+    if (!admin) out.adv_mine = mine.map(function (sj) { var a = advanceAvail_(live, me.user_id, sj, rows); a.subject = sj; return a; }).filter(function (a) { return a.net > 0 || a.pending > 0 || a.paid > 0; });
+  }
+}
+function finAdvanceRequest_(d, p, me) {
+  var sj = String(d.subject || ''); if (subjectsOf_(me).indexOf(sj) < 0) throw err_('BAD_INPUT', 'เลือกวิชาที่คุณสอน');
+  var amt = r2_(String(d.amount || '').replace(/[^\d.]/g, '')); if (!(amt > 0)) throw err_('BAD_INPUT', 'ใส่ยอดที่จะเบิก');
+  var pr = openPeriod_();
+  withLock_(function () {
+    ensureCols_('Advances');
+    var rows = read_('Advances');
+    if (rows.filter(function (a) { return a.status === 'pending' && a.user_id === me.user_id; }).length >= 3) throw err_('LIMIT', 'มีคำขอรออนุมัติอยู่แล้ว รอแอดมินตอบก่อน');
+    var av = advanceAvail_(finCompute_(pr), me.user_id, sj, rows);
+    if (amt > av.available) throw err_('BAD_INPUT', av.available > 0 ? 'เบิกได้ไม่เกิน ฿' + av.available.toLocaleString('en-US') + ' ในตอนนี้' : 'ตอนนี้ยังไม่มียอดคงเหลือให้เบิก');
+    append_('Advances', { adv_id: 'AV' + id_().slice(-8), period: pr, user_id: me.user_id, subject: sj, amount: String(amt), status: 'pending', note: clip_(d.note, 200), requested_at: now_(), requested_by: me.user_id });
+    log_(me, 'finance.advance.request', sj + ' ฿' + amt);
+  });
+  try { advanceNotifyAdmins_(me, sj, amt, clip_(d.note, 200)); } catch (e) {}
+  return finSummary_({ period: pr }, p, me);
+}
+function advanceNotifyAdmins_(me, sj, amt, note) {
+  if (MailApp.getRemainingDailyQuota() < 2) return;
+  var t = profileOf_(me.user_id) || {}, to = read_('Users').filter(function (u) { return isAdmin_(u) && u.email && u.status !== 'banned'; }).map(function (u) { return u.email; }).slice(0, 5);
+  if (!to.length) return;
+  var who = t.display_name || me.nickname || me.first_name || '', txt = who + ' ขอเบิกล่วงหน้า ฿' + Number(amt).toLocaleString('en-US') + ' วิชา' + (APP.SUBJECTS[sj] || sj) + (note ? ' · ' + note : '');
+  MailApp.sendEmail({ to: to.join(','), name: APP.NAME, subject: 'คำขอเบิกล่วงหน้า ' + who + ' ฿' + Number(amt).toLocaleString('en-US'), body: txt + '\nอนุมัติได้ที่หลังบ้าน เมนู "ส่วนแบ่งผู้สอน" ' + siteUrl_() + '/#/admin/payouts',
+    htmlBody: mailShell_('คำขอเบิกล่วงหน้า', '<tr><td style="padding:0 32px 22px;font-size:15px;line-height:1.7;color:#525252;">' + esc_(txt) + '<br><br>' + mailBtn_(siteUrl_() + '/#/admin/payouts', 'เปิดหน้าส่วนแบ่งผู้สอน') + '</td></tr>') });
+}
+function finAdvanceCancel_(d, p, me) {
+  withLock_(function () {
+    var a = findOne_('Advances', function (r) { return r.adv_id === d.adv_id; }); if (!a) throw err_('NOT_FOUND', 'ไม่พบรายการ');
+    if (a.user_id !== me.user_id && !isAdmin_(me)) throw err_('FORBIDDEN', 'ยกเลิกได้เฉพาะคำขอของคุณ');
+    if (a.status !== 'pending') throw err_('ALREADY', 'คำขอนี้ตอบไปแล้ว');
+    update_('Advances', a._row, { status: 'cancelled', decided_by: me.user_id, decided_at: now_() }); log_(me, 'finance.advance.cancel', a.adv_id);
+  });
+  return finSummary_({}, p, me);
+}
+/** แอดมินโอนเบิกล่วงหน้า: อนุมัติคำขอ (adv_id) หรือบันทึกที่โอนให้เองโดยไม่มีคำขอ (user_id, subject, amount) · สลิปไม่บังคับ · ลงในงวดที่เปิดอยู่ */
+function finAdvancePay_(d, p, me) {
+  var slip = d.slip && d.slip.base64 ? d.slip : null;
+  if (slip) {
+    if (!/^image\/(jpeg|png|webp)$|^application\/pdf$/.test(slip.mime || '')) throw err_('BAD_INPUT', 'สลิปต้องเป็นรูปหรือ PDF');
+    if (slip.base64.length * 0.75 > APP.SLIP_MAX_BYTES) throw err_('BAD_INPUT', 'ไฟล์สลิปใหญ่เกิน 3 MB');
+  }
+  var amt = d.amount != null && d.amount !== '' ? r2_(String(d.amount).replace(/[^\d.]/g, '')) : 0, pr = openPeriod_(), a0 = null;
+  if (d.adv_id) {
+    a0 = findOne_('Advances', function (r) { return r.adv_id === d.adv_id; }); if (!a0) throw err_('NOT_FOUND', 'ไม่พบคำขอ');
+    if (a0.status !== 'pending') throw err_('ALREADY', 'คำขอนี้ตอบไปแล้ว');
+    if (!amt) amt = r2_(a0.amount);
+  } else {
+    var u = findOne_('Users', function (r) { return r.user_id === d.user_id; }); if (!u || !isStaff_(u)) throw err_('BAD_INPUT', 'เลือกผู้สอน');
+    if (!APP.SUBJECTS[String(d.subject || '')]) throw err_('BAD_INPUT', 'เลือกวิชา');
+  }
+  if (!(amt > 0)) throw err_('BAD_INPUT', 'ใส่ยอดที่โอน');
+  var uid = a0 ? a0.user_id : String(d.user_id), sj = a0 ? a0.subject : String(d.subject), t = profileOf_(uid) || {};
+  var fid = '', blob = null;
+  if (slip) {
+    var folder = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('SLIP_FOLDER_ID'));
+    blob = Utilities.newBlob(Utilities.base64Decode(slip.base64), slip.mime, 'advance_' + uid + '_' + Date.now() + (slip.mime === 'application/pdf' ? '.pdf' : '.jpg'));
+    fid = folder.createFile(blob).getId();
+  }
+  var paidAt = d.paid_at && !isNaN(new Date(d.paid_at)) ? new Date(d.paid_at).toISOString() : now_(), id = a0 ? a0.adv_id : 'AV' + id_().slice(-8);
+  var row = { period: pr, amount: String(amt), status: 'paid', decided_by: me.user_id, decided_at: now_(), paid_at: paidAt, slip_file_id: fid, reply: clip_(d.reply, 200),
+    account: [t.bank_name, t.account_no, t.account_name].filter(String).join(' · ') };
+  withLock_(function () {
+    ensureCols_('Advances');
+    if (a0) { var a = findOne_('Advances', function (r) { return r.adv_id === d.adv_id; }); if (a.status !== 'pending') throw err_('ALREADY', 'คำขอนี้ตอบไปแล้ว'); update_('Advances', a._row, row); }
+    else { row.adv_id = id; row.user_id = uid; row.subject = sj; row.note = clip_(d.note, 200); row.requested_at = now_(); row.requested_by = me.user_id; append_('Advances', row); }
+    log_(me, 'finance.advance.paid', id + ' ' + uid + ' ' + sj + ' ฿' + amt);
+  });
+  try { advanceMail_(uid, sj, amt, pr, paidAt, t, clip_(d.reply || d.note, 200), blob); } catch (e) {}
+  return finSummary_({ period: pr }, p, me);
+}
+function advanceMail_(uid, sj, amt, pr, paidAt, t, note, blob) {
+  var u = findOne_('Users', function (r) { return r.user_id === uid; });
+  if (!u || !u.email || MailApp.getRemainingDailyQuota() < 1) return;
+  var sub = APP.SUBJECTS[sj] || sj, a = '฿' + Number(amt).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  var rows = [['ประเภท', 'เบิกล่วงหน้า'], ['วิชา', sub], ['หักจากงวด', periodLabel_(pr)], ['ยอดที่โอน', a], ['โอนเข้า', [t.bank_name, t.account_no, t.account_name].filter(String).join(' · ') || '—']].concat(note ? [['หมายเหตุ', note]] : []);
+  var inner = '<tr><td style="padding:0 32px 8px;"><p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc_(t.display_name || u.nickname || '') + '<br>INeedBio โอนเงินเบิกล่วงหน้าวิชา' + esc_(sub) + ' ให้แล้ว ยอดนี้จะหักออกจากส่วนแบ่งงวด ' + esc_(periodLabel_(pr)) + (blob ? ' แนบสลิปมากับอีเมลนี้' : '') + '</p>' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;">' + rows.map(function (r) { return '<tr><td style="padding:7px 0;color:#8a8a8a;border-bottom:1px solid #efefed;">' + esc_(r[0]) + '</td><td align="right" style="padding:7px 0;color:#0c0c0c;border-bottom:1px solid #efefed;">' + esc_(r[1]) + '</td></tr>'; }).join('') + '</table></td></tr>';
+  var m = { to: u.email, name: APP.NAME, subject: 'โอนเงินเบิกล่วงหน้าแล้ว ' + a + ' · ' + sub, body: rows.map(function (r) { return r[0] + ': ' + r[1]; }).join('\n'), htmlBody: mailShell_('โอนเงินเบิกล่วงหน้าแล้ว', inner) };
+  if (blob) m.attachments = [blob];
+  MailApp.sendEmail(m);
+}
+function finAdvanceReject_(d, p, me) {
+  withLock_(function () {
+    var a = findOne_('Advances', function (r) { return r.adv_id === d.adv_id; }); if (!a) throw err_('NOT_FOUND', 'ไม่พบคำขอ');
+    if (a.status !== 'pending') throw err_('ALREADY', 'คำขอนี้ตอบไปแล้ว');
+    update_('Advances', a._row, { status: 'rejected', reply: clip_(d.reply, 200), decided_by: me.user_id, decided_at: now_() }); log_(me, 'finance.advance.reject', a.adv_id);
+  });
+  return finSummary_({}, p, me);
+}
+/** ลบรายการเบิกที่บันทึกผิด: เฉพาะงวดที่ยังไม่ปิดยอด */
+function finAdvanceDelete_(d, p, me) {
+  var pr;
+  withLock_(function () {
+    var a = findOne_('Advances', function (r) { return r.adv_id === d.adv_id; }); if (!a) throw err_('NOT_FOUND', 'ไม่พบรายการ');
+    if (a.status === 'paid' && isClosed_(String(a.period))) throw err_('LOCKED', 'งวดนี้ปิดยอดแล้ว ลบไม่ได้ ใช้ปรับปรุงยอดแทน');
+    pr = a.period; deleteRows_('Advances', [a]); log_(me, 'finance.advance.delete', a.adv_id + ' ฿' + a.amount);
+  });
+  return finSummary_({ period: pr }, p, me);
+}
+function finAdvanceSlip_(d, p, me) {
+  var a = findOne_('Advances', function (r) { return r.adv_id === d.adv_id; });
+  if (!a || !a.slip_file_id) throw err_('NOT_FOUND', 'ไม่มีสลิป');
+  if (!isAdmin_(me) && a.user_id !== me.user_id) throw err_('FORBIDDEN', 'ดูได้เฉพาะสลิปของคุณ');
+  return photoOut_(a.slip_file_id);
 }
 /** ปิดงวด: ล็อกตัวเลข และสร้างรายการโอนแยกวิชา × ผู้สอน (ปิดเองอัตโนมัติเมื่อครบงวด หรือแอดมินกดปิด) */
 function closePeriod_(pr, r, by, cutoff) {
   withLock_(function () {
     if (isClosed_(pr)) return;
     ensureCols_('Periods');
+    advanceCarry_(pr, r, by);
     append_('Periods', { period: pr, closed_at: now_(), cutoff: cutoff || now_(), closed_by: by, snapshot: JSON.stringify({ by_subject: r.by_subject, teachers: r.teachers, pays: r.pays, totals: r.totals }) });
     (r.pays || []).forEach(function (t) {
       append_('Payouts', { payout_id: 'PO' + id_().slice(-8), period: pr, user_id: t.user_id, subject: t.subject, subjects: t.subject, share: t.share, held: t.held, amount: t.settle,
@@ -2884,7 +3100,9 @@ function finReopen_(d, p, me) {
     if (pr.length > 7 && lastClosed_() !== pr) throw err_('LOCKED', 'เปิดใหม่ได้เฉพาะงวดที่ปิดล่าสุด');
     var pays = read_('Payouts').filter(function (x) { return x.period === pr; });
     if (pays.some(function (x) { return x.status === 'paid' && Number(x.amount) !== 0; })) throw err_('LOCKED', 'มีการจ่ายเงินผู้สอนของเดือนนี้แล้ว เปิดงวดใหม่ไม่ได้ ลงรายการปรับปรุงในเดือนถัดไปแทน');
-    deleteRows_('Payouts', pays); deleteRows_('Periods', [row]); log_(me, 'finance.reopen', pr);
+    deleteRows_('Payouts', pays); deleteRows_('Periods', [row]);
+    deleteRows_('Adjustments', read_('Adjustments').filter(function (a) { return a.source === 'advance' && a.ref === pr; }));
+    log_(me, 'finance.reopen', pr);
   });
   return finSummary_({ period: pr }, p, me);
 }

@@ -1,6 +1,8 @@
-// Finance tests for /api/ib, ported from reference/tests-finance.js (4 groups, same names and checks): an admin closes
-// any time · cutoff · money after the cutoff rolls to the next period · re-cutting afterwards · ปรับปรุงยอด.
-// Runs on its own throwaway local database (tests/run.mjs). append_('Enrollments' …) = a Payment row written with `db`.
+// Finance tests for /api/ib, ported from reference/tests-finance.js (7 groups, same names and checks): an admin closes
+// any time · cutoff · money after the cutoff rolls to the next period · re-cutting afterwards · ปรับปรุงยอด ·
+// เบิกล่วงหน้า (request, pay, carry over at closing, cancel / reject / delete, reopen).
+// Runs on its own throwaway local database (tests/run.mjs). append_('Enrollments' …) = a Payment row written with `db`;
+// run("closePeriod_(…)") = the test server's test.fin.close.
 import assert from "node:assert";
 import fs from "node:fs";
 
@@ -102,6 +104,72 @@ export async function run({ BASE, OUTBOX, db, makeAdmin }) {
     no(await call("fin.recut", { period: P, cutoff: ago(45) }, adm), "LOCKED");
     no(await call("fin.reopen", { period: P }, adm), "LOCKED");
     assert.equal(ok(await call("fin.summary", {}, adm)).period, N2);
+  });
+  await t("advance: teacher requests from share after expenses; admin pays; net = share − held − advance", async () => {
+    const N3 = prNext(N2);
+    await sale(M41, 1000, new Date().toISOString()); // T1 50% = 500 · T2 20% = 200
+    const t1 = await login("t1@x.com"), t2 = await login("t2@x.com");
+    let m = ok(await call("fin.summary", {}, t1, "t1@x.com"));
+    assert.equal(m.period, N2); assert.equal(m.adv_open, true);
+    assert.equal(m.adv_mine.find((x) => x.subject === "math").available, 500);
+    no(await call("fin.advance.request", { subject: "math", amount: 600 }, t1, "t1@x.com"), "BAD_INPUT");
+    no(await call("fin.advance.request", { subject: "bio", amount: 100 }, t1, "t1@x.com"), "BAD_INPUT");
+    no(await call("fin.advance.request", { subject: "math", amount: 100 }, ST.token, "st@x.com"), "FORBIDDEN");
+    m = ok(await call("fin.advance.request", { subject: "math", amount: 300, note: "ค่าเทอมน้อง" }, t1, "t1@x.com"));
+    assert.equal(m.adv_pending.length, 1); assert.equal(m.adv_mine.find((x) => x.subject === "math").available, 200);
+    no(await call("fin.advance.request", { subject: "math", amount: 250 }, t1, "t1@x.com"), "BAD_INPUT"); // with the request waiting: over
+    assert.equal(ok(await call("fin.summary", {}, t2, "t2@x.com")).adv_pending.length, 0); // another teacher doesn't see it
+    let a = ok(await call("fin.summary", {}, adm));
+    assert.equal(a.adv_pending.length, 1); assert.equal(a.pays.find((x) => x.user_id === T1.user.user_id).adv.pending, 300);
+    const before = outbox().length;
+    a = ok(await call("fin.advance.pay", { adv_id: a.adv_pending[0].adv_id, slip: PH }, adm));
+    assert.equal(outbox().length, before + 1); assert.match(outbox().pop().subject, /เบิกล่วงหน้า/);
+    no(await call("fin.advance.pay", { adv_id: a.adv[0].adv_id }, adm), "ALREADY");
+    const p1 = a.pays.find((x) => x.user_id === T1.user.user_id && x.subject === "math");
+    assert.equal(p1.share, 500); assert.equal(p1.advance, 300); assert.equal(p1.settle, 200); assert.equal(a.totals.advance, 300);
+    assert.equal(a.adv.length, 1); assert.equal(a.adv[0].has_slip, true);
+    ok(await call("fin.advance.slip", { adv_id: a.adv[0].adv_id }, t1, "t1@x.com"));
+    no(await call("fin.advance.slip", { adv_id: a.adv[0].adv_id }, t2, "t2@x.com"), "FORBIDDEN");
+    // the admin pays T2 more than their share (200) → at closing the rest is taken off the next period, no transfer back
+    a = ok(await call("fin.advance.pay", { user_id: T2.user.user_id, subject: "math", amount: 500, note: "เบิกฉุกเฉิน" }, adm));
+    assert.equal(a.pays.find((x) => x.user_id === T2.user.user_id).settle, -300);
+    ok(await call("test.fin.close", { period: N2 }, adm)); // closePeriod_ (fin.close can't close more than 1 period ahead)
+    const c = ok(await call("fin.summary", { period: N2 }, adm));
+    const q2 = c.pays.find((x) => x.user_id === T2.user.user_id), q1 = c.pays.find((x) => x.user_id === T1.user.user_id);
+    assert.equal(q2.settle, 0); assert.equal(q2.carry, -300); assert.equal(q1.settle, 200);
+    assert.equal(c.payouts.find((x) => x.user_id === T2.user.user_id).status, "paid");
+    assert.equal(c.payouts.find((x) => x.user_id === T1.user.user_id).amount, 200);
+    no(await call("fin.advance.delete", { adv_id: c.adv.find((x) => x.user_id === T2.user.user_id).adv_id }, adm), "LOCKED");
+    const n3 = ok(await call("fin.summary", {}, adm));
+    assert.equal(n3.period, N3);
+    const aj = n3.adjustments.find((x) => x.user_id === T2.user.user_id);
+    assert.equal(aj.amount, -300); assert.equal(aj.source, "advance");
+    no(await call("fin.adjust.delete", { adj_id: aj.adj_id }, adm), "LOCKED");
+    assert.equal(n3.pays.find((x) => x.user_id === T2.user.user_id).settle, -300);
+    no(await call("fin.advance.request", { subject: "math", amount: 1 }, t2, "t2@x.com"), "BAD_INPUT"); // still minus: nothing to ask for
+  });
+  await t("advance: cancel / reject / delete mistaken entry", async () => {
+    await sale(M42, 1000, new Date().toISOString()); // T1 70% = 700
+    const t1 = await login("t1@x.com");
+    let m = ok(await call("fin.advance.request", { subject: "math", amount: 100 }, t1, "t1@x.com"));
+    m = ok(await call("fin.advance.cancel", { adv_id: m.adv_pending[0].adv_id }, t1, "t1@x.com"));
+    assert.equal(m.adv_pending.length, 0);
+    m = ok(await call("fin.advance.request", { subject: "math", amount: 700 }, t1, "t1@x.com"));
+    const id = m.adv_pending[0].adv_id;
+    no(await call("fin.advance.reject", { adv_id: id }, t1, "t1@x.com"), "FORBIDDEN");
+    ok(await call("fin.advance.reject", { adv_id: id, reply: "รอปิดยอดก่อนนะ" }, adm));
+    no(await call("fin.advance.cancel", { adv_id: id }, t1, "t1@x.com"), "ALREADY");
+    let a = ok(await call("fin.advance.pay", { user_id: T1.user.user_id, subject: "math", amount: 50 }, adm));
+    assert.equal(a.pays.find((x) => x.user_id === T1.user.user_id).advance, 50);
+    a = ok(await call("fin.advance.delete", { adv_id: a.adv.find((x) => x.amount === 50).adv_id }, adm));
+    assert.ok(!a.pays.find((x) => x.user_id === T1.user.user_id).advance);
+  });
+  await t("reopen removes advance carry; close again recreates it once", async () => {
+    const N3 = prNext(N2);
+    ok(await call("fin.reopen", { period: N2 }, adm));
+    assert.equal(ok(await call("fin.summary", { period: N3 }, adm)).adjustments.filter((x) => x.source === "advance").length, 0);
+    ok(await call("test.fin.close", { period: N2 }, adm));
+    assert.equal(ok(await call("fin.summary", { period: N3 }, adm)).adjustments.filter((x) => x.source === "advance").length, 1);
   });
   console.log(`\n${n} finance tests passed`);
 }
