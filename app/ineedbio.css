@@ -615,7 +615,9 @@ div.f{display:grid;gap:6px;font-size:13px;color:var(--ink2)}
 .player:fullscreen{border-radius:0;aspect-ratio:auto;width:100%;height:100%}
 .player:fullscreen .yt-crop iframe,.player.fake-fs .yt-crop iframe{left:50%;top:50%;width:min(100vw,177.78vh)!important;height:calc(min(56.25vw,100vh) + 140px)!important;transform:translate(-50%,-50%)}
 .player.yt-native .yt-shield,.player.yt-native .yt-bar,.player.yt-native .yt-cover{display:none!important}
-.player.yt-native .yt-crop iframe{position:absolute;left:0!important;top:0!important;width:100%!important;height:100%!important;transform:none!important}
+.player.yt-native .yt-crop iframe{position:absolute;left:0!important;top:0!important;width:100%!important;height:100%!important;transform:none!important;pointer-events:auto!important}
+.player.yt-native .yt-crop{pointer-events:auto!important}
+.yt-modebar .yt-endmsg{flex-basis:100%;color:var(--ink)}.yt-modebar .yt-endmsg:empty{display:none}
 .yt-modebar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--muted)}
 .yt-ytm{display:inline-flex;align-items:center;gap:5px;width:auto!important;padding:0 8px!important;font-size:12.5px;font-weight:600}
 @media (max-width:420px){.yt-ytm span{display:none}}

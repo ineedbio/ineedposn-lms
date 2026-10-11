@@ -1341,6 +1341,7 @@ function safePlayer(el, vid, wm, opt) {
           else if (s === 2) setState('is-paused');
           else if (s === 3) setState('is-buffering');
           else if (s === 0) { ended = true; setState('is-ended'); if (posKey) store(posKey, null); if (opt.onEnd) opt.onEnd(msg); }
+          if (nat) { var em = $('.yt-modebar .yt-endmsg'); if (em) setTimeout(function () { em.innerHTML = s === 0 ? msg.innerHTML : ''; }, 50); } // โหมด YouTube: ข้อความดูจบ/ตอนถัดไปย้ายมาไว้ใต้วิดีโอ
           tick();
         },
         onError: function (e) { fail(e.data === 101 || e.data === 150 ? 'คลิปนี้ไม่ได้เปิดให้ฝังในเว็บ แจ้งแอดมินให้เปิด "อนุญาตการฝัง" ใน YouTube Studio' : 'เล่นคลิปนี้ไม่ได้ ลองรีเฟรชหน้า หรือแจ้งแอดมินทาง IG'); }
@@ -1351,8 +1352,8 @@ function safePlayer(el, vid, wm, opt) {
     $$('.yt-modebar').forEach(function (x) { x.remove(); });
     if (nat) {
       var mb2 = document.createElement('div'); mb2.className = 'yt-modebar';
-      mb2.innerHTML = '<span>' + (fullOnPlay ? 'กดเล่นแล้ววิดีโอจะเต็มจอ · ' : '') + 'ใช้ปุ่มของ YouTube อยู่ · กดฟันเฟืองเพื่อเลือกความชัด</span><button type="button" class="link sm">← กลับตัวเล่นเดิม</button>';
-      $('button', mb2).onclick = function () { setMode(false, true); };
+      mb2.innerHTML = '<span>' + (fullOnPlay ? 'กดเล่นแล้ววิดีโอจะเต็มจอ · ' : '') + 'ใช้ปุ่มของ YouTube อยู่ · กดฟันเฟืองเพื่อเลือกความชัด</span><button type="button" class="link sm">← กลับตัวเล่นเดิม</button><div class="yt-endmsg"></div>';
+      $('button.link', mb2).onclick = function () { setMode(false, true); };
       el.insertAdjacentElement('afterend', mb2);
     }
   };
