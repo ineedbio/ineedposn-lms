@@ -836,7 +836,7 @@ function revSec(c) {
   var avg = cr.length ? cr.reduce(function (a, x) { return a + x.rating; }, 0) / cr.length : 0;
   return '<section class="sec" id="sec-reviews">' +
     (cr.length ? '<div class="spread"><h2>รีวิวจากคนที่เรียนคอร์สนี้</h2><span class="sm">' + stars(Math.round(avg)) + ' ' + avg.toFixed(1) + ' · ' + cr.length + ' รีวิว</span></div><div class="rvs two" style="margin-bottom:26px">' + cr.slice(0, 6).map(function (x) {
-      return '<article class="rv"><div class="rv-h"><div><b>' + esc(x.nickname) + '</b><span>' + esc(x.grade || '') + ' · ' + thDate(x.created_at) + '</span></div></div><div>' + stars(x.rating) + '</div><p class="rv-q">' + esc(x.text) + '</p></article>'; }).join('') + '</div>' : '') +
+      return '<article class="rv"><div class="rv-h"><div><b>' + esc(x.nickname) + '</b>' + (x.grade ? '<span>' + esc(x.grade) + '</span>' : '') + '</div></div><div>' + stars(x.rating) + '</div><p class="rv-q">' + esc(x.text) + '</p></article>'; }).join('') + '</div>' : '') +
     (rs.length ? '<div class="spread"><h2>เสียงจากน้องที่ติดค่าย</h2><a class="link" href="#/results">ดูทั้งหมด</a></div><div class="rvs two">' + rs.map(reviewCard).join('') + '</div>' : '') + '</section>';
 }
 function viewCourse(id) {
