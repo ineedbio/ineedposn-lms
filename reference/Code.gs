@@ -22,17 +22,25 @@ var APP = {
   SUBJECTS: { bio: 'ชีววิทยา', chem: 'เคมี', phys: 'ฟิสิกส์', math: 'คณิตศาสตร์' },
   TERMS_VERSION: '2026-09-25',
   REPEAT_GRADES: ['จบ ม.6 แล้ว', 'อื่นๆ'],
-  LEVELS: ['สอวน.', 'A-Level', 'ม.4', 'ม.5', 'ม.6', 'ม.ต้น', 'อื่นๆ']
+  LEVELS: ['สอวน.', 'A-Level', 'ม.4', 'ม.5', 'ม.6', 'ม.ต้น', 'อื่นๆ'],
+  // รู้จัก INeedBio จากที่ไหน (ถามตอนสมัคร) · ลำดับนี้คือลำดับที่แสดง
+  HEARD: [['fb_page', 'เพจ Facebook'], ['fb_group', 'กลุ่ม Facebook'], ['ig', 'Instagram'], ['tiktok', 'TikTok'], ['youtube', 'YouTube'],
+          ['friend', 'เพื่อนแนะนำ'], ['teacher', 'ครู / โรงเรียน'], ['google', 'ค้นใน Google'], ['other', 'อื่นๆ']],
+  // แบบสอบถามรับไฟล์บทที่ทดลองเรียนฟรี
+  TRIAL_GOALS: ['A-Level', 'กสพท', 'สอวน.', 'สอบในโรงเรียน'],
+  TRIAL_HELP: ['สรุปเนื้อหาให้เข้าใจ', 'ตะลุยโจทย์เยอะๆ', 'ทำข้อสอบให้ทันเวลา', 'วางแผนอ่านหนังสือ', 'ปูพื้นฐานใหม่หมด']
 };
 
 var SCHEMA = {
   Users:       ['user_id','email','password_hash','salt','first_name','last_name','nickname','school','grade','phone','role','status','created_at','last_login_at',
                 'current_faculty','current_university','dream_faculty','dream_university','terms_version','terms_accepted_at',
-                'birthday','facebook','instagram','line_id','photo_file_id','data_consent_at','subjects','roles','invited_at','invite_error'],
+                'birthday','facebook','instagram','line_id','photo_file_id','data_consent_at','subjects','roles','invited_at','invite_error',
+                'heard_from','heard_note','ref'],
   Sessions:    ['token_hash','user_id','device_id','device_info','created_at','expires_at'],
   Courses:     ['course_id','subject','title','subtitle','description','cover_url','price','status','sort_order','created_at',
                 'trailer_youtube','highlights','audience','instructor_name','instructor_title','instructor_bio','instructor_photo','faq','full_price','level','pay_account_id',
-                'instructor2_name','instructor2_title','instructor2_bio','instructor2_photo','playlists','teacher_split','teacher_ids','accent','pending_change'],
+                'instructor2_name','instructor2_title','instructor2_bio','instructor2_photo','playlists','teacher_split','teacher_ids','accent','pending_change',
+                'trial_files','trial_label'],
   Lessons:     ['lesson_id','course_id','chapter','title','youtube_id','duration_min','attachment_url','is_preview','sort_order','hidden','source_playlist','files'],
   Enrollments: ['enroll_id','user_id','course_id','status','amount','slip_file_id','note','created_at','decided_by','decided_at','source','reason','expires_at','bill_id'],
   Progress:    ['user_id','course_id','lesson_id','completed_at'],
@@ -58,6 +66,7 @@ var SCHEMA = {
   CellLedger:  ['entry_id','user_id','delta','reason','day','ref','created_at'],
   Reviews:     ['review_id','user_id','course_id','rating','text','status','created_at','decided_by','decided_at','source','display_name','display_grade','note'],
   TrialFeedback: ['fb_id','course_id','lesson','level','text','user_id','device_id','created_at'],
+  TrialLeads:  ['lead_id','user_id','course_id','goals','help','ref','created_at'],
   GradeReports: ['report_id','user_id','year','term','grade_level','grades','gpa','exam','message','proof_file_id','consent_publish','status','created_at','decided_by','decided_at']
 };
 
@@ -115,7 +124,7 @@ function doPost(e) {
 
 var ROUTES = {
   // สาธารณะ
-  'config':            function (d) { var o = publicSettings_(); o.new_member_promo = newMemberPromo_(); return o; },
+  'config':            function (d) { var o = publicSettings_(); o.new_member_promo = newMemberPromo_(); o.heard = APP.HEARD; o.trial_goals = APP.TRIAL_GOALS; o.trial_help = APP.TRIAL_HELP; return o; },
   'register.start':    registerStart_,
   'register.verify':   registerVerify_,
   'login':             login_,
@@ -147,6 +156,9 @@ var ROUTES = {
   'cells.theme':       cellsTheme_,
   'review.submit':     reviewSubmit_,
   'trial.feedback':    trialFeedback_,
+  'trial.unlock':      trialUnlock_,
+  'admin.marketing':   adminOnly_(adminMarketing_),
+  'admin.course.trial': adminOnly_(adminCourseTrial_),
   'grades.submit':     gradesSubmit_,
   'my.submissions':    mySubmissions_,
   'admin.feedback':    adminOnly_(adminFeedback_),
@@ -297,7 +309,7 @@ function registerStart_(d) {
     nickname: req_(d.nickname, 'ชื่อเล่น', 30), school: req_(d.school, 'โรงเรียน', 120),
     grade: req_(d.grade, 'ระดับชั้น', 20), phone: phone_(d.phone)
   };
-  goals_(d, f); contacts_(d, f);
+  goals_(d, f); contacts_(d, f); heard_(d, f);
   checkPhoto_(d.photo, true);
   if (d.accept_data !== true && d.accept_data !== 'true') throw err_('BAD_INPUT', 'กรุณาติ๊กยินยอมให้เก็บรูปถ่ายและข้อมูลเพิ่มเติมก่อนสมัคร');
   if (d.accept_terms !== true && d.accept_terms !== 'true') throw err_('BAD_INPUT', 'กรุณายอมรับข้อตกลงการใช้งานและนโยบายความเป็นส่วนตัวก่อนสมัคร');
@@ -331,7 +343,8 @@ function registerVerify_(d, p) {
       current_faculty: f.current_faculty, current_university: f.current_university, dream_faculty: f.dream_faculty, dream_university: f.dream_university,
       terms_version: f.terms_version, terms_accepted_at: f.terms_accepted_at,
       birthday: f.birthday, facebook: f.facebook, instagram: f.instagram, line_id: f.line_id,
-      photo_file_id: f.photo_file_id || '', data_consent_at: f.data_consent_at || ''
+      photo_file_id: f.photo_file_id || '', data_consent_at: f.data_consent_at || '',
+      heard_from: f.heard_from || '', heard_note: f.heard_note || '', ref: f.ref || ''
     };
     append_('Users', u);
     cache_().remove(key);
@@ -589,10 +602,13 @@ function courseDetail_(d, p) {
   out.bundles = publicBundles_().filter(function (b) { return b.course_ids.indexOf(x.course_id) >= 0; });
   out.reviews = courseReviews_(x.course_id);
   out.trial = trialStats_(x.course_id);
+  var ff = freeFiles_(x, lessons);
+  if (ff) { out.free_files = ff; out.free_label = x.trial_label || ''; out.free_unlocked = false; }
   out.enrollment = null;
   if (p.token) {
     try {
       var u = auth_(p); var e = latestEnroll_(u.user_id, x.course_id); out.enrollment = e ? e.status : null; out.note = e ? e.note : '';
+      if (ff) out.free_unlocked = !!trialLead_(u.user_id, x.course_id);
       var bl = read_('Bills').filter(function (b) { return b.user_id === u.user_id && BILL_OPEN.indexOf(billStatus_(b)) >= 0 && jsonParse_(b.items, []).some(function (i) { return i.course_id === x.course_id; }); })[0];
       out.bill = bl ? { bill_id: bl.bill_id, order_id: bl.order_id, status: billStatus_(bl) } : null;
     } catch (ignore) {}
@@ -1606,6 +1622,96 @@ function trialAdmin_() {
       var c = courses.filter(function (y) { return y.course_id === x.course_id; })[0];
       return { course: c ? c.title : x.course_id, lesson: x.lesson, level: x.level, text: x.text, member: !!x.user_id, created_at: x.created_at }; }) };
 }
+// ───── ทดลองเรียนฟรีทั้งบท: แจกไฟล์ของตอนดูฟรี แลกกับแบบสอบถามสั้น ๆ (เก็บข้อมูลการตลาด) ─────
+/** ไฟล์ของตอนดูฟรีในคอร์สที่เปิดแจกไฟล์ (ชื่อไฟล์อย่างเดียว ไม่มีลิงก์) หรือ null */
+function freeFiles_(c, lessons) {
+  if (!truthy_(c.trial_files)) return null;
+  var out = visible_(lessons).filter(function (l) { return l.course_id === c.course_id && truthy_(l.is_preview); }).sort(bySort_).map(function (l) {
+    return { lesson_id: l.lesson_id, title: l.title, files: filesOut_(l).map(function (f) { return { fid: f.fid, name: f.name }; }) };
+  }).filter(function (l) { return l.files.length; });
+  return out.length ? out : null;
+}
+function trialLead_(uid, cid) { return findOne_('TrialLeads', function (r) { return r.user_id === uid && r.course_id === cid; }); }
+function refClean_(v) { return String(v || '').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 40); }
+/** ราคาที่น้องคนนี้ซื้อได้ตอนนี้ (รวมโปรที่ใช้ได้จริง เช่น ส่วนลดสมาชิกใหม่) หรือ null ถ้ามีสิทธิ์แล้ว/อยู่ในคำสั่งซื้อ */
+function trialOffer_(u, c) {
+  if (enrollActive_(latestEnroll_(u.user_id, c.course_id))) return null;
+  var q = priceCart_([c.course_id], '', u), it = q.items[0];
+  if (!it || it.blocked) return null;
+  var o = { price: it.price, full_price: money_(c.full_price) > it.price ? money_(c.full_price) : 0, total: q.total, discount: q.discount, label: '', ends_at: '' };
+  if (q.coupon && q.coupon.ok && q.discount > 0) {
+    var cp = findOne_('Coupons', function (r) { return r.code === q.coupon.code; }) || {};
+    o.label = q.coupon.new_only ? 'สมาชิกใหม่' + q.coupon.label.replace(/^ลด/, 'ลด') : q.coupon.label; o.new_only = !!q.coupon.new_only; o.ends_at = cp.ends_at || '';
+  }
+  return o;
+}
+function trialUnlock_(d, p) {
+  var u = auth_(p);
+  var c = findOne_('Courses', function (r) { return r.course_id === d.course_id && r.status === 'published'; });
+  if (!c) throw err_('NOT_FOUND', 'ไม่พบคอร์สนี้');
+  var ff = freeFiles_(c, read_('Lessons'));
+  if (!ff) throw err_('NOT_FOUND', 'คอร์สนี้ยังไม่มีไฟล์ให้รับฟรี');
+  var had = trialLead_(u.user_id, c.course_id);
+  if (!had) {
+    var goals = csv_(d.goals).filter(function (g, i, a) { return APP.TRIAL_GOALS.indexOf(g) >= 0 && a.indexOf(g) === i; });
+    if (!goals.length) throw err_('BAD_INPUT', 'เลือกว่ากำลังเตรียมสอบอะไรอย่างน้อย 1 ข้อ');
+    var help = String(d.help || '');
+    if (APP.TRIAL_HELP.indexOf(help) < 0) throw err_('BAD_INPUT', 'เลือกเรื่องที่อยากให้พี่ช่วยมากที่สุด');
+    rate_('trial:' + u.user_id, 20, 3600, 'ส่งบ่อยเกินไป ลองใหม่ภายหลัง');
+    withLock_(function () {
+      ensureCols_('TrialLeads');
+      if (trialLead_(u.user_id, c.course_id)) return;
+      append_('TrialLeads', { lead_id: 'TL' + id_(), user_id: u.user_id, course_id: c.course_id, goals: goals.join(','), help: help, ref: refClean_(d.ref) || u.ref || '', created_at: now_() });
+    });
+  }
+  return { files: ff, label: c.trial_label || '', offer: trialOffer_(u, c), first: !had };
+}
+function adminCourseTrial_(d, p, admin) {
+  var c = findOne_('Courses', function (r) { return r.course_id === d.course_id; });
+  if (!c) throw err_('NOT_FOUND', 'ไม่พบคอร์สนี้');
+  var patch = { trial_files: d.on === true || d.on === 'true' ? 'TRUE' : 'FALSE', trial_label: clip_(d.label, 80) };
+  withLock_(function () { ensureCols_('Courses'); update_('Courses', c._row, patch); log_(admin, 'course.trial', c.course_id + ' ' + patch.trial_files); });
+  cache_().remove('pub_courses');
+  return patch;
+}
+/** หลังบ้าน › การตลาด: รู้จักจากไหน (ตอนสมัคร) + ผู้รับไฟล์บทฟรี และใครซื้อต่อ */
+function adminMarketing_(d) {
+  var days = Math.max(0, Number(d.days) || 0), since = days ? Date.now() - days * 864e5 : 0;
+  var at = function (v) { return v ? new Date(v).getTime() : 0; };
+  var users = read_('Users'), courses = read_('Courses'), leads = read_('TrialLeads'), lessons = visible_(read_('Lessons'));
+  var paid = read_('Enrollments').filter(function (e) { return e.status === 'approved' && Number(e.amount) > 0; });
+  var uOf = {}; users.forEach(function (u) { uOf[u.user_id] = u; });
+  var cOf = {}; courses.forEach(function (c) { cOf[c.course_id] = c; });
+  var heardLabel = {}; APP.HEARD.forEach(function (h) { heardLabel[h[0]] = h[1]; });
+  var signups = users.filter(function (u) { return u.heard_from && at(u.created_at) >= since; });
+  var by = APP.HEARD.map(function (h) {
+    var list = signups.filter(function (u) { return u.heard_from === h[0]; });
+    var buy = list.filter(function (u) { return paid.some(function (e) { return e.user_id === u.user_id; }); });
+    var sales = paid.filter(function (e) { return list.some(function (u) { return u.user_id === e.user_id; }); }).reduce(function (a, e) { return a + money_(e.amount); }, 0);
+    return { key: h[0], label: h[1], n: list.length, buyers: buy.length, sales: sales };
+  });
+  var notes = signups.filter(function (u) { return u.heard_note; }).sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 60)
+    .map(function (u) { return { heard: heardLabel[u.heard_from] || u.heard_from, note: u.heard_note, created_at: u.created_at }; });
+  var refs = {}; signups.forEach(function (u) { if (u.ref) refs[u.ref] = (refs[u.ref] || 0) + 1; });
+  var ls = leads.filter(function (l) { return at(l.created_at) >= since && (!d.course_id || l.course_id === d.course_id); });
+  var bought = function (l) { return paid.some(function (e) { return e.user_id === l.user_id && e.course_id === l.course_id && at(e.created_at) >= at(l.created_at); }); };
+  var count = function (list, key) { var o = {}; list.forEach(function (x) { o[x] = 0; }); ls.forEach(function (l) { csv_(l[key]).forEach(function (v) { if (v in o) o[v]++; }); }); return list.map(function (k) { return { label: k, n: o[k] }; }); };
+  var byCourse = {};
+  ls.forEach(function (l) { var b = byCourse[l.course_id] = byCourse[l.course_id] || { course_id: l.course_id, title: (cOf[l.course_id] || {}).title || l.course_id, n: 0, bought: 0 }; b.n++; if (bought(l)) b.bought++; });
+  var recent = ls.slice().sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 300).map(function (l) {
+    var u = uOf[l.user_id] || {};
+    return { created_at: l.created_at, nickname: u.nickname || '', grade: u.grade || '', school: u.school || '', course: (cOf[l.course_id] || {}).title || l.course_id,
+      label: (cOf[l.course_id] || {}).trial_label || '', heard: heardLabel[u.heard_from] || '', heard_note: u.heard_note || '', goals: l.goals, help: l.help, ref: l.ref || u.ref || '', bought: bought(l) };
+  });
+  var cs = courses.filter(function (c) { return c.status === 'published'; }).sort(bySort_).map(function (c) {
+    var pv = lessons.filter(function (l) { return l.course_id === c.course_id && truthy_(l.is_preview); });
+    return { course_id: c.course_id, title: c.title, on: truthy_(c.trial_files), label: c.trial_label || '', previews: pv.length,
+      files: pv.reduce(function (a, l) { return a + filesOut_(l).length; }, 0) };
+  });
+  return { days: days, signups: { n: signups.length, by: by, notes: notes, refs: Object.keys(refs).map(function (k) { return { ref: k, n: refs[k] }; }).sort(function (a, b) { return b.n - a.n; }) },
+    leads: { n: ls.length, bought: ls.filter(bought).length, by_course: Object.keys(byCourse).map(function (k) { return byCourse[k]; }) },
+    goals: count(APP.TRIAL_GOALS, 'goals'), help: count(APP.TRIAL_HELP, 'help'), recent: recent, courses: cs };
+}
 function courseReviews_(cid) {
   var users = read_('Users');
   return read_('Reviews').filter(function (x) { return x.course_id === cid && x.status === 'approved'; }).sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 30).map(function (x) {
@@ -1920,7 +2026,7 @@ function adminCourses_(d, p, u) {
   return read_('Courses').filter(function (x) { return !u || canSubject_(u, x.subject); }).sort(bySort_).map(function (x) {
     var card = courseCard_(x, visible_(lessons));
     card.sort_order = Number(x.sort_order) || 0;
-    ['teacher_ids','accent','pending_change','trailer_youtube','highlights','audience','instructor_name','instructor_title','instructor_bio','instructor_photo','faq','pay_account_id','instructor2_name','instructor2_title','instructor2_bio','instructor2_photo'].forEach(function (k) { card[k] = x[k] || ''; });
+    ['teacher_ids','accent','pending_change','trial_files','trial_label','trailer_youtube','highlights','audience','instructor_name','instructor_title','instructor_bio','instructor_photo','faq','pay_account_id','instructor2_name','instructor2_title','instructor2_bio','instructor2_photo'].forEach(function (k) { card[k] = x[k] || ''; });
     card.students = en.filter(function (e) { return e.course_id === x.course_id && enrollActive_(e); }).length;
     card.playlists = jsonParse_(x.playlists, []);
     card.can_edit_sales = !u || isAdmin_(u);
@@ -2402,6 +2508,14 @@ function contacts_(d, out) {
   out.birthday = bd;
   out.facebook = clip_(d.facebook, 120); out.instagram = clip_(String(d.instagram || '').replace(/^@/, ''), 60); out.line_id = clip_(String(d.line_id || '').replace(/^@(?=\w)/, ''), 60);
   if (!out.facebook && !out.instagram && !out.line_id) throw err_('BAD_INPUT', 'กรอกช่องทางติดต่ออย่างน้อย 1 ช่องทาง (Facebook, IG หรือ LINE)');
+  return out;
+}
+/** รู้จัก INeedBio จากที่ไหน (ตอนสมัคร) + รหัสลิงก์ที่พามา เช่น ?ref=poster */
+function heard_(d, out) {
+  var k = String(d.heard_from || '');
+  if (!k) return out;
+  if (!APP.HEARD.some(function (h) { return h[0] === k; })) throw err_('BAD_INPUT', 'เลือกว่ารู้จัก INeedBio จากที่ไหน');
+  out.heard_from = k; out.heard_note = clip_(d.heard_note, 80); out.ref = refClean_(d.ref);
   return out;
 }
 /** ข้อมูลของผู้ใช้เอง (me/login/register) + บอกว่าได้โปรสมาชิกใหม่ไหม (คิดเฉพาะตอนมีโปรเปิดอยู่) */
@@ -3791,7 +3905,8 @@ function learnFile_(d, p) {
   var l = findOne_('Lessons', function (r) { return r.lesson_id === d.lesson_id; });
   if (!l || truthy_(l.hidden)) throw err_('NOT_FOUND', 'ไม่พบบทเรียน');
   var c = findOne_('Courses', function (r) { return r.course_id === l.course_id; });
-  if (!enrollActive_(latestEnroll_(u.user_id, l.course_id)) && !(isStaff_(u) && c && canSubject_(u, c.subject))) throw err_('NO_ACCESS', 'ไฟล์นี้สำหรับผู้ที่ลงทะเบียนคอร์สแล้วเท่านั้น');
+  var trialOk = c && truthy_(l.is_preview) && truthy_(c.trial_files) && !!trialLead_(u.user_id, c.course_id);
+  if (!trialOk && !enrollActive_(latestEnroll_(u.user_id, l.course_id)) && !(isStaff_(u) && c && canSubject_(u, c.subject))) throw err_('NO_ACCESS', 'ไฟล์นี้สำหรับผู้ที่ลงทะเบียนคอร์สแล้วเท่านั้น');
   var f = (jsonParse_(l.files, []) || []).filter(function (x) { return x.fid === d.fid; })[0];
   if (!f) throw err_('NOT_FOUND', 'ไม่พบไฟล์นี้');
   if (f.url) return { name: f.name, url: f.url };

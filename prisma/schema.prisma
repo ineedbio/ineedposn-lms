@@ -71,6 +71,9 @@ model User {
   instructorSubjectKey String? // "bio" | "chem" | "phys" | "math" (when role is INSTRUCTOR)
   subjects             String? // web app v4: subjects a teacher (INSTRUCTOR) looks after, comma-separated
   roles                String           @default("") // several roles at once: "admin,teacher" ("" = use role; "student" = none). role stays the main one (admin > teacher > student)
+  heardFrom            String? // sign-up: where they heard of INeedBio (APP.HEARD key) · null for members from before
+  heardNote            String? // sign-up: e.g. the Facebook group's name (≤80)
+  ref                  String? // sign-up: the ?ref= code of the link that brought them (≤40)
   invitedAt            DateTime? // last teacher invite email that went out
   inviteError          String           @default("") // why the last teacher invite could not be sent ("" = none)
   recordedExpenses     Expense[]        @relation("RecordedExpenses")
@@ -171,6 +174,8 @@ model Course {
   teacherIds       String  @default("") // up to 3 staff user ids (comma-separated) whose TeacherProfile shows on the course; "" = the instructor fields above
   accent           String  @default("") // course colour "#rrggbb" (lower case), "" = the subject colour
   pendingChange    String  @default("") // a teacher's price/status request waiting for an admin: JSON {price?, full_price?, status?, by, at}
+  trialFiles       Boolean @default(false) // the free episodes' files can be had for a 2-question survey (TrialLead)
+  trialLabel       String? // the chapter given as a free trial, e.g. "โครงสร้างอะตอม"
 
   subjectId  String
   subject    Subject  @relation(fields: [subjectId], references: [id])
@@ -772,6 +777,21 @@ model Review {
 
   @@unique([userId, courseId])
   @@index([courseId, status])
+}
+
+/// Someone who answered the 2 questions to get a course's free-chapter files (one row per person and course).
+model TrialLead {
+  id        String   @id // "TL…"
+  userId    String
+  courseId  String // Course.id
+  goals     String   @default("") // APP.TRIAL_GOALS, comma-separated
+  help      String   @default("") // one of APP.TRIAL_HELP
+  ref       String   @default("") // ?ref= code (sent, else the account's)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@index([createdAt])
 }
 
 /// "Did the free episode make sense?" — anyone, no login needed.

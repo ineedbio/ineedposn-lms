@@ -1,6 +1,6 @@
 // Local test runner: a throwaway database in the LOCAL Postgres + its own dev server, then the role tests.
 //   TEST_PG=postgresql://postgres@localhost:5433/postgres?host=/tmp npm run test:roles
-// It refuses any database that is not on this machine. Per suite (roles+cells, newmember, finance, reviews) it creates a new
+// It refuses any database that is not on this machine. Per suite (roles+cells, newmember, finance, reviews, marketing) it creates a new
 // database (ib_test_<time>), applies the migrations, runs the tests against http://localhost:3107 and drops that
 // database afterwards. `npm run test:roles -- finance` runs only the suites named.
 import { spawn, spawnSync } from "node:child_process";
@@ -40,7 +40,7 @@ await new Promise((r) => ytServer.listen(0, "127.0.0.1", r));
 const YT_BASE = `http://127.0.0.1:${ytServer.address().port}/`;
 
 // Each suite gets its own new database and dev server, like each reference test file gets a fresh Code.gs.
-const SUITES = [["roles", "cells"], ["newmember"], ["finance"], ["reviews"]];
+const SUITES = [["roles", "cells"], ["newmember"], ["finance"], ["reviews"], ["marketing"]];
 const only = process.argv.slice(2);
 let code = 1;
 try {
@@ -62,7 +62,7 @@ async function runSuite(names) {
   let server;
   try {
     sql(PG, `CREATE DATABASE "${DB}"`);
-    // The migration folders are numbered 0, 1, 2 … 25, but `prisma migrate deploy` sorts them as text (10 before 2),
+    // The migration folders are numbered 0, 1, 2 … 26, but `prisma migrate deploy` sorts them as text (10 before 2),
     // which only works on the live database that got them one by one. Apply them in number order instead.
     const dirs = fs.readdirSync("prisma/migrations").filter((d) => /^\d+_/.test(d)).sort((a, b) => parseInt(a) - parseInt(b));
     for (const d of dirs) sql(TEST_URL, fs.readFileSync(path.join("prisma/migrations", d, "migration.sql"), "utf8"));

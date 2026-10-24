@@ -16,6 +16,7 @@ import * as staff from "./staff";
 import * as sheets from "./sheets";
 import * as team from "./team";
 import * as cells from "./cells";
+import * as marketing from "./marketing";
 import { notifyAdmins, remainingQuota, sendDecisionEmail, sendOtpEmail } from "./mail";
 import {
   APP, ApiError, bkkDate, checkImageUrl, checkPassword, clip, err, iso, isRepeat, lines, normEmail, otpCode, parseFaq,
@@ -316,7 +317,7 @@ async function registerStart(d: Data) {
   // The account is created unverified and only becomes usable once the emailed code is entered.
   const photoBlobId = await savePhoto(d.photo);
   if (existing?.photoBlobId) await prisma.fileBlob.delete({ where: { id: existing.photoBlobId } }).catch(() => {});
-  const data = { ...f, password: await hashPw(String(d.password)), termsVersion: APP.TERMS_VERSION, termsAcceptedAt: new Date(), photoBlobId, dataConsentAt: new Date() };
+  const data = { ...f, ...marketing.heardOf(d), password: await hashPw(String(d.password)), termsVersion: APP.TERMS_VERSION, termsAcceptedAt: new Date(), photoBlobId, dataConsentAt: new Date() };
   const u = existing
     ? await prisma.user.update({ where: { id: existing.id }, data })
     : await prisma.user.create({ data: { ...data, email, emailVerified: false } });
@@ -491,6 +492,8 @@ async function courseDetail(d: Data, { p }: Ctx) {
   out.bundles = (await shop.publicBundles()).filter((b) => b.course_ids.includes(x.slug));
   out.reviews = await cells.courseReviews(x.id);
   out.trial = await cells.trialStats(x.id);
+  const ff = marketing.freeFiles(x);
+  if (ff) { out.free_files = ff; out.free_label = x.trialLabel || ""; out.free_unlocked = false; }
   out.enrollment = null;
   if (p.token) {
     try {
@@ -498,6 +501,7 @@ async function courseDetail(d: Data, { p }: Ctx) {
       const e = await enrollState(u.id, x.id);
       out.enrollment = e ? e.status : null;
       out.note = e ? e.note : "";
+      if (ff) out.free_unlocked = !!(await marketing.trialLead(u.id, x.id));
       out.bill = await shop.openBillFor(u.id, x.slug);
     } catch {}
   }
@@ -782,6 +786,7 @@ async function adminCourses(_d: Data, _c: Ctx, me: User) {
     instructor2_name: x.instructor2Name || "", instructor2_title: x.instructor2Title || "", instructor2_bio: x.instructor2Bio || "", instructor2_photo: x.instructor2Photo || "",
     playlists: Array.isArray(x.playlists) ? x.playlists : [], can_edit_sales: isAdminUser(me),
     teacher_ids: x.teacherIds || "", pending_change: x.pendingChange || "",
+    trial_files: x.trialFiles ? "TRUE" : "FALSE", trial_label: x.trialLabel || "",
   }));
 }
 
@@ -1057,7 +1062,7 @@ async function adminSettingsSave(d: Data, _c: Ctx, admin: User) {
 
 // ───────────────────────── Routes ─────────────────────────
 const ROUTES: Record<string, Handler> = {
-  config: async () => ({ ...(await publicSettings()), new_member_promo: await shop.newMemberPromo() }),
+  config: async () => ({ ...(await publicSettings()), new_member_promo: await shop.newMemberPromo(), heard: APP.HEARD, trial_goals: APP.TRIAL_GOALS, trial_help: APP.TRIAL_HELP }),
   "register.start": registerStart,
   "register.verify": registerVerify,
   login,
@@ -1090,6 +1095,9 @@ const ROUTES: Record<string, Handler> = {
   "cells.theme": cells.cellsTheme,
   "review.submit": cells.reviewSubmit,
   "trial.feedback": cells.trialFeedback,
+  "trial.unlock": marketing.trialUnlock,
+  "admin.marketing": adminOnly((d) => marketing.adminMarketing(d)),
+  "admin.course.trial": adminOnly(marketing.adminCourseTrial),
   "grades.submit": cells.gradesSubmit,
   "my.submissions": cells.mySubmissions,
   "admin.cells": adminOnly((d) => cells.adminCells(d)),
