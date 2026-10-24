@@ -142,7 +142,7 @@ function confirmBox(title, msg, okLabel, danger) {
     $('#cf-ok').onclick = function () { S.modalClose = null; closeModal(); resolve(true); };
   });
 }
-function formData(form) { var o = {}; $$('input,select,textarea', form).forEach(function (el) { if (!el.name) return; o[el.name] = el.type === 'checkbox' ? el.checked : el.value; }); return withBirthday(o); }
+function formData(form) { var o = {}; $$('input,select,textarea', form).forEach(function (el) { if (!el.name) return; if (el.type === 'radio') { if (el.checked) o[el.name] = el.value; else if (!(el.name in o)) o[el.name] = ''; return; } o[el.name] = el.type === 'checkbox' ? el.checked : el.value; }); return withBirthday(o); }
 function field(name, label, value, opt) {
   opt = opt || {};
   var id = 'f-' + name + (opt.idp || '');
@@ -179,6 +179,20 @@ function contactFields(v) {
     '<div class="row2">' + field('line_id', 'LINE ID', v.line_id, { ph: 'เช่น ineedbio', auto: 'off' }) + field('instagram', 'Instagram', v.instagram, { ph: 'เช่น @ineedbiochem', auto: 'off' }) + '</div>' +
     field('facebook', 'Facebook (ชื่อหรือลิงก์)', v.facebook, { ph: 'เช่น INeedBio หรือ facebook.com/...', auto: 'off' }) + '</div>';
 }
+var HEARD_DEF = [['fb_page', 'เพจ Facebook'], ['fb_group', 'กลุ่ม Facebook'], ['ig', 'Instagram'], ['tiktok', 'TikTok'], ['youtube', 'YouTube'], ['friend', 'เพื่อนแนะนำ'], ['teacher', 'ครู / โรงเรียน'], ['google', 'ค้นใน Google'], ['other', 'อื่นๆ']];
+/** รู้จัก INeedBio จากที่ไหน (ถามตอนสมัคร) */
+function heardField(v) {
+  v = v || {};
+  var hs = (S.cfg && S.cfg.heard) || HEARD_DEF, nl = v.heard_from === 'other' ? 'จากที่ไหน' : 'ชื่อกลุ่ม (ถ้าจำได้)';
+  return '<div class="gbox"><b>รู้จัก INeedBio จากที่ไหน</b><span class="hint">เลือก 1 ข้อ</span><div class="rchips" role="radiogroup" aria-label="รู้จัก INeedBio จากที่ไหน">' +
+    hs.map(function (h) { return '<label class="rch"><input type="radio" name="heard_from" value="' + esc(h[0]) + '"' + (v.heard_from === h[0] ? ' checked' : '') + '><span>' + esc(h[1]) + '</span></label>'; }).join('') + '</div>' +
+    '<label class="f" for="f-heard_note" id="heard-note"' + (v.heard_from === 'fb_group' || v.heard_from === 'other' ? '' : ' hidden') + '><span id="heard-note-t">' + nl + '</span><input class="i" id="f-heard_note" name="heard_note" maxlength="80" value="' + esc(v.heard_note || '') + '" autocomplete="off"></label></div>';
+}
+function bindHeard(f) {
+  $$('input[name=heard_from]', f).forEach(function (r) { r.onchange = function () { var k = r.value, box = $('#heard-note', f); box.hidden = !(k === 'fb_group' || k === 'other'); $('#heard-note-t', f).textContent = k === 'other' ? 'จากที่ไหน' : 'ชื่อกลุ่ม (ถ้าจำได้)'; }; });
+}
+/** ลิงก์ที่พามาครั้งแรก เช่น ineedbio.shop/?ref=poster (เก็บไว้ส่งตอนสมัคร/รับไฟล์) */
+function captureRef() { try { var m = location.search.match(/[?&]ref=([A-Za-z0-9_.-]{1,40})/); if (m && !store('ib_ref')) store('ib_ref', m[1]); } catch (e) {} }
 function ageOf(bd) { var m = String(bd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) return ''; var n = new Date(), a = n.getFullYear() - m[1]; if (n.getMonth() + 1 < +m[2] || (n.getMonth() + 1 === +m[2] && n.getDate() < +m[3])) a--; return a; }
 function contactLine(u) {
   var out = [];
@@ -853,6 +867,7 @@ function viewCourse(id) {
       cta = '<a class="pill" href="#/orders/' + encodeURIComponent(c.bill.order_id) + '">ดูคำสั่งซื้อ</a>';
     }
     else { box = (st === 'rejected' ? '<div class="note no">สลิปครั้งก่อนไม่ผ่าน' + (c.note ? ': ' + esc(c.note) : '') + ' สั่งซื้อใหม่ได้ด้านล่าง</div>' : '') + '<div id="buy-act" class="stack" style="gap:10px">' + buyActions(c) + '</div>' + bundleOffers(c); cta = '<span id="mbar-cta">' + (inCart ? '<a class="pill" href="#/cart">ไปที่ตะกร้า</a>' : '<button class="pill" data-buy-now="' + esc(c.course_id) + '">ซื้อเลย</button>') + '</span>'; }
+    S.cd = c;
     var total = c.chapters.reduce(function (a, ch) { return a + ch.lessons.length; }, 0);
     var previews = []; c.chapters.forEach(function (ch) { ch.lessons.forEach(function (l) { if (l.is_preview) previews.push(l); }); });
     var ig = S.cfg.contact_ig || 'ineedbiochem';
@@ -946,6 +961,7 @@ function previewVideo(id, title, cid, lid) {
   // วิดีโอได้ทีละตัว: ปิดคลิปแนะนำคอร์สก่อน (กดเล่นใหม่ได้)
   var tr = $('.player.trailer'); if (tr && !DEMO && $('iframe', tr)) tr.innerHTML = '<div class="ph"><button class="play" data-trplay="1" aria-label="เล่นคลิปแนะนำคอร์ส"><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></button><span>คลิปแนะนำคอร์ส</span></div>';
   openModal(mhead(esc(title), 'ตอนตัวอย่าง ดูได้ฟรี' + (S.user && cellsOn() ? ' · นับเป็นเวลาเรียนของเซลล์ด้วย' : '')) + '<div class="player" id="player">' + (DEMO ? playerInner(id, '') : '') + '</div>' +
+    (ffOn(cid) ? '<div class="ffb" id="ffb" aria-live="polite"></div>' : '') +
     (cid && feat('reviews') ? '<div class="tfb" id="tfb"><b>ลองเรียนฟรีแล้ว เข้าใจไหม?</b><div class="rowx" role="group" aria-label="เข้าใจแค่ไหน">' + [['clear', 'เข้าใจ'], ['partly', 'เข้าใจบางส่วน'], ['lost', 'ยังไม่เข้าใจ']].map(function (x) { return '<button class="pill ghost s" data-tf="' + x[0] + '" aria-pressed="false">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div id="tf-more" hidden class="stack" style="gap:8px"><textarea class="i" id="tf-text" rows="2" maxlength="500" placeholder="อยากบอกอะไรเพิ่มไหม เช่น ตรงไหนงง หรือชอบตรงไหน (ไม่ใส่ก็ได้)"></textarea><button class="pill s" id="tf-send" style="justify-self:start">ส่งความเห็น</button></div></div>' : ''), true);
   if (!DEMO) {
@@ -953,13 +969,60 @@ function previewVideo(id, title, cid, lid) {
     if (lid && S.user) startStudyPing(lid, true);
     S.modalClose = function () { stopPlayer(); };
   }
-  if (!cid) return;
+  if (ffOn(cid)) renderFfb();
+  if (!cid || !$('#tf-send')) return;
   var lv = '';
   $$('[data-tf]').forEach(function (b) { b.onclick = function () { lv = b.dataset.tf; $$('[data-tf]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); x.classList.toggle('ghost', x !== b); }); $('#tf-more').hidden = false; }; });
   $('#tf-send').onclick = function () {
     var bt = this; busy(bt, true);
     api('trial.feedback', { course_id: cid, lesson: title, level: lv, text: $('#tf-text').value }).then(function () { $('#tfb').innerHTML = '<b>ขอบคุณที่บอกเรา</b><p class="sm ink2">ความเห็นของน้องช่วยให้พี่ ๆ ปรับคลิปให้เข้าใจง่ายขึ้น</p>'; }).catch(function (e) { busy(bt, false); toast(e.message, true); });
   };
+}
+/* ─── ทดลองเรียนฟรีทั้งบท: ไฟล์ของตอนดูฟรี แลกกับคำถาม 2 ข้อ ─── */
+var LOCK_IC = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" role="img" aria-label="ล็อกอยู่"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+var FILE_IC = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
+function ffOn(cid) { var c = S.cd; return !!(cid && c && c.course_id === cid && c.free_files && c.free_files.length && c.enrollment !== 'approved'); }
+function ffNames() { return [].concat.apply([], S.cd.free_files.map(function (l) { return l.files.map(function (f) { return { lid: l.lesson_id, fid: f.fid, name: f.name }; }); })); }
+function ffHead() { return '<h3>ไฟล์ประกอบ' + (S.cd.free_label ? 'บท' + esc(S.cd.free_label) : 'ตอนที่ดูฟรี') + '</h3>'; }
+function renderFfb() {
+  var box = $('#ffb'), c = S.cd; if (!box) return;
+  if (S.user && c.free_unlocked) { box.innerHTML = '<p class="sm ink2">กำลังเปิดไฟล์…</p>'; api('trial.unlock', { course_id: c.course_id }).then(ffUnlocked).catch(function (e) { box.innerHTML = '<p class="sm" style="color:var(--no)">' + esc(e.message) + '</p>'; }); return; }
+  var fs = ffNames();
+  box.innerHTML = '<div class="spread">' + ffHead() + '<span class="sm ink2">' + fs.length + ' ไฟล์</span></div><div class="ffl">' + fs.map(function (f) { return '<div class="ffr">' + FILE_IC + '<span class="nm">' + esc(f.name) + '</span>' + LOCK_IC + '</div>'; }).join('') + '</div>' +
+    (S.user ? '<button class="pill block" id="ff-go">รับไฟล์บทนี้ฟรี</button><p class="sm ink2" style="text-align:center;margin:0">ตอบ 2 คำถามสั้น ๆ ใช้เวลาไม่ถึง 30 วินาที</p>'
+      : '<button class="pill block" data-act="signup">สมัครสมาชิกฟรี แล้วรับไฟล์บทนี้</button><p class="sm ink2" style="text-align:center;margin:0">มีบัญชีแล้ว? <button class="link" data-act="login">เข้าสู่ระบบ</button></p>');
+  var go = $('#ff-go'); if (go) go.onclick = ffSurvey;
+}
+function ffSurvey() {
+  var box = $('#ffb'), goals = (S.cfg && S.cfg.trial_goals) || ['A-Level', 'กสพท', 'สอวน.', 'สอบในโรงเรียน'], help = (S.cfg && S.cfg.trial_help) || ['สรุปเนื้อหาให้เข้าใจ', 'ตะลุยโจทย์เยอะๆ', 'ทำข้อสอบให้ทันเวลา', 'วางแผนอ่านหนังสือ', 'ปูพื้นฐานใหม่หมด'];
+  box.innerHTML = '<h3>รับไฟล์บทนี้ฟรี</h3><form class="stack" id="ff-f" style="gap:14px">' +
+    '<fieldset class="q" style="border:0;padding:0;margin:0"><legend style="padding:0"><b>1. กำลังเตรียมสอบอะไร</b> <span class="sm ink2">(เลือกได้หลายข้อ)</span></legend><div class="rchips" style="margin-top:8px">' + goals.map(function (g) { return '<label class="rch"><input type="checkbox" name="g" value="' + esc(g) + '"><span>' + esc(g) + '</span></label>'; }).join('') + '</div></fieldset>' +
+    '<fieldset class="q" style="border:0;padding:0;margin:0"><legend style="padding:0"><b>2. อยากให้พี่ช่วยเรื่องไหนมากที่สุด</b></legend><div class="rchips" role="radiogroup" style="margin-top:8px">' + help.map(function (h) { return '<label class="rch"><input type="radio" name="h" value="' + esc(h) + '"><span>' + esc(h) + '</span></label>'; }).join('') + '</div></fieldset>' +
+    '<p class="err" id="ff-err" hidden></p><button class="pill block">ส่งคำตอบ แล้วรับไฟล์</button></form>';
+  $('#ff-f').onsubmit = function (ev) {
+    ev.preventDefault();
+    var er = $('#ff-err'), btn = $('button', this), g = $$('input[name=g]:checked', this).map(function (x) { return x.value; }), h = ($('input[name=h]:checked', this) || {}).value;
+    er.hidden = true;
+    if (!g.length) { er.textContent = 'เลือกว่ากำลังเตรียมสอบอะไรอย่างน้อย 1 ข้อ'; er.hidden = false; return; }
+    if (!h) { er.textContent = 'เลือกเรื่องที่อยากให้พี่ช่วยมากที่สุด'; er.hidden = false; return; }
+    busy(btn, true);
+    api('trial.unlock', { course_id: S.cd.course_id, goals: g, help: h, ref: store('ib_ref') || '' }).then(function (r) { S.cd.free_unlocked = true; ffUnlocked(r); })
+      .catch(function (e) { busy(btn, false); er.textContent = e.message; er.hidden = false; });
+  };
+}
+function ffUnlocked(r) {
+  var box = $('#ffb'); if (!box) return;
+  var fs = [].concat.apply([], r.files.map(function (l) { return l.files.map(function (f) { return { lid: l.lesson_id, fid: f.fid, name: f.name }; }); })), o = r.offer;
+  var left = o && o.ends_at ? Math.ceil((new Date(o.ends_at).getTime() - Date.now()) / 864e5) : 0;
+  box.innerHTML = (r.first ? '<div class="note ok">ขอบคุณที่ตอบนะ ไฟล์บทนี้เป็นของน้องแล้ว</div>' : '') + ffHead() +
+    '<div class="ffl">' + fs.map(function (f) { return '<div class="ffr">' + FILE_IC + '<span class="nm">' + esc(f.name) + '</span><button class="pill quiet s" data-fflid="' + esc(f.lid) + '" data-fffid="' + esc(f.fid) + '">เปิดไฟล์</button></div>'; }).join('') + '</div>' +
+    '<p class="sm ink2" style="margin:0">ไฟล์ของตอนอื่นจะเปิดให้เมื่อลงทะเบียนคอร์ส</p>' +
+    (o ? '<div class="ffup"><span class="sm">เรียนต่อทั้งคอร์ส</span><b style="font-size:18px">' + esc(S.cd.title) + '</b>' +
+      (o.label ? '<div class="pr"><span class="sm">โปรโมชันที่ใช้ได้ตอนนี้</span><span><span class="tag">' + esc((o.label.match(/\d+%/) || [''])[0] ? '-' + o.label.match(/\d+%/)[0] : 'โปร') + '</span>' + esc(o.label) + '</span>' + (o.ends_at ? '<span class="sm">ถึง ' + thDate(o.ends_at) + (left > 0 ? ' · เหลือ ' + left + ' วัน' : '') + '</span>' : '') + '</div>' : '') +
+      '<div class="px">' + (o.discount > 0 ? '<s>' + baht(o.price) + '</s>' : o.full_price ? '<s>' + baht(o.full_price) + '</s>' : '') + '<b>' + baht(o.total) + '</b><span class="sm">ทั้งคอร์ส</span></div>' +
+      '<button class="pill block" id="ff-buy">ลงทะเบียนวันนี้ในราคา ' + baht(o.total) + '</button></div>' : '');
+  $$('[data-fflid]', box).forEach(function (b) { b.onclick = function () { openLessonFile(b.dataset.fflid, b.dataset.fffid, b); }; });
+  var bb = $('#ff-buy'); if (bb) bb.onclick = function () { var cid = S.cd.course_id; closeModal(); cartAdd(cid, true); go('/cart'); };
 }
 function playerInner(id, wm, poster) {
   var v = DEMO
@@ -1792,6 +1855,46 @@ function gradesModal() {
     return { grades: gs, proof: proof, consent_publish: $('#grf [name=consent_publish]').checked };
   });
 }
+function aMarketing(shell) {
+  var days = S.mkDays == null ? 30 : S.mkDays;
+  api('admin.marketing', { days: days }).then(function (r) {
+    var pct = function (a, b) { return b ? Math.round(a / b * 100) + '%' : '—'; };
+    var tbl = function (head, rows, minw) { return '<div class="tbl"><table' + (minw ? ' style="min-width:' + minw + 'px"' : '') + '><thead><tr>' + head.map(function (h, i) { return '<th' + (i ? ' class="num"' : '') + '>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + (rows.length ? rows.join('') : '<tr><td colspan="' + head.length + '" class="muted">ยังไม่มีข้อมูล</td></tr>') + '</tbody></table></div>'; };
+    var sg = r.signups, ld = r.leads;
+    var html = '<h1>การตลาด</h1><p class="ink2 sm">ช่องทางที่น้องตอบตอนสมัคร (เฉพาะสมาชิกที่สมัครหลังเปิดฟีเจอร์นี้) และน้องที่รับไฟล์บทที่ทดลองเรียนฟรี · "ซื้อ" นับจากสิทธิ์เข้าเรียนที่จ่ายเงินและอนุมัติแล้ว</p>' +
+      '<div class="seg" role="group" aria-label="ช่วงเวลา">' + [[30, '30 วัน'], [90, '90 วัน'], [0, 'ทั้งหมด']].map(function (x) { return '<button data-mkd="' + x[0] + '" aria-pressed="' + (days === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="kpis" style="margin-top:14px"><div class="kpi"><span>สมาชิกใหม่ที่บอกช่องทาง</span><b>' + sg.n + '</b></div><div class="kpi"><span>รับไฟล์บทฟรี</span><b>' + ld.n + '</b></div><div class="kpi"><span>ซื้อคอร์สนั้นหลังรับไฟล์</span><b>' + ld.bought + '</b></div><div class="kpi"><span>อัตราซื้อหลังรับไฟล์</span><b>' + pct(ld.bought, ld.n) + '</b></div></div>' +
+      '<h2 style="font-size:19px;margin-top:24px">รู้จัก INeedBio จากที่ไหน</h2>' +
+      tbl(['ช่องทาง', 'สมัคร', 'ซื้อคอร์ส', 'อัตราซื้อ', 'ยอดขาย'], sg.by.slice().sort(function (a, b) { return b.n - a.n; }).map(function (x) { return '<tr><td>' + esc(x.label) + '</td><td class="num">' + x.n + '</td><td class="num">' + x.buyers + '</td><td class="num">' + pct(x.buyers, x.n) + '</td><td class="num">' + baht(x.sales) + '</td></tr>'; }), 520) +
+      (sg.notes.length ? '<h3 style="font-size:16px;margin-top:18px">ชื่อกลุ่ม / ช่องทางอื่นที่น้องพิมพ์มา</h3>' + tbl(['ข้อความ', 'ช่องทาง', 'สมัครเมื่อ'], sg.notes.map(function (x) { return '<tr><td>' + esc(x.note) + '</td><td class="num">' + esc(x.heard) + '</td><td class="num">' + thDate(x.created_at) + '</td></tr>'; }), 460) : '') +
+      (sg.refs.length ? '<h3 style="font-size:16px;margin-top:18px">มาจากลิงก์ที่มีรหัส (?ref=)</h3>' + tbl(['รหัส', 'สมัคร'], sg.refs.map(function (x) { return '<tr><td style="font-family:var(--mono)">' + esc(x.ref) + '</td><td class="num">' + x.n + '</td></tr>'; })) : '') +
+      '<h2 style="font-size:19px;margin-top:24px">ทดลองเรียนฟรีทั้งบท</h2>' +
+      '<div class="grid2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">' +
+      '<div><h3 style="font-size:16px">กำลังเตรียมสอบ</h3>' + tbl(['ตัวเลือก', 'คน'], r.goals.map(function (x) { return '<tr><td>' + esc(x.label) + '</td><td class="num">' + x.n + '</td></tr>'; })) + '</div>' +
+      '<div><h3 style="font-size:16px">อยากให้พี่ช่วยเรื่องไหน</h3>' + tbl(['ตัวเลือก', 'คน'], r.help.map(function (x) { return '<tr><td>' + esc(x.label) + '</td><td class="num">' + x.n + '</td></tr>'; })) + '</div></div>' +
+      '<h3 style="font-size:16px;margin-top:18px">ตั้งค่าแจกไฟล์บทฟรีแลกแบบสอบถาม</h3><p class="sm ink2">แจกเฉพาะไฟล์ของตอนที่ติ๊ก "ดูฟรี" ไว้ ชื่อบทใช้แสดงในหน้าต่างดูฟรี เช่น "แรงและการเคลื่อนที่ของนิวตัน"</p>' +
+      '<div class="stack" style="gap:8px">' + r.courses.map(function (c) {
+        return '<div class="card" style="padding:12px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><label style="flex:1 1 220px;display:flex;gap:10px;align-items:flex-start;cursor:pointer"><input type="checkbox" style="width:20px;height:20px;margin:2px 0 0;flex:none;accent-color:var(--acc)" data-mkon="' + esc(c.course_id) + '"' + (c.on ? ' checked' : '') + '><span>' + esc(c.title) + '<span class="sm muted" style="display:block">ตอนดูฟรี ' + c.previews + ' ตอน · ไฟล์ ' + c.files + ' ไฟล์' + (c.on && !c.files ? ' · ยังไม่มีไฟล์ให้แจก' : '') + '</span></span></label>' +
+          '<input class="i" style="flex:1 1 220px" maxlength="80" placeholder="ชื่อบทที่ให้ทดลองเรียน" data-mklb="' + esc(c.course_id) + '" value="' + esc(c.label) + '" aria-label="ชื่อบทที่ให้ทดลองเรียน ' + esc(c.title) + '"><button class="pill s" data-mksave="' + esc(c.course_id) + '">บันทึก</button></div>';
+      }).join('') + '</div>' +
+      '<div class="spread" style="margin-top:22px"><h3 style="font-size:16px">คำตอบล่าสุด</h3><button class="pill ghost s" id="mk-csv"' + (r.recent.length ? '' : ' disabled') + '>ดาวน์โหลด CSV</button></div>' +
+      tbl(['วันที่', 'ชื่อเล่น', 'ชั้น', 'คอร์ส', 'รู้จักจาก', 'เตรียมสอบ', 'อยากให้ช่วย', 'ลิงก์', 'ซื้อแล้ว'], r.recent.slice(0, 100).map(function (x) {
+        return '<tr><td>' + thDate(x.created_at, true) + '</td><td class="num">' + esc(x.nickname) + '</td><td class="num">' + esc(x.grade) + '</td><td class="num">' + esc(x.course) + '</td><td class="num">' + esc(x.heard || '—') + (x.heard_note ? ' · ' + esc(x.heard_note) : '') + '</td><td class="num">' + esc(String(x.goals || '').replace(/,/g, ', ')) + '</td><td class="num">' + esc(x.help) + '</td><td class="num">' + esc(x.ref || '—') + '</td><td class="num">' + (x.bought ? '<span class="badge b-ok">ซื้อแล้ว</span>' : 'ยัง') + '</td></tr>';
+      }), 980);
+    shell(html);
+    $$('[data-mkd]').forEach(function (b) { b.onclick = function () { S.mkDays = Number(b.dataset.mkd); aMarketing(shell); }; });
+    $$('[data-mksave]').forEach(function (b) { b.onclick = function () {
+      var cid = b.dataset.mksave, on = $('[data-mkon="' + cid + '"]').checked, lb = $('[data-mklb="' + cid + '"]').value; busy(b, true);
+      api('admin.course.trial', { course_id: cid, on: on, label: lb }).then(function () { busy(b, false); toast(on ? 'เปิดแจกไฟล์บทฟรีแล้ว' : 'ปิดแจกไฟล์บทฟรีแล้ว'); }).catch(function (e) { busy(b, false); toast(e.message, true); });
+    }; });
+    var cb = $('#mk-csv'); if (cb) cb.onclick = function () {
+      var q = function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+      var rows = [['วันที่', 'ชื่อเล่น', 'ชั้น', 'โรงเรียน', 'คอร์ส', 'บท', 'รู้จักจาก', 'รายละเอียด', 'เตรียมสอบ', 'อยากให้ช่วย', 'ลิงก์', 'ซื้อแล้ว']].concat(r.recent.map(function (x) { return [x.created_at, x.nickname, x.grade, x.school, x.course, x.label, x.heard, x.heard_note, x.goals, x.help, x.ref, x.bought ? 'ใช่' : 'ยัง']; }));
+      var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + rows.map(function (r0) { return r0.map(q).join(','); }).join('\n')], { type: 'text/csv;charset=utf-8' }));
+      a.download = 'ineedbio-trial-leads.csv'; document.body.appendChild(a); a.click(); a.remove();
+    };
+  }).catch(function (e) { shell('<h1>การตลาด</h1><div class="note no">' + esc(e.message) + '</div>'); });
+}
 function aFeedback(shell) {
   var st = S.fbTab || 'pending';
   api('admin.feedback', { status: st }).then(function (r) {
@@ -2026,7 +2129,7 @@ function authModal(mode, st) {
     '<form class="form" id="af"><div class="row2">' + field('first_name', 'ชื่อ', st.first_name, { auto: 'given-name' }) + field('last_name', 'นามสกุล', st.last_name, { auto: 'family-name' }) + '</div>' +
     '<div class="row2">' + field('nickname', 'ชื่อเล่น', st.nickname) + field('grade', 'ระดับชั้น', st.grade || 'ม.4', { options: GRADES }) + '</div>' + field('school', 'โรงเรียน (หรือโรงเรียนที่จบมา)', st.school) +
     photoField(S.photo ? 'data:' + S.photo.mime + ';base64,' + S.photo.base64 : '', true) +
-    goalFields(st) + contactFields(st) +
+    goalFields(st) + contactFields(st) + heardField(st) +
     '<div class="row2">' + field('phone', 'เบอร์โทร', st.phone, { mode: 'tel', auto: 'tel', ph: '08x-xxx-xxxx' }) + field('email', 'อีเมล', st.email, { type: 'email', auto: 'email' }) + '</div>' +
     field('password', 'รหัสผ่าน (อย่างน้อย 8 ตัว)', st.password || '', { type: 'password', auto: 'new-password' }) +
     consentBox(st.accept_data) +
@@ -2045,7 +2148,7 @@ function authModal(mode, st) {
   var fail = function (btn, e) { busy(btn, false); er.textContent = e.message; er.hidden = false; };
   if (mode === 'otp' || mode === 'reset') { bindOtp(); startResend(st, mode); }
   if (mode === 'signup') {
-    bindGrade(f); bindPhoto(f);
+    bindGrade(f); bindPhoto(f); bindHeard(f);
     $$('[data-legal]', f).forEach(function (b) { b.onclick = function () { var draft = formData(f); legalModal(b.dataset.legal, function () { authModal('signup', draft); }); }; });
   }
   f.onsubmit = function (ev) {
@@ -2054,9 +2157,10 @@ function authModal(mode, st) {
     if (mode === 'login') api('login', d).then(function (r) { setSession(r); closeModal(); toast('สวัสดี ' + r.user.nickname); route(); }).catch(function (e) { fail(btn, e); });
     else if (mode === 'signup') {
       if (!S.photo) return fail(btn, { message: 'ใส่รูปของน้องด้วย (รูปไหนก็ได้ ขอแค่เป็นรูปน้องเอง)' });
+      if (!d.heard_from) return fail(btn, { message: 'เลือกว่ารู้จัก INeedBio จากที่ไหน' });
       if (!d.accept_data) return fail(btn, { message: 'กรุณาติ๊กยินยอมให้เก็บรูปถ่ายและข้อมูลเพิ่มเติมก่อน' });
       if (!d.accept_terms) return fail(btn, { message: 'กรุณาติ๊กยอมรับข้อตกลงการใช้งานและนโยบายความเป็นส่วนตัวก่อน' });
-      d.photo = S.photo; api('register.start', d).then(function (r) { authModal('otp', Object.assign({}, d, { email: r.email })); }).catch(function (e) { fail(btn, e); }); }
+      d.photo = S.photo; d.ref = store('ib_ref') || ''; api('register.start', d).then(function (r) { authModal('otp', Object.assign({}, d, { email: r.email })); }).catch(function (e) { fail(btn, e); }); }
     else if (mode === 'forgot') api('password.forgot', d).then(function (r) { authModal('reset', { email: r.email }); }).catch(function (e) { fail(btn, e); });
     else {
       var otp = $$('.otp input').map(function (i) { return i.value; }).join('');
@@ -2096,7 +2200,7 @@ function viewAdmin(tab, arg) {
   if (S.user && hasRole('teacher') && !isAdm() && (S.user.profile_todo || []).length && tab !== 'tprofile') { tab = 'tprofile'; arg = undefined; if (location.hash !== '#/admin/tprofile') history.replaceState(null, '', '#/admin/tprofile'); }
   var groups = isAdm() ? [['งานประจำวัน', [['dash', 'ภาพรวม'], ['orders', 'คำสั่งซื้อ'], ['feedback', 'รีวิวและผลการเรียน'], ['requests', 'สิทธิ์เข้าเรียน'], ['legacy', 'นักเรียนรุ่นเก่า']]],
     ['เนื้อหา', [['courses', 'คอร์สและบทเรียน'], ['results', 'ผลงานนักเรียน']]],
-    ['การเงินและการขาย', [['payouts', 'ส่วนแบ่งผู้สอน'], ['finance', 'รายรับรายจ่าย'], ['bundles', 'แพ็กเกจ'], ['coupons', 'โค้ดส่วนลด'], ['accounts', 'บัญชีรับเงิน']]],
+    ['การเงินและการขาย', [['marketing', 'การตลาด'], ['payouts', 'ส่วนแบ่งผู้สอน'], ['finance', 'รายรับรายจ่าย'], ['bundles', 'แพ็กเกจ'], ['coupons', 'โค้ดส่วนลด'], ['accounts', 'บัญชีรับเงิน']]],
     ['ระบบ', [['teachers', 'ผู้สอน']].concat(hasRole('teacher') ? [['tprofile', 'โปรไฟล์ผู้สอนของฉัน']] : []).concat([['users', 'ผู้ใช้และยศ'], ['cells', 'เซลล์สะสม'], ['log', 'บันทึกการแก้ไข'], ['settings', 'ตั้งค่า']])]]
     : [['ผู้สอน · ' + mySubj().map(function (k) { return S.cfg.subjects[k]; }).join(' · '), [['dash', 'ภาพรวม'], ['courses', 'คอร์สของฉัน'], ['orders', 'คำสั่งซื้อ (ดูอย่างเดียว)'], ['payouts', 'ส่วนแบ่งของฉัน'], ['finance', 'รายรับรายจ่าย'], ['tprofile', 'โปรไฟล์ผู้สอน']]]];
   groups.forEach(function (g) { g[1] = g[1].filter(function (t) { return (t[0] !== 'cells' || feat('cells')); }); });
@@ -2109,7 +2213,7 @@ function viewAdmin(tab, arg) {
   };
   clearTimeout(S.skT); S.skT = setTimeout(function () { shell(skeleton('admin'), true); }, 350);
   var fn = { dash: aDash, orders: aOrders, coupons: aCoupons, bundles: aBundles, accounts: aAccounts, requests: aRequests, courses: aCourses, course: aCourse, results: aResults, users: aUsers, settings: aSettings,
-    finance: aFinance, payouts: aPayouts, teachers: aTeachers, tprofile: aTProfile, legacy: aLegacy, log: aLog, cells: aCells, feedback: aFeedback }[tab] || aDash;
+    finance: aFinance, payouts: aPayouts, teachers: aTeachers, tprofile: aTProfile, legacy: aLegacy, log: aLog, cells: aCells, feedback: aFeedback, marketing: aMarketing }[tab] || aDash;
   fn(shell, arg);
 }
 function refreshPending() { return api('admin.stats').then(function (s) { S.pendingLegacy = s.pending_legacy || 0; S.pending = s.teacher ? s.reviewing : s.pending - S.pendingLegacy; S.legacyQ = s.legacy_pending || 0; S.expQ = s.expense_pending || 0; return s; }); }
@@ -3835,6 +3939,7 @@ if (!DEMO && /PASTE_YOUR/.test(API_URL)) {
   return;
 }
 document.body.insertAdjacentHTML('beforeend', CELL_DEFS + FEST_DEFS);
+captureRef();
 api('config').then(function (c) { S.cfg = c; }).catch(function () {})
   .then(function () { return S.token ? api('me').then(function (u) { S.user = u; }).catch(function () {}) : null; })
   .then(route)

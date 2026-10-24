@@ -1579,7 +1579,9 @@ export async function learnFile(d: Data, { p }: Ctx) {
   const u = await auth(p);
   const l = await prisma.lesson.findUnique({ where: { id: String(d.lesson_id || "") }, include: { course: { include: { subject: true } } } });
   if (!l || l.hidden) throw err("NOT_FOUND", "ไม่พบบทเรียน");
-  if (!(await hasAccess(u.id, l.courseId)) && !canSubject(u, subjectKey(l.course.subject))) throw err("NO_ACCESS", "ไฟล์นี้สำหรับผู้ที่ลงทะเบียนคอร์สแล้วเท่านั้น");
+  // A free episode's files also open for someone who answered the course's 2 questions, while the course gives them.
+  const trialOk = l.isPreview && l.course.trialFiles && !!(await prisma.trialLead.findUnique({ where: { userId_courseId: { userId: u.id, courseId: l.courseId } } }));
+  if (!trialOk && !(await hasAccess(u.id, l.courseId)) && !canSubject(u, subjectKey(l.course.subject))) throw err("NO_ACCESS", "ไฟล์นี้สำหรับผู้ที่ลงทะเบียนคอร์สแล้วเท่านั้น");
   const f = fileList(l.files).find((x) => x.fid === d.fid);
   if (!f) throw err("NOT_FOUND", "ไม่พบไฟล์นี้");
   if (f.url) return { name: f.name, url: f.url };

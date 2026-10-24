@@ -12,6 +12,12 @@ export const APP = {
   TERMS_VERSION: "2026-09-25",
   REPEAT_GRADES: ["จบ ม.6 แล้ว", "อื่นๆ"],
   LEVELS: ["สอวน.", "A-Level", "ม.4", "ม.5", "ม.6", "ม.ต้น", "อื่นๆ"],
+  // Where they heard of INeedBio (asked at sign-up) · shown in this order
+  HEARD: [["fb_page", "เพจ Facebook"], ["fb_group", "กลุ่ม Facebook"], ["ig", "Instagram"], ["tiktok", "TikTok"], ["youtube", "YouTube"],
+    ["friend", "เพื่อนแนะนำ"], ["teacher", "ครู / โรงเรียน"], ["google", "ค้นใน Google"], ["other", "อื่นๆ"]] as [string, string][],
+  // The 2 questions for a course's free-chapter files
+  TRIAL_GOALS: ["A-Level", "กสพท", "สอวน.", "สอบในโรงเรียน"],
+  TRIAL_HELP: ["สรุปเนื้อหาให้เข้าใจ", "ตะลุยโจทย์เยอะๆ", "ทำข้อสอบให้ทันเวลา", "วางแผนอ่านหนังสือ", "ปูพื้นฐานใหม่หมด"],
 };
 
 /** An error the web app shows to the user: { ok:false, error: code, message }. */

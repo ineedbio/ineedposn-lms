@@ -269,7 +269,7 @@ async function applyBundles(ok: CartItem[], u: User | null, courses: Record<stri
 
 // ───────────────────────── Cart & orders ─────────────────────────
 /** Prices the cart: bundles, then the discount code, then one bill per receiving account. */
-async function priceCart(idsIn: unknown, codeIn: unknown, u: User | null) {
+export async function priceCart(idsIn: unknown, codeIn: unknown, u: User | null) {
   const ids = (Array.isArray(idsIn) ? idsIn : []).map(String).filter((x, i, a) => x && a.indexOf(x) === i).slice(0, 30);
   const courses = await courseLites(), accs = await activeAccounts(), own = u ? await ownedMap(u.id) : {};
   const items: CartItem[] = [], missing: string[] = [];

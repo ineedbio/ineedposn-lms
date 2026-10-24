@@ -413,8 +413,92 @@
     var m = document.getElementById('modal'); if (!m) return;
     m.innerHTML = '<div class="scrim" data-close="1"><div class="modal wide" role="dialog" aria-modal="true">' +
       '<div class="mx"><div class="stack" style="gap:4px"><h2>' + esc(c.title) + '</h2><p class="ink2 sm">ตอนตัวอย่าง ดูได้ฟรี</p></div><button class="x" data-close="1" aria-label="ปิด">×</button></div>' +
-      '<div class="player"></div></div></div>';
+      '<div class="player"></div><div class="ffb" id="ffb" aria-live="polite" hidden></div></div></div>';
     mount(m.querySelector('.player'), c.id, { sound: true, lid: c.lid });
+    freeFilesBox(m.querySelector('#ffb'));
+  }
+
+  /* ── 3) free-chapter files for 2 questions (round 7u: app.js's ffOn / renderFfb / ffSurvey / ffUnlocked, the same
+     boxes and messages). app.js keeps them for its own preview modal, which this file replaces, and they live in its
+     closure — so they are mirrored here. Shown only when the course gives its free episodes' files (free_files from
+     course.detail) and the student isn't enrolled yet. ── */
+  function ibApi(action, data) {
+    var body = { action: action, data: data || {}, token: store('ib_token'), device_id: store('ib_device'), device_info: 'course-page' };
+    return fetch(window.INEEDBIO_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
+      .then(function (x) { return x.json(); }).then(function (r) { if (!r.ok) throw new Error(r.message || 'ระบบขัดข้อง ลองใหม่อีกครั้ง'); return r.data; });
+  }
+  var cfgP = null;
+  function ibCfg() { return cfgP || (cfgP = ibApi('config', {}).catch(function () { cfgP = null; return {}; })); }
+  function bahtT(n) { return '฿' + Number(n || 0).toLocaleString('th-TH'); }
+  function thDateT(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }); }
+  var LOCK_IC = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" role="img" aria-label="ล็อกอยู่"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  var FILE_IC = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
+  function freeFilesBox(box) {
+    var mm = location.hash.match(/^#\/course\/([^/?#]+)/); if (!box || !mm) return;
+    var cid = decodeURIComponent(mm[1]), signedIn = !!store('ib_token');
+    ibApi('course.detail', { course_id: cid }).then(function (cd) {
+      if (!document.body.contains(box) || !cd.free_files || !cd.free_files.length || cd.enrollment === 'approved') return;
+      box.hidden = false;
+      var head = '<h3>ไฟล์ประกอบ' + (cd.free_label ? 'บท' + esc(cd.free_label) : 'ตอนที่ดูฟรี') + '</h3>';
+      var names = function (list) { return [].concat.apply([], list.map(function (l) { return l.files.map(function (f) { return { lid: l.lesson_id, fid: f.fid, name: f.name }; }); })); };
+      var unlocked = function (r) {
+        var fs = names(r.files), o = r.offer, left = o && o.ends_at ? Math.ceil((new Date(o.ends_at).getTime() - Date.now()) / 864e5) : 0, pct = o && o.label ? (o.label.match(/\d+%/) || [''])[0] : '';
+        box.innerHTML = (r.first ? '<div class="note ok">ขอบคุณที่ตอบนะ ไฟล์บทนี้เป็นของน้องแล้ว</div>' : '') + head +
+          '<div class="ffl">' + fs.map(function (f) { return '<div class="ffr">' + FILE_IC + '<span class="nm">' + esc(f.name) + '</span><button class="pill quiet s" data-fflid="' + esc(f.lid) + '" data-fffid="' + esc(f.fid) + '">เปิดไฟล์</button></div>'; }).join('') + '</div>' +
+          '<p class="sm ink2" style="margin:0">ไฟล์ของตอนอื่นจะเปิดให้เมื่อลงทะเบียนคอร์ส</p>' +
+          (o ? '<div class="ffup"><span class="sm">เรียนต่อทั้งคอร์ส</span><b style="font-size:18px">' + esc(cd.title) + '</b>' +
+            (o.label ? '<div class="pr"><span class="sm">โปรโมชันที่ใช้ได้ตอนนี้</span><span><span class="tag">' + esc(pct ? '-' + pct : 'โปร') + '</span>' + esc(o.label) + '</span>' + (o.ends_at ? '<span class="sm">ถึง ' + thDateT(o.ends_at) + (left > 0 ? ' · เหลือ ' + left + ' วัน' : '') + '</span>' : '') + '</div>' : '') +
+            '<div class="px">' + (o.discount > 0 ? '<s>' + bahtT(o.price) + '</s>' : o.full_price ? '<s>' + bahtT(o.full_price) + '</s>' : '') + '<b>' + bahtT(o.total) + '</b><span class="sm">ทั้งคอร์ส</span></div>' +
+            '<button class="pill block" id="ff-buy">ลงทะเบียนวันนี้ในราคา ' + bahtT(o.total) + '</button></div>' : '');
+        all(box, '[data-fflid]').forEach(function (b) { b.onclick = function () { openFile(b.dataset.fflid, b.dataset.fffid, b); }; });
+        var bb = box.querySelector('#ff-buy');
+        // app.js's cart lives in its closure: add to the saved cart (ib_cart) and open the cart page from a fresh load
+        if (bb) bb.onclick = function () { var a = []; try { a = JSON.parse(store('ib_cart') || '[]') || []; } catch (e) {} if (a.indexOf(cid) < 0) a.push(cid); store('ib_cart', JSON.stringify(a.slice(0, 30))); location.hash = '#/cart'; location.reload(); };
+      };
+      var survey = function () {
+        ibCfg().then(function (cfg) {
+          var goals = cfg.trial_goals || ['A-Level', 'กสพท', 'สอวน.', 'สอบในโรงเรียน'], help = cfg.trial_help || ['สรุปเนื้อหาให้เข้าใจ', 'ตะลุยโจทย์เยอะๆ', 'ทำข้อสอบให้ทันเวลา', 'วางแผนอ่านหนังสือ', 'ปูพื้นฐานใหม่หมด'];
+          box.innerHTML = '<h3>รับไฟล์บทนี้ฟรี</h3><form class="stack" id="ff-f" style="gap:14px">' +
+            '<fieldset class="q" style="border:0;padding:0;margin:0"><legend style="padding:0"><b>1. กำลังเตรียมสอบอะไร</b> <span class="sm ink2">(เลือกได้หลายข้อ)</span></legend><div class="rchips" style="margin-top:8px">' + goals.map(function (g) { return '<label class="rch"><input type="checkbox" name="g" value="' + esc(g) + '"><span>' + esc(g) + '</span></label>'; }).join('') + '</div></fieldset>' +
+            '<fieldset class="q" style="border:0;padding:0;margin:0"><legend style="padding:0"><b>2. อยากให้พี่ช่วยเรื่องไหนมากที่สุด</b></legend><div class="rchips" role="radiogroup" style="margin-top:8px">' + help.map(function (h) { return '<label class="rch"><input type="radio" name="h" value="' + esc(h) + '"><span>' + esc(h) + '</span></label>'; }).join('') + '</div></fieldset>' +
+            '<p class="err" id="ff-err" hidden></p><button class="pill block">ส่งคำตอบ แล้วรับไฟล์</button></form>';
+          var f = box.querySelector('#ff-f');
+          f.onsubmit = function (ev) {
+            ev.preventDefault();
+            var er = f.querySelector('#ff-err'), btn = f.querySelector('button'), g = all(f, 'input[name=g]').filter(function (x) { return x.checked; }).map(function (x) { return x.value; }), h = (f.querySelector('input[name=h]:checked') || {}).value;
+            er.hidden = true;
+            if (!g.length) { er.textContent = 'เลือกว่ากำลังเตรียมสอบอะไรอย่างน้อย 1 ข้อ'; er.hidden = false; return; }
+            if (!h) { er.textContent = 'เลือกเรื่องที่อยากให้พี่ช่วยมากที่สุด'; er.hidden = false; return; }
+            btn.disabled = true;
+            ibApi('trial.unlock', { course_id: cid, goals: g, help: h, ref: store('ib_ref') || '' }).then(unlocked).catch(function (e) { btn.disabled = false; er.textContent = e.message; er.hidden = false; });
+          };
+        });
+      };
+      if (signedIn && cd.free_unlocked) {
+        box.innerHTML = '<p class="sm ink2">กำลังเปิดไฟล์…</p>';
+        ibApi('trial.unlock', { course_id: cid }).then(unlocked).catch(function (e) { box.innerHTML = '<p class="sm" style="color:var(--no)">' + esc(e.message) + '</p>'; });
+        return;
+      }
+      var fs = names(cd.free_files);
+      box.innerHTML = '<div class="spread">' + head + '<span class="sm ink2">' + fs.length + ' ไฟล์</span></div><div class="ffl">' + fs.map(function (f) { return '<div class="ffr">' + FILE_IC + '<span class="nm">' + esc(f.name) + '</span>' + LOCK_IC + '</div>'; }).join('') + '</div>' +
+        (signedIn ? '<button class="pill block" id="ff-go">รับไฟล์บทนี้ฟรี</button><p class="sm ink2" style="text-align:center;margin:0">ตอบ 2 คำถามสั้น ๆ ใช้เวลาไม่ถึง 30 วินาที</p>'
+          : '<button class="pill block" data-act="signup">สมัครสมาชิกฟรี แล้วรับไฟล์บทนี้</button><p class="sm ink2" style="text-align:center;margin:0">มีบัญชีแล้ว? <button class="link" data-act="login">เข้าสู่ระบบ</button></p>');
+      var go = box.querySelector('#ff-go'); if (go) go.onclick = survey;
+    }).catch(function () {});
+  }
+  /** app.js openLessonFile: a link opens in a new tab, a stored file is downloaded / shown */
+  function openFile(lid, fid, btn) {
+    var win = null; try { win = window.open('', '_blank'); } catch (e) {}
+    btn.disabled = true;
+    ibApi('learn.file', { lesson_id: lid, fid: fid }).then(function (f) {
+      btn.disabled = false;
+      if (f.url) { if (win) win.location = f.url; else location.href = f.url; return; }
+      var bin = atob(f.base64), arr = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      var url = URL.createObjectURL(new Blob([arr], { type: f.mime || 'application/octet-stream' }));
+      if (/pdf|image/.test(f.mime) && win) { win.location = url; return; }
+      if (win) win.close();
+      var a = document.createElement('a'); a.href = url; a.download = f.name || 'file'; document.body.appendChild(a); a.click(); a.remove();
+    }).catch(function (e) { btn.disabled = false; if (win) win.close(); toast(e.message); });
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-ibpv]');
