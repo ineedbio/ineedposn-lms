@@ -36,8 +36,8 @@ async function cellEvents(): Promise<CellEvent[]> {
   try { const x = JSON.parse((await getSetting("test_events")) || "[]"); return CELLS.EVENTS.concat(Array.isArray(x) ? x : []); } catch { return CELLS.EVENTS; }
 }
 const thDay = (ms: number) => new Date(ms + 7 * 36e5).toISOString().slice(0, 10);
-const today = async () => thDay(Date.now() + (await dayShift()));
-const dayDiff = (a: string, b: string) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 864e5);
+export const today = async () => thDay(Date.now() + (await dayShift()));
+export const dayDiff = (a: string, b: string) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 864e5);
 const addDays = (day: string, n: number) => new Date(Date.parse(day + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
 function thDateTxt(d: Date) {
   const M = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
