@@ -17,6 +17,7 @@ import * as sheets from "./sheets";
 import * as team from "./team";
 import * as cells from "./cells";
 import * as marketing from "./marketing";
+import * as todayPage from "./today";
 import { notifyAdmins, remainingQuota, sendDecisionEmail, sendOtpEmail } from "./mail";
 import {
   APP, ApiError, bkkDate, checkImageUrl, checkPassword, clip, err, iso, isRepeat, lines, normEmail, otpCode, parseFaq,
@@ -1097,6 +1098,7 @@ const ROUTES: Record<string, Handler> = {
   "trial.feedback": cells.trialFeedback,
   "trial.unlock": marketing.trialUnlock,
   "admin.marketing": adminOnly((d) => marketing.adminMarketing(d)),
+  "admin.today": adminOnly((d) => todayPage.adminToday(d)),
   "admin.course.trial": adminOnly(marketing.adminCourseTrial),
   "grades.submit": cells.gradesSubmit,
   "my.submissions": cells.mySubmissions,

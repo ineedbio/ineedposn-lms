@@ -55,6 +55,8 @@ export default function Home() {
       <Script src={v('/ineedbio/admin-ui.js')} strategy="afterInteractive" />
       {/* หลังบ้าน → ชีทสรุป (เตรียมข้อมูล/อัปโหลด PDF · ยังไม่เปิดขาย ไม่มีหน้าฝั่งนักเรียน) */}
       <Script src={v('/ineedbio/admin-sheets.js')} strategy="afterInteractive" />
+      {/* หลังบ้าน → ภาพรวมวันนี้ (อ่านอย่างเดียว · แอดมินเท่านั้น): สมัคร/ลงคอร์สของวัน ยังไม่มีคอร์ส อันดับเซลล์ */}
+      <Script src={v('/ineedbio/admin-today.js')} strategy="afterInteractive" />
       {/* แถบยอมรับคุกกี้ — สคริปต์วิเคราะห์/การตลาดโหลดเฉพาะเมื่อผู้ใช้อนุญาต */}
       <Script src={v('/ineedbio/consent.js')} strategy="afterInteractive" />
       {/* เพิ่มลงหน้าจอโฮม (ไม่มีแถบ Safari): แถบบนใต้นาฬิกา ขอบรอยบาก ลิงก์ภายนอกเปิดใน Safari · คำแนะนำเต็มจอบน iPhone */}
