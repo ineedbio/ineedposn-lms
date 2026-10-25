@@ -1404,3 +1404,24 @@ button[disabled].pill{opacity:.4;cursor:default}
 .ffup .pr{border-radius:12px;padding:10px 12px;background:rgba(127,127,127,.18);display:grid;gap:4px;font-size:14px}
 .ffup .tag{display:inline-block;background:var(--acc);color:var(--on-acc);font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;margin-right:6px}
 .ffup .px{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.ffup .px s{opacity:.6}.ffup .px b{font-size:26px}
+/* r7y: หน้าคอร์สบนมือถือ กล่องราคา + ปุ่มซื้อใต้หัวคอร์ส และแถบซื้อด้านล่างจอที่ติดจอจริง */
+.pg-enter{animation-fill-mode:backwards}
+.mbuy{display:none}
+.cd>div{min-width:0}
+@media (max-width:840px){
+  .mbuy{display:grid;gap:12px;margin-top:14px;padding:16px;border-radius:20px;background:var(--bg);box-shadow:0 0 0 1px var(--line),0 20px 40px -30px rgba(0,0,0,.35)}
+  .mbuy .mb-price{display:flex;align-items:baseline;gap:6px 12px;flex-wrap:wrap}
+  .mbuy .price{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+  .mbuy .mb-promo{justify-self:start;font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;background:rgba(212,84,28,.12);color:#c2410c}
+  .mbuy .mb-act{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:8px}
+  .mbuy .mb-act .pill,.mbuy>.pill{justify-content:center;min-height:48px;font-size:16px;padding-inline:10px}
+  .mbuy .mb-act .block{grid-column:1/-1}
+  .mbuy>.link{justify-self:center}
+  .mbuy .note{margin:0}
+  .mbar{transition:transform .25s ease,opacity .25s ease}
+  .mbar.mb-hide{transform:translateY(110%);opacity:0;pointer-events:none}
+  #app:has(.mbar:not(.mb-hide)) .fab{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+}
+@media (max-width:680px){body.has-mnav #app:has(.mbar:not(.mb-hide)) .fab{bottom:calc(136px + env(safe-area-inset-bottom,0px))}}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .mbuy .mb-promo{color:#ffb066;background:rgba(255,176,102,.14)}}
+:root[data-theme="dark"] .mbuy .mb-promo{color:#ffb066;background:rgba(255,176,102,.14)}

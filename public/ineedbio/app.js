@@ -891,7 +891,7 @@ function viewCourse(id) {
       '<section class="chero" id="sec-overview"><span class="mono sj">' + esc(c.subject_name) + '</span><h1>' + esc(c.title) + '</h1>' + (c.subtitle ? '<p class="ink2 lead">' + esc(c.subtitle) + '</p>' : '') +
       '<div class="facts"><span><b>' + total + '</b> ตอน</span><span><b>' + hm(c.total_min) + '</b> วิดีโอ</span><span><b>ดูได้ตลอด</b> ไม่มีวันหมดอายุ</span>' + (c.trial ? '<span title="จาก ' + c.trial.n + ' คนที่ลองดูตอนฟรี"><b>' + c.trial.clear_pct + '%</b> ของคนที่ลองเรียนฟรีบอกว่าเข้าใจ</span>' : '') + '</div>' +
       (c.trailer_id ? '<div class="player trailer" data-tid="' + esc(c.trailer_id) + '">' + playerInner(c.trailer_id, '') + '</div>' : (c.cover_url ? '<div class="cover trailer" style="border-radius:16px;aspect-ratio:16/8"><img src="' + esc(imgSrc(c.cover_url)) + '" alt="" style="object-fit:contain"></div>' : '')) +
-      (!c.trailer_id && previews.length ? '<button class="pill ghost s" style="justify-self:start" data-preview="' + esc(previews[0].youtube_id) + '" data-plid="' + esc(previews[0].lesson_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(previews[0].title) + '">▶ ดูตอนตัวอย่างฟรี</button>' : '') + '</section>' +
+      (!c.trailer_id && previews.length ? '<button class="pill ghost s" style="justify-self:start" data-preview="' + esc(previews[0].youtube_id) + '" data-plid="' + esc(previews[0].lesson_id) + '" data-cid="' + esc(c.course_id) + '" data-title="' + esc(previews[0].title) + '">▶ ดูตอนตัวอย่างฟรี</button>' : '') + '</section>' + mBuy(c, st) +
       '<nav class="jump" aria-label="ส่วนของหน้า">' + jumps.map(function (j) { return '<button data-jump="' + j[0] + '">' + j[1] + '</button>'; }).join('') + '</nav>' +
       (c.highlights && c.highlights.length ? '<section class="sec"><h2>จุดเด่นของคอร์ส</h2><div class="hl">' + c.highlights.map(function (h) { return '<div><span class="ic">' + CK + '</span><span>' + esc(h) + '</span></div>'; }).join('') + '</div></section>' : '') +
       (c.audience && c.audience.length ? '<section class="sec"><h2>คอร์สนี้เหมาะกับ</h2><ul class="aud">' + c.audience.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></section>' : '') +
@@ -910,6 +910,7 @@ function viewCourse(id) {
       '</div><aside class="buy" id="sec-buy"><span class="mono">ราคาคอร์ส</span><span class="price">' + (c.full_price > c.price ? '<span class="was">' + baht(c.full_price) + '</span>' : '') + baht(c.price) + '</span>' +
       '<ul class="incl"><li>' + CK + 'คลิปเรียน ' + total + ' ตอน (' + hm(c.total_min) + ')</li><li>' + CK + 'ชีทประกอบในห้องเรียน</li><li>' + CK + 'ดูได้ตลอด ไม่มีวันหมดอายุ</li><li>' + CK + 'เรียนได้ทั้งมือถือและคอม</li></ul>' + box + '</aside></div>' +
       '<div class="mbar"><div><span class="sm ink2">' + esc(c.title) + '</span><b class="price">' + baht(c.price) + '</b></div>' + cta + '</div>');
+    mbarWatch();
     $('#syl-all').onclick = function () { var ds = $$('.syl:not(.faq) details'), open = ds.some(function (d) { return !d.open; }); ds.forEach(function (d) { d.open = open; }); this.textContent = open ? 'ปิดทุกบท' : 'เปิดทุกบท'; };
   }).catch(function (e) { failed('home', e); });
 }
@@ -1065,7 +1066,32 @@ function buyActions(c) {
   return '<button class="pill block" data-buy-now="' + esc(c.course_id) + '">ซื้อเลย</button><button class="pill ghost block" data-cart-add="' + esc(c.course_id) + '">เพิ่มลงตะกร้า</button>' +
     '<ol class="steps"><li>ใส่ตะกร้า ใส่โค้ดส่วนลด (ถ้ามี)</li><li>โอนเงินตามบิล แนบสลิปและกรอกข้อมูลการโอน</li><li>แจ้งสลิปทาง Facebook INeedBio (หรือ IG / LINE)</li><li>แอดมินตรวจยอดแล้วเปิดสิทธิ์ ระบบส่งอีเมลแจ้ง</li></ol>';
 }
-function refreshBuy(c) { var b = $('#buy-act'); if (b) b.innerHTML = buyActions(c); var m = $('#mbar-cta'); if (m) m.innerHTML = CART.indexOf(c.course_id) >= 0 ? '<a class="pill" href="#/cart">ไปที่ตะกร้า</a>' : '<button class="pill" data-buy-now="' + esc(c.course_id) + '">ซื้อเลย</button>'; }
+/** มือถือ: กล่องราคา + ปุ่มซื้อใต้หัวคอร์สเลย ไม่ต้องเลื่อนลงไปล่างสุด (จอกว้างใช้กล่องด้านขวาเหมือนเดิม) */
+function mBuyBtns(c) {
+  if (CART.indexOf(c.course_id) >= 0) return '<a class="pill block" href="#/cart">อยู่ในตะกร้าแล้ว · ไปชำระเงิน</a>';
+  return '<button class="pill" data-buy-now="' + esc(c.course_id) + '">ซื้อเลย</button><button class="pill ghost" data-cart-add="' + esc(c.course_id) + '">ใส่ตะกร้า</button>';
+}
+function mBuy(c, st) {
+  var id = encodeURIComponent(c.course_id), act, promo = '', pr = S.cfg.new_member_promo;
+  if (st === 'approved') act = '<a class="pill block" href="#/learn/' + id + '">เข้าห้องเรียน</a>';
+  else if (st === 'pending') act = '<div class="note wait">ส่งสลิปแล้ว แอดมินกำลังตรวจ ปกติไม่เกิน 24 ชั่วโมง</div>';
+  else if (c.bill) act = '<a class="pill block" href="#/orders/' + encodeURIComponent(c.bill.order_id) + '">ดูคำสั่งซื้อ</a>';
+  else {
+    act = '<div class="mb-act" id="mbuy-act">' + mBuyBtns(c) + '</div>';
+    if (pr && pr.all && !(S.user && S.user.new_member === false)) promo = '<span class="mb-promo">' + (S.user ? 'สมาชิกใหม่' : 'สมัครสมาชิกใหม่') + ' ลด ' + esc(pr.label) + ' · ลดให้อัตโนมัติในตะกร้า</span>';
+  }
+  return '<section class="mbuy" id="mbuy"><div class="mb-price"><span class="price">' + (c.full_price > c.price ? '<span class="was">' + baht(c.full_price) + '</span>' : '') + baht(c.price) + '</span><span class="sm ink2">ทั้งคอร์ส · ดูได้ตลอด ไม่มีวันหมดอายุ</span></div>' +
+    promo + act + (act.indexOf('mbuy-act') > 0 ? '<button type="button" class="link sm" data-jump="buy">สิ่งที่ได้และวิธีสั่งซื้อ ↓</button>' : '') + '</section>';
+}
+/** แถบซื้อด้านล่างจอ (มือถือ) ซ่อนไว้เฉพาะตอนเห็นปุ่มซื้อใต้หัวคอร์สครบแล้ว จะได้ไม่ซ้ำกัน */
+function mbarWatch() {
+  var m = $('.mbar'), t = $('#mbuy-act') || $('#mbuy');
+  if (S.mbIO) { S.mbIO.disconnect(); S.mbIO = null; }
+  if (!m || !t || !window.IntersectionObserver) return;
+  S.mbIO = new IntersectionObserver(function (es) { m.classList.toggle('mb-hide', es[0].intersectionRatio > 0.98); }, { threshold: [0, 0.99] });
+  S.mbIO.observe(t);
+}
+function refreshBuy(c) { var mb = $('#mbuy-act'); if (mb) mb.innerHTML = mBuyBtns(c); var b = $('#buy-act'); if (b) b.innerHTML = buyActions(c); var m = $('#mbar-cta'); if (m) m.innerHTML = CART.indexOf(c.course_id) >= 0 ? '<a class="pill" href="#/cart">ไปที่ตะกร้า</a>' : '<button class="pill" data-buy-now="' + esc(c.course_id) + '">ซื้อเลย</button>'; }
 
 function viewCart() {
   var empty = function () { page('cart', '<div class="page-h"><span class="mono">ตะกร้า</span><h1>ตะกร้าของฉัน</h1></div><div class="empty" style="margin-bottom:72px"><p>ยังไม่มีคอร์สในตะกร้า</p><a class="pill" href="#/">ดูคอร์สทั้งหมด</a></div>'); };
