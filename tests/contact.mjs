@@ -22,7 +22,7 @@ export async function run({ BASE, OUTBOX, makeAdmin }) {
 
   await t("config: Facebook / IG / LINE defaults", async () => {
     const c = ok(await call("config"));
-    assert.equal(c.contact_fb, FB); assert.equal(c.contact_ig, "ineedbio.official"); assert.equal(c.contact_line, LINE);
+    assert.equal(c.contact_fb, FB); assert.equal(c.contact_ig, "ineedbio.official"); assert.equal(c.contact_line, LINE); assert.equal(c.contact_email, "ineedbio1803@gmail.com");
   });
   const S = await reg("stu@x.com");
   await t("every email footer: Facebook INeedBio first, then IG and LINE, links open in a new tab", async () => {

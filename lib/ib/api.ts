@@ -33,7 +33,7 @@ export type Ctx = { p: Payload };
 type Handler = (d: Data, ctx: Ctx) => Promise<unknown>;
 
 // ───────────────────────── Settings ─────────────────────────
-const PUBLIC_SETTINGS = ["terms_text", "privacy_text", "hero_eyebrow", "hero_title", "hero_subtitle", "announcement", "promptpay_id", "promptpay_name", "contact_ig", "contact_fb", "contact_line",
+const PUBLIC_SETTINGS = ["terms_text", "privacy_text", "hero_eyebrow", "hero_title", "hero_subtitle", "announcement", "promptpay_id", "promptpay_name", "contact_ig", "contact_fb", "contact_line", "contact_email",
   "pay_terms_text", "order_expire_hours", "proof_paid_at", "proof_amount", "proof_from_bank", "proof_payer_name", "proof_extra",
   "cells_enabled", "event_mode", "event_from", "event_until", "home_billboard"];
 const DEFAULT_SETTINGS: Record<string, string> = {
@@ -47,6 +47,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   contact_fb: "https://www.facebook.com/profile.php?id=61575435968083",
   contact_ig: "ineedbio.official",
   contact_line: "https://lin.ee/t3jbjtN",
+  contact_email: "ineedbio1803@gmail.com", // the floating mail button (contact-fab.js)
   // Home billboard: course ids in order, comma-separated ("" = the first 5 courses)
   home_billboard: "",
   // Cells (study streaks → discount codes) and the seasonal theme; event_from/event_until = Thai time, "" = by the calendar
@@ -101,7 +102,7 @@ async function publicSettings() {
   const o: Record<string, unknown> = {};
   for (const k of PUBLIC_SETTINGS) o[k] = k in s ? s[k] : DEFAULT_SETTINGS[k];
   // contact links saved empty: the defaults, never an empty link
-  for (const k of ["contact_fb", "contact_ig", "contact_line"]) if (!String(o[k] || "").trim()) o[k] = DEFAULT_SETTINGS[k];
+  for (const k of ["contact_fb", "contact_ig", "contact_line", "contact_email"]) if (!String(o[k] || "").trim()) o[k] = DEFAULT_SETTINGS[k];
   o.subjects = APP.SUBJECTS;
   o.levels = APP.LEVELS;
   o.repeat_grades = APP.REPEAT_GRADES;
