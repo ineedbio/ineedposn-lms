@@ -33,7 +33,7 @@ export type Ctx = { p: Payload };
 type Handler = (d: Data, ctx: Ctx) => Promise<unknown>;
 
 // ───────────────────────── Settings ─────────────────────────
-const PUBLIC_SETTINGS = ["terms_text", "privacy_text", "hero_eyebrow", "hero_title", "hero_subtitle", "announcement", "promptpay_id", "promptpay_name", "contact_ig",
+const PUBLIC_SETTINGS = ["terms_text", "privacy_text", "hero_eyebrow", "hero_title", "hero_subtitle", "announcement", "promptpay_id", "promptpay_name", "contact_ig", "contact_fb", "contact_line",
   "pay_terms_text", "order_expire_hours", "proof_paid_at", "proof_amount", "proof_from_bank", "proof_payer_name", "proof_extra",
   "cells_enabled", "event_mode", "event_from", "event_until", "home_billboard"];
 const DEFAULT_SETTINGS: Record<string, string> = {
@@ -43,7 +43,10 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   announcement: "",
   promptpay_id: process.env.PROMPTPAY_ID || "0910256171",
   promptpay_name: "INeedBio",
-  contact_ig: "ineedbiochem",
+  // Contact / slip channels, in this order: Facebook (main), IG (backup), LINE
+  contact_fb: "https://www.facebook.com/profile.php?id=61575435968083",
+  contact_ig: "ineedbio.official",
+  contact_line: "https://lin.ee/t3jbjtN",
   // Home billboard: course ids in order, comma-separated ("" = the first 5 courses)
   home_billboard: "",
   // Cells (study streaks → discount codes) and the seasonal theme; event_from/event_until = Thai time, "" = by the calendar
@@ -54,12 +57,12 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   admin_emails: process.env.ADMIN_NOTIFICATION_EMAIL || "",
   terms_text: "",
   privacy_text: "",
-  // Payment — {account} = name and number of the bill's account, {ig} = contact IG
+  // Payment — {account} = name and number of the bill's account, {ig} = contact IG (Facebook / LINE come from contact_fb / contact_line)
   pay_terms_text:
     "- ชำระเงินโดยโอนเข้าบัญชี {account} ที่แสดงในหน้าชำระเงินของบิลนี้เท่านั้น\n" +
     "- INeedBio ไม่รับผิดชอบทุกกรณี หากโอนเข้าบัญชีอื่นที่ไม่ได้แสดงในหน้านี้ แม้จะมีผู้อ้างว่าเป็นทีมงาน\n" +
     "- ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว\n" +
-    "- โอนแล้วแนบสลิปและกรอกข้อมูลการโอนให้ครบ แล้วแจ้งการชำระเงินทาง IG @{ig} อีกครั้ง\n" +
+    "- โอนแล้วแนบสลิปและกรอกข้อมูลการโอนให้ครบ แล้วแจ้งสลิปทาง Facebook INeedBio (หลัก) หรือ IG @{ig} / LINE\n" +
     "- สิทธิ์เข้าเรียนจะเปิดหลังแอดมินตรวจยอดเงินแล้ว",
   order_expire_hours: "48",
   proof_paid_at: "required",
@@ -83,7 +86,13 @@ export async function getSetting(k: string) {
 export async function setSetting(k: string, v: string) {
   await prisma.setting.upsert({ where: { key: k }, create: { key: k, value: v }, update: { value: v } });
 }
-export const ig = async () => (await getSetting("contact_ig")) || "ineedbiochem";
+export const ig = async () => String((await getSetting("contact_ig")) || DEFAULT_SETTINGS.contact_ig).replace(/^@/, "");
+/** Where students ask questions and send slips, in this order: Facebook (main), IG, LINE — for the emails. */
+export const mailContacts = async () => ({
+  fb: String((await getSetting("contact_fb")) || DEFAULT_SETTINGS.contact_fb),
+  ig: await ig(),
+  line: String((await getSetting("contact_line")) || DEFAULT_SETTINGS.contact_line),
+});
 export const siteUrlOf = async () => String((await getSetting("site_url")) || "https://ineedbio.shop").replace(/\/+$/, "");
 export const adminEmails = async () => String((await getSetting("admin_emails")) || "").split(",").map(trim).filter(Boolean);
 
@@ -255,7 +264,7 @@ export async function auth(p: Payload) {
     throw err("AUTH", "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
   }
   if (s.expiresAt < new Date()) throw err("AUTH", "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
-  if (s.user.isBanned) throw err("BANNED", "บัญชีนี้ถูกระงับ ติดต่อแอดมินทาง IG");
+  if (s.user.isBanned) throw err("BANNED", "บัญชีนี้ถูกระงับ ทัก Facebook INeedBio");
   return s.user;
 }
 /** Teachers and admins — the function itself limits teachers to their subjects (staff.courseFor / canSubject). */
@@ -323,7 +332,7 @@ async function registerStart(d: Data) {
     ? await prisma.user.update({ where: { id: existing.id }, data })
     : await prisma.user.create({ data: { ...data, email, emailVerified: false } });
   const otp = await issueOtp(u.id, "EMAIL_VERIFY");
-  await sendOtpEmail(email, otp, f.nickname, "register", await ig());
+  await sendOtpEmail(email, otp, f.nickname, "register", await mailContacts());
   return { email, expires_in: APP.OTP_MINUTES * 60 };
 }
 
@@ -346,7 +355,7 @@ async function login(d: Data, { p }: Ctx) {
   let u = await prisma.user.findUnique({ where: { email } });
   if (!u || !(await bcrypt.compare(String(d.password || ""), u.password))) throw err("BAD_LOGIN", "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
   if (!u.emailVerified) throw err("EMAIL_NOT_VERIFIED", "อีเมลนี้ยังไม่ได้ยืนยัน กด “ลืมรหัสผ่าน” เพื่อรับรหัสทางอีเมลและตั้งรหัสผ่านใหม่");
-  if (u.isBanned) throw err("BANNED", "บัญชีนี้ถูกระงับ ติดต่อแอดมินทาง IG");
+  if (u.isBanned) throw err("BANNED", "บัญชีนี้ถูกระงับ ทัก Facebook INeedBio");
   u = await promoteIfBootstrap(await prisma.user.update({ where: { id: u.id }, data: { lastLoginAt: new Date() } }));
   return { token: await newSession(u, p), user: await selfUser(u) };
 }
@@ -363,7 +372,7 @@ async function passwordForgot(d: Data) {
     await rate("otp1:" + email, 1, 60, "รอ 1 นาทีก่อนขอรหัสใหม่");
     await rate("otpH:" + email, 6, 3600, "ขอรหัสบ่อยเกินไป ลองใหม่ในอีก 1 ชั่วโมง");
     const otp = await issueOtp(u.id, "PASSWORD_RESET");
-    await sendOtpEmail(email, otp, u.nickname || u.firstName, "reset", await ig());
+    await sendOtpEmail(email, otp, u.nickname || u.firstName, "reset", await mailContacts());
   }
   return { email }; // same answer either way: never reveal whether the email is registered
 }
@@ -602,7 +611,7 @@ async function enrollRequest(d: Data, { p }: Ctx) {
     [["นักเรียน", `${u.firstName} ${u.lastName} (${u.nickname || ""})`], ["อีเมล", u.email], ["เบอร์", u.phone || ""],
      ["คอร์ส", c.title], ["ยอดที่ต้องโอน", "฿" + c.price], ["เลขคำสั่งซื้อ", pay.orderNumber || "-"], ["รหัสคำขอ", pay.id]],
     "เข้าหลังบ้าน → คำขอเข้าเรียน เพื่อตรวจสลิปและอนุมัติ",
-    await ig()
+    await mailContacts()
   );
   return { enroll_id: pay.id, status: "pending" };
 }
@@ -714,7 +723,7 @@ async function adminDecide(d: Data, _c: Ctx, admin: User) {
   if (!changed.count) throw err("ALREADY", "คำขอนี้ถูกตัดสินไปแล้วโดยแอดมินคนอื่น");
   if (ok) await activate(e.userId, e.courseId);
   await log(admin, ok ? "approved" : "rejected", id);
-  await sendDecisionEmail(e.user, e.course.title, ok, note, await ig());
+  await sendDecisionEmail(e.user, e.course.title, ok, note, await mailContacts());
   return { enroll_id: id, status: ok ? "approved" : "rejected" };
 }
 
@@ -766,7 +775,7 @@ async function adminGrant(d: Data, _c: Ctx, admin: User) {
     }
   }
   // One email per student, listing every course they just got.
-  for (const { u, titles } of mail.values()) await sendDecisionEmail(u, titles.join(", "), true, "", await ig());
+  for (const { u, titles } of mail.values()) await sendDecisionEmail(u, titles.join(", "), true, "", await mailContacts());
   if (emails.length === 1 && !out.added.length) {
     const already = out.skipped[0].why === "มีสิทธิ์อยู่แล้ว";
     throw err(already ? "ALREADY" : "NOT_FOUND", already ? (multi ? "ผู้ใช้นี้มีสิทธิ์ทุกคอร์สที่เลือกอยู่แล้ว" : "ผู้ใช้นี้มีสิทธิ์คอร์สนี้อยู่แล้ว") : "ไม่พบผู้ใช้อีเมลนี้ (ต้องสมัครสมาชิกก่อน)");

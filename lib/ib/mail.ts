@@ -4,6 +4,15 @@ import nodemailer from "nodemailer";
 import { prisma } from "../prisma";
 import { APP, err, esc } from "./util";
 
+/** Where students ask questions and send slips, in this order: Facebook (main), IG (backup), LINE (api.ts contacts()). */
+export type Contacts = { fb: string; ig: string; line: string };
+const A = 'style="color:#0c0c0c;font-weight:600;text-decoration:none;" target="_blank" rel="noopener"';
+const fbLink = (c: Contacts, label = "Facebook INeedBio") => '<a href="' + esc(c.fb) + '" ' + A + ">" + label + "</a>";
+const igLink = (c: Contacts) => '<a href="https://www.instagram.com/' + esc(c.ig) + '" ' + A + ">IG @" + esc(c.ig) + "</a>";
+const lineLink = (c: Contacts) => '<a href="' + esc(c.line) + '" ' + A + ">LINE</a>";
+/** "แจ้งสลิปทาง Facebook INeedBio (หลัก) หรือ IG @… / LINE", all three linked. */
+const slipVia = (c: Contacts) => "แจ้งสลิปทาง " + fbLink(c) + " (หลัก) หรือ " + igLink(c) + " / " + lineLink(c);
+
 const FROM = process.env.EMAIL_FROM ?? "INeedBio <onboarding@resend.dev>";
 const DAILY_QUOTA = Number(process.env.MAIL_DAILY_QUOTA || 500);
 
@@ -53,7 +62,7 @@ async function send(to: string | string[], subject: string, html: string, attach
   });
 }
 
-function shell(title: string, inner: string, ig: string) {
+function shell(title: string, inner: string, ig: Contacts) {
   return (
     '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>' +
     '<body style="margin:0;padding:0;background:#f4f4f3;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f3;padding:32px 12px;"><tr><td align="center">' +
@@ -62,14 +71,14 @@ function shell(title: string, inner: string, ig: string) {
     '<tr><td style="padding:14px 32px 0;"><h1 style="margin:0 0 10px;font-size:20px;font-weight:700;color:#0c0c0c;">' + esc(title) + "</h1></td></tr>" +
     inner +
     '<tr><td style="background:#fafafa;padding:18px 32px;font-size:12px;line-height:1.7;color:#8a8a8a;text-align:center;border-top:1px solid #efefed;">' +
-    'มีคำถาม? ทักมาได้ที่ IG <a href="https://www.instagram.com/' + esc(ig) + '" style="color:#0c0c0c;font-weight:600;text-decoration:none;">@' + esc(ig) +
-    "</a><br>© " + new Date().getFullYear() + " INeedBio · อีเมลนี้ส่งอัตโนมัติ กรุณาอย่าตอบกลับ</td></tr>" +
+    "มีคำถามหรือแจ้งสลิป ทัก " + fbLink(ig) + "<br>สำรอง: " + igLink(ig) + " · " + lineLink(ig) +
+    "<br>© " + new Date().getFullYear() + " INeedBio · อีเมลนี้ส่งอัตโนมัติ กรุณาอย่าตอบกลับ</td></tr>" +
     "</table></td></tr></table></body></html>"
   );
 }
 
-export async function sendOtpEmail(email: string, otp: string, name: string, purpose: "register" | "reset", ig: string) {
-  if ((await remainingQuota()) < 1) throw err("MAIL_QUOTA", "วันนี้ระบบส่งอีเมลครบโควตาแล้ว ลองใหม่พรุ่งนี้ หรือทัก IG แอดมิน");
+export async function sendOtpEmail(email: string, otp: string, name: string, purpose: "register" | "reset", ig: Contacts) {
+  if ((await remainingQuota()) < 1) throw err("MAIL_QUOTA", "วันนี้ระบบส่งอีเมลครบโควตาแล้ว ลองใหม่พรุ่งนี้ หรือทัก Facebook INeedBio");
   const reg = purpose === "register";
   const cells = otp
     .split("")
@@ -92,7 +101,7 @@ export async function sendOtpEmail(email: string, otp: string, name: string, pur
     await send(email, subject, shell(reg ? "ยืนยันอีเมลของคุณ" : "ตั้งรหัสผ่านใหม่", inner, ig));
   } catch (e) {
     console.error("[mail] OTP send failed", e);
-    throw err("MAIL", "ส่งอีเมลไม่สำเร็จ ลองใหม่อีกครั้ง หรือทัก IG แอดมิน");
+    throw err("MAIL", "ส่งอีเมลไม่สำเร็จ ลองใหม่อีกครั้ง หรือทัก Facebook INeedBio");
   }
 }
 
@@ -101,7 +110,7 @@ export async function sendDecisionEmail(
   courseTitle: string,
   approved: boolean,
   note: string,
-  ig: string
+  ig: Contacts
 ) {
   if ((await remainingQuota()) < 1) return;
   const inner =
@@ -110,7 +119,7 @@ export async function sendDecisionEmail(
       ? 'แอดมินตรวจสลิปแล้ว ตอนนี้เข้าเรียนคอร์ส <b style="color:#0c0c0c;">' + esc(courseTitle) + "</b> ได้เลย เข้าสู่ระบบแล้วไปที่ “คอร์สของฉัน”"
       : 'คำขอเข้าเรียนคอร์ส <b style="color:#0c0c0c;">' + esc(courseTitle) + "</b> ยังไม่ผ่านการตรวจสลิป") + "</p>" +
     (!approved && note ? '<p style="margin:0 0 14px;padding:12px 14px;background:#fafafa;border-radius:10px;font-size:14px;color:#0c0c0c;">เหตุผล: ' + esc(note) + "</p>" : "") +
-    (!approved ? '<p style="margin:0;font-size:14px;color:#525252;">แก้ไขแล้วส่งสลิปใหม่ได้ที่หน้าคอร์ส หรือทัก IG แอดมินเพื่อสอบถาม</p>' : "") + "</td></tr>";
+    (!approved ? '<p style="margin:0;font-size:14px;color:#525252;">แก้ไขแล้วส่งสลิปใหม่ได้ที่หน้าคอร์ส หรือทัก ' + fbLink(ig) + " เพื่อสอบถาม (สำรอง: " + igLink(ig) + " · " + lineLink(ig) + ")</p>" : "") + "</td></tr>";
   try {
     await send(u.email, approved ? "เข้าเรียนได้แล้ว: " + courseTitle : "คำขอเข้าเรียนยังไม่ผ่าน: " + courseTitle, shell(approved ? "เข้าเรียนได้แล้ว" : "คำขอยังไม่ผ่าน", inner, ig));
   } catch (e) {
@@ -157,7 +166,7 @@ export async function sendOrderEmail(
   res: { order_id: string; discount: number; coupon: string },
   bills: MailBill[],
   site: string,
-  ig: string
+  ig: Contacts
 ) {
   if (!bills.length || (await remainingQuota()) < 1) return;
   const link = site + "/#/orders/" + encodeURIComponent(res.order_id);
@@ -193,8 +202,7 @@ export async function sendOrderEmail(
     (res.discount ? '<tr><td style="padding:0 32px 12px;font-size:13px;color:#1f7a4d;">ประหยัดไป ' + bahtTxt(res.discount) + (res.coupon ? " (รวมโค้ด " + esc(res.coupon) + ")" : "") + "</td></tr>" : "") +
     (open.length
       ? '<tr><td style="padding:4px 32px 8px;"><p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#0c0c0c;">ขั้นตอนต่อไป</p>' +
-        '<ol style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;color:#525252;"><li>โอนเงินตามยอดของแต่ละบิล</li><li>แนบสลิปและกรอกข้อมูลการโอนในหน้าคำสั่งซื้อ</li><li>แจ้งการชำระเงินทาง IG @' + esc(ig) +
-        " อีกครั้ง</li><li>แอดมินตรวจยอดแล้วเปิดสิทธิ์ ระบบส่งอีเมลแจ้ง</li></ol></td></tr>"
+        '<ol style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;color:#525252;"><li>โอนเงินตามยอดของแต่ละบิล</li><li>แนบสลิปและกรอกข้อมูลการโอนในหน้าคำสั่งซื้อ</li><li>' + slipVia(ig) + "</li><li>แอดมินตรวจยอดแล้วเปิดสิทธิ์ ระบบส่งอีเมลแจ้ง</li></ol></td></tr>"
       : "") +
     '<tr><td style="padding:10px 32px 26px;">' + mailBtn(open.length ? link : site + "/#/my", open.length ? "ไปหน้าชำระเงิน" : "เข้าห้องเรียน") +
     (open.length ? '<p style="margin:14px 0 0;font-size:12.5px;line-height:1.7;color:#8a8a8a;">ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว · INeedBio ไม่รับผิดชอบการโอนเข้าบัญชีอื่นที่ไม่ได้แสดงในบิล</p>' : "") + "</td></tr>";
@@ -211,7 +219,7 @@ export async function sendOrderEmail(
 }
 
 /** Bill decision: approved = receipt + button to the classroom · rejected = reason + button to send new proof. */
-export async function sendBillEmail(u: MailUser, b: MailBill, approved: boolean, note: string, site: string, ig: string) {
+export async function sendBillEmail(u: MailUser, b: MailBill, approved: boolean, note: string, site: string, ig: Contacts) {
   if ((await remainingQuota()) < 1) return;
   const items = b.items, acc = b.account || {};
   const meta: [string, string][] = [
@@ -232,7 +240,7 @@ export async function sendBillEmail(u: MailUser, b: MailBill, approved: boolean,
       '<p style="margin:14px 0 0;font-size:12.5px;line-height:1.7;color:#8a8a8a;">บัญชีหนึ่งใช้ได้ครั้งละ 1 เครื่อง ดูได้ตลอด ไม่มีวันหมดอายุ · เก็บอีเมลนี้ไว้เป็นหลักฐานการชำระเงิน</p></td></tr>'
     : '<tr><td style="padding:0 32px 16px;"><p style="margin:0 0 12px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + name + '<br>หลักฐานการโอนของบิล <b style="color:#0c0c0c;">' + esc(b.id) + "</b> ยังไม่ผ่านการตรวจ</p>" +
       (note ? '<p style="margin:0 0 14px;padding:12px 14px;background:#fbe8e6;border-radius:10px;font-size:14px;color:#a3261e;">เหตุผล: ' + esc(note) + "</p>" : "") + mailRows(items) + "</td></tr>" +
-      '<tr><td style="padding:0 32px 26px;">' + mailBtn(site + "/#/orders/" + encodeURIComponent(b.orderId), "แก้ไขและส่งหลักฐานใหม่") + '<p style="margin:14px 0 0;font-size:13px;color:#525252;">สงสัยตรงไหน ทัก IG แอดมินได้เลย</p></td></tr>';
+      '<tr><td style="padding:0 32px 26px;">' + mailBtn(site + "/#/orders/" + encodeURIComponent(b.orderId), "แก้ไขและส่งหลักฐานใหม่") + '<p style="margin:14px 0 0;font-size:13px;color:#525252;">สงสัยตรงไหน ทัก ' + fbLink(ig) + " ได้เลย (สำรอง: " + igLink(ig) + " · " + lineLink(ig) + ")</p></td></tr>";
   try {
     await send(u.email, approved ? "ชำระเงินสำเร็จ · เข้าเรียนได้แล้ว (" + b.id + ")" : "หลักฐานการโอนยังไม่ผ่าน · บิล " + b.id, shell(approved ? "ชำระเงินสำเร็จ" : "หลักฐานการโอนยังไม่ผ่าน", inner, ig));
   } catch (e) {
@@ -240,7 +248,7 @@ export async function sendBillEmail(u: MailUser, b: MailBill, approved: boolean,
   }
 }
 
-export async function notifyAdmins(to: string[], subject: string, rows: [string, string][], footer: string, ig: string) {
+export async function notifyAdmins(to: string[], subject: string, rows: [string, string][], footer: string, ig: Contacts) {
   if (!to.length || (await remainingQuota()) < to.length) return;
   const inner =
     '<tr><td style="padding:0 32px 8px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">' +
@@ -260,7 +268,7 @@ export async function notifyAdmins(to: string[], subject: string, rows: [string,
 }
 
 /** A short notice with a button (e.g. new lessons from a playlist) to a list of addresses. */
-export async function sendNotice(to: string[], subject: string, title: string, bodyHtml: string, href: string, label: string, ig: string) {
+export async function sendNotice(to: string[], subject: string, title: string, bodyHtml: string, href: string, label: string, ig: Contacts) {
   if (!to.length || (await remainingQuota()) < to.length) return;
   const inner = '<tr><td style="padding:0 32px 26px;font-size:15px;line-height:1.7;color:#525252;">' + bodyHtml + mailBtn(href, label) + "</td></tr>";
   try {
@@ -273,7 +281,7 @@ export async function sendNotice(to: string[], subject: string, title: string, b
 /** Code.gs sendPayoutEmail_: a teacher's share has been transferred — period, subject, amounts, account, time, slip attached. */
 export async function sendPayoutEmail(
   to: string, name: string, x: { label: string; subject: string; share: number; held: number; amount: number; account: string; paidAt: Date; note: string },
-  slip: { mime: string; data: Buffer; name: string }, ig: string
+  slip: { mime: string; data: Buffer; name: string }, ig: Contacts
 ) {
   if (!to || (await remainingQuota()) < 1) return;
   const baht = (n: number) => "฿" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -294,7 +302,7 @@ export async function sendPayoutEmail(
  *  account, the admin's note; the slip attached when there is one. */
 export async function sendAdvanceEmail(
   to: string, name: string, x: { subject: string; label: string; amount: number; account: string; note: string },
-  slip: { mime: string; data: Buffer; name: string } | null, ig: string
+  slip: { mime: string; data: Buffer; name: string } | null, ig: Contacts
 ) {
   if (!to || (await remainingQuota()) < 1) return;
   const a = "฿" + Number(x.amount).toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -312,7 +320,7 @@ export async function sendAdvanceEmail(
 
 /** Code.gs teacherInviteMail_: the invite to fill in the teacher profile — subjects taught, what is still missing,
  *  a button to /#/admin/tprofile and the email to sign in with. */
-export function teacherInviteHtml(x: { name: string; subjects: string; todo: string[]; link: string; email: string }, ig: string) {
+export function teacherInviteHtml(x: { name: string; subjects: string; todo: string[]; link: string; email: string }, ig: Contacts) {
   const P = (t: string) => '<p style="margin:0 0 14px;font-size:15px;line-height:1.7;color:#525252;">' + t + "</p>";
   const inner =
     '<tr><td style="padding:0 32px 26px;">' +

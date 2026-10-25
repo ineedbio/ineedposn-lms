@@ -8,7 +8,7 @@ import type { Course, Expense, FinAdvance, Lesson, Payment, Prisma, Subject, Use
 import { prisma } from "../prisma";
 import { subjectKey } from "./subjects";
 import {
-  activate, adminEmails, auth, courseBySlug, getSetting, ig, isAdminUser, isStaffUser, isTeacherUser, log, rate, rolesOf, setSetting, siteUrlOf, subjectsOf, teachSubjects, canSubject,
+  activate, adminEmails, auth, courseBySlug, getSetting, mailContacts, isAdminUser, isStaffUser, isTeacherUser, log, rate, rolesOf, setSetting, siteUrlOf, subjectsOf, teachSubjects, canSubject,
   type Ctx, type Data,
 } from "./api";
 import { sendAdvanceEmail, sendNotice, sendPayoutEmail } from "./mail";
@@ -836,7 +836,7 @@ export async function finAdvanceRequest(d: Data, c: Ctx, me: User) {
     const who = (await team.profileOf(me.id))?.display_name || me.nickname || me.firstName || "";
     const txt = who + " ขอเบิกล่วงหน้า ฿" + amt.toLocaleString("en-US") + " วิชา" + (APP.SUBJECTS[sj] || sj) + (note ? " · " + note : "");
     const site = await siteUrlOf();
-    await sendNotice(to, "คำขอเบิกล่วงหน้า " + who + " ฿" + amt.toLocaleString("en-US"), "คำขอเบิกล่วงหน้า", esc(txt) + "<br><br>", site + "/#/admin/payouts", "เปิดหน้าส่วนแบ่งผู้สอน", await ig());
+    await sendNotice(to, "คำขอเบิกล่วงหน้า " + who + " ฿" + amt.toLocaleString("en-US"), "คำขอเบิกล่วงหน้า", esc(txt) + "<br><br>", site + "/#/admin/payouts", "เปิดหน้าส่วนแบ่งผู้สอน", await mailContacts());
   } catch (e) { console.error("[ib] advance request email", e); }
   return finSummary({ period: pr }, c, me);
 }
@@ -891,7 +891,7 @@ export async function finAdvancePay(d: Data, c: Ctx, me: User) {
     const u = await prisma.user.findUnique({ where: { id: uid } });
     if (u) await sendAdvanceEmail(u.email, t?.display_name || u.nickname || "", {
       subject: APP.SUBJECTS[sj] || sj, label: periodLabel(pr), amount: amt, account, note: clip(d.reply || d.note, 200),
-    }, slip && data ? { mime: slip.mime, data, name: "advance_" + id + (slip.mime === "application/pdf" ? ".pdf" : ".jpg") } : null, await ig());
+    }, slip && data ? { mime: slip.mime, data, name: "advance_" + id + (slip.mime === "application/pdf" ? ".pdf" : ".jpg") } : null, await mailContacts());
   } catch (e) { console.error("[ib] advance email", e); }
   return finSummary({ period: pr }, c, me);
 }
@@ -1003,7 +1003,7 @@ export async function finPayoutPay(d: Data, _c: Ctx, me: User) {
     const u = await prisma.user.findUnique({ where: { id: x.userId } });
     if (u) await sendPayoutEmail(u.email, t?.display_name || u.nickname || u.firstName, {
       label: periodLabel(x.period), subject: APP.SUBJECTS[x.subject] || x.subject || x.subjects, share: x.share, held: x.held, amount: x.amount, account, paidAt, note,
-    }, { mime: slip.mime, data, name: "payout_" + x.id + (slip.mime === "application/pdf" ? ".pdf" : ".jpg") }, await ig());
+    }, { mime: slip.mime, data, name: "payout_" + x.id + (slip.mime === "application/pdf" ? ".pdf" : ".jpg") }, await mailContacts());
   } catch (e) { console.error("[ib] payout email", e); }
   return true;
 }
@@ -1192,7 +1192,7 @@ export async function legacyMatchUser(u: User | null, manual: boolean): Promise<
   if (!manual) return { matched: false };
   const near = (await prisma.legacyStudent.findMany({ where: { status: "open" } })).filter((r) => editDist(r.norm, key) <= 2);
   if (near.length) return queue(near.slice(0, 5).map((r) => r.id), "ชื่อใกล้เคียง (สะกดต่างกันเล็กน้อย)");
-  return { matched: false, message: "ไม่พบชื่อ-นามสกุลนี้ในรายชื่อนักเรียนรุ่นเก่า ตรวจว่าสะกดตรงกับตอนสมัครครั้งแรก หรือทักแอดมินทาง IG" };
+  return { matched: false, message: "ไม่พบชื่อ-นามสกุลนี้ในรายชื่อนักเรียนรุ่นเก่า ตรวจว่าสะกดตรงกับตอนสมัครครั้งแรก หรือทัก Facebook INeedBio" };
 }
 export async function legacyClaim(_d: Data, { p }: Ctx) {
   const u = await auth(p);
@@ -1532,7 +1532,7 @@ async function notifySync(c: CourseS, titles: string[], added: number) {
   const body =
     '<p style="margin:0 0 12px">มีตอนใหม่จากเพลย์ลิสต์ขึ้นในคอร์ส <b>' + esc(c.title) + "</b> แล้ว " + added + " ตอน</p>" +
     '<ul style="margin:0 0 16px;padding-left:18px">' + titles.slice(0, 20).map((t) => "<li>" + esc(t) + "</li>").join("") + "</ul>";
-  await sendNotice(to, "ตอนใหม่ขึ้นเว็บแล้ว · " + c.title + " (+" + added + ")", "ตอนใหม่จากเพลย์ลิสต์", body, site + "/#/admin/course/" + encodeURIComponent(c.slug), "ดูในหลังบ้าน", await ig());
+  await sendNotice(to, "ตอนใหม่ขึ้นเว็บแล้ว · " + c.title + " (+" + added + ")", "ตอนใหม่จากเพลย์ลิสต์", body, site + "/#/admin/course/" + encodeURIComponent(c.slug), "ดูในหลังบ้าน", await mailContacts());
 }
 
 // ───────────────────────── Lesson files (only for students with access) ─────────────────────────
