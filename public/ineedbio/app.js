@@ -176,7 +176,7 @@ function contactFields(v) {
   for (var y = y0 - 8; y >= y0 - 60; y--) years.push([y - 543, y]);
   return '<div class="f">วันเดือนปีเกิด<div class="bd">' + sel('bd_d', 'วัน', days, bd[2]) + sel('bd_m', 'เดือน', months, bd[1]) + sel('bd_y', 'ปี พ.ศ.', years, bd[0]) + '</div></div>' +
     '<div class="gbox"><b>ช่องทางติดต่อ</b><span class="hint">กรอกอย่างน้อย 1 ช่องทาง แอดมินใช้แจ้งเรื่องคอร์สและการชำระเงิน</span>' +
-    '<div class="row2">' + field('line_id', 'LINE ID', v.line_id, { ph: 'เช่น ineedbio', auto: 'off' }) + field('instagram', 'Instagram', v.instagram, { ph: 'เช่น @ineedbiochem', auto: 'off' }) + '</div>' +
+    '<div class="row2">' + field('line_id', 'LINE ID', v.line_id, { ph: 'เช่น ineedbio', auto: 'off' }) + field('instagram', 'Instagram', v.instagram, { ph: 'เช่น @username', auto: 'off' }) + '</div>' +
     field('facebook', 'Facebook (ชื่อหรือลิงก์)', v.facebook, { ph: 'เช่น INeedBio หรือ facebook.com/...', auto: 'off' }) + '</div>';
 }
 var HEARD_DEF = [['fb_page', 'เพจ Facebook'], ['fb_group', 'กลุ่ม Facebook'], ['ig', 'Instagram'], ['tiktok', 'TikTok'], ['youtube', 'YouTube'], ['friend', 'เพื่อนแนะนำ'], ['teacher', 'ครู / โรงเรียน'], ['google', 'ค้นใน Google'], ['other', 'อื่นๆ']];
@@ -235,7 +235,7 @@ function consentBox(checked) {
     '<li><b>วันเดือนปีเกิด</b> ใช้ยืนยันตัวตนและดูว่าเนื้อหาเหมาะกับช่วงชั้นไหม</li>' +
     '<li><b>LINE / Instagram / Facebook</b> ใช้ติดต่อเรื่องคอร์สและการชำระเงิน</li>' +
     '<li><b>คณะและมหาวิทยาลัยในฝัน</b> ใช้ดูภาพรวมเพื่อพัฒนาคอร์สให้ตรงกับน้อง</li></ul>' +
-    '<span class="hint" style="line-height:1.7">ข้อมูลเหล่านี้เห็นเฉพาะแอดมิน ไม่ขาย ไม่เผยแพร่ และไม่ส่งต่อให้ใคร ขอดู แก้ไข หรือลบได้ทุกเมื่อทาง IG</span>' +
+    '<span class="hint" style="line-height:1.7">ข้อมูลเหล่านี้เห็นเฉพาะแอดมิน ไม่ขาย ไม่เผยแพร่ และไม่ส่งต่อให้ใคร ขอดู แก้ไข หรือลบได้ทุกเมื่อทาง Facebook INeedBio</span>' +
     '<label class="consent"><input type="checkbox" name="accept_data"' + (checked ? ' checked' : '') + '><span>ฉันยินยอมให้ INeedBio เก็บและใช้ข้อมูลข้างต้นตามวัตถุประสงค์ที่แจ้งไว้ และถ้าอายุต่ำกว่า 20 ปี ผู้ปกครองรับทราบแล้ว</span></label></div>';
 }
 function withBirthday(d) {
@@ -261,7 +261,7 @@ var DEFAULT_TERMS = [
   '- ราคาคอร์สเป็นไปตามที่แสดงบนเว็บไซต์ ณ เวลาที่ชำระเงิน',
   '- ผู้ใช้ใส่คอร์สลงตะกร้าแล้วยืนยันคำสั่งซื้อ หากคอร์สในตะกร้ารับเงินคนละบัญชี ระบบจะแยกเป็นหลายบิล ผู้ใช้ต้องโอนแยกตามบิล',
   '- ต้องโอนเข้าบัญชีที่แสดงในหน้าชำระเงินของแต่ละบิลเท่านั้น เราไม่รับผิดชอบทุกกรณีหากโอนเข้าบัญชีอื่น แม้จะมีผู้อ้างว่าเป็นทีมงาน',
-  '- หลังโอน ผู้ใช้ต้องแนบสลิปและกรอกข้อมูลการโอนบนเว็บไซต์ แล้วแจ้งการชำระเงินทาง IG อีกครั้ง สิทธิ์เข้าเรียนจะเปิดหลังแอดมินตรวจยอดเงินแล้ว โดยปกติภายใน 24 ชั่วโมง',
+  '- หลังโอน ผู้ใช้ต้องแนบสลิปและกรอกข้อมูลการโอนบนเว็บไซต์ แล้วแจ้งสลิปทาง Facebook INeedBio (หลัก) หรือ IG / LINE อีกครั้ง สิทธิ์เข้าเรียนจะเปิดหลังแอดมินตรวจยอดเงินแล้ว โดยปกติภายใน 24 ชั่วโมง',
   '- บิลที่ไม่ได้ส่งหลักฐานภายในเวลาที่กำหนดจะถูกยกเลิกอัตโนมัติ หากหลักฐานไม่ถูกต้องหรือยอดไม่ครบ แอดมินจะแจ้งเหตุผล และผู้ใช้ส่งหลักฐานใหม่ได้',
   '- โค้ดส่วนลดใช้ได้ 1 โค้ดต่อคำสั่งซื้อ ตามเงื่อนไขของแต่ละโค้ด และแลกเป็นเงินสดไม่ได้',
   '## 3. การคืนเงิน',
@@ -312,7 +312,7 @@ var DEFAULT_PRIVACY = [
   '- ขอลบบัญชีและข้อมูล หรือขอให้หยุดใช้ข้อมูลบางส่วน',
   '- ถอนความยินยอมในการเผยแพร่รูปหรือรีวิว หรือขอลบรูปถ่ายและข้อมูลเพิ่มเติมได้ทุกเมื่อ (บางอย่าง เช่น การยืนยันตัวตนตอนชำระเงิน อาจต้องใช้วิธีอื่นแทน)',
   '- ร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล หากเห็นว่าเราไม่ปฏิบัติตามกฎหมาย',
-  '- ใช้สิทธิ์ได้โดยติดต่อแอดมินทาง IG เราจะตอบกลับภายใน 30 วัน',
+  '- ใช้สิทธิ์ได้โดยติดต่อแอดมินทาง Facebook INeedBio เราจะตอบกลับภายใน 30 วัน',
   '## 6. ผู้ใช้ที่อายุต่ำกว่า 20 ปี',
   '- ผู้เรียนส่วนใหญ่ของเราเป็นนักเรียนมัธยม ผู้เรียนที่อายุต่ำกว่า 20 ปีควรให้ผู้ปกครองรับทราบก่อนสมัครและก่อนให้ความยินยอมเก็บรูปถ่ายและข้อมูลเพิ่มเติม ผู้ปกครองสามารถติดต่อเราเพื่อสอบถาม ขอดู หรือขอลบข้อมูลของบุตรหลานได้',
   '## 7. คุกกี้และการเก็บข้อมูลในเบราว์เซอร์',
@@ -324,7 +324,7 @@ var DEFAULT_PRIVACY = [
 ].join('\n');
 function legalText(kind) {
   var t = (kind === 'terms' ? S.cfg.terms_text : S.cfg.privacy_text) || (kind === 'terms' ? DEFAULT_TERMS : DEFAULT_PRIVACY);
-  return t.replace(/\{ig\}/g, S.cfg.contact_ig || 'ineedbiochem').replace(/\{phone\}/g, '');
+  return t.replace(/\{ig\}/g, S.cfg.contact_ig || 'ineedbio.official').replace(/\{phone\}/g, '');
 }
 function mdLite(t) {
   var out = [], list = false;
@@ -386,12 +386,12 @@ function header(active) {
     '<form class="srch" id="srch" role="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="srch-q" name="q" placeholder="ค้นหาคอร์ส เช่น ชีวะ, A-Level" value="' + esc(S.q || '') + '" autocomplete="off"></form><div class="hr">' + themeSwitch() + cellChip() + cartBtn() + right + '</div></div></header>' + (u ? mnav : '');
 }
 function footer() {
-  var ig = S.cfg.contact_ig || 'ineedbiochem', cs = S.courses || [];
+  var ig = S.cfg.contact_ig || 'ineedbio.official', cs = S.courses || [];
   var subs = S.cfg.subjects || {};
   return '<footer class="bigfoot gut"><div class="w"><div><div class="brand"><img src="' + CATSRC + '" alt="">INeedBio</div>' +
     '<p>ติวออนไลน์สำหรับน้อง ม.ปลาย เตรียมสอบ สอวน. และ A-Level เรียนผ่านคลิป ดูซ้ำได้ตลอด มีชีทประกอบทุกบท</p></div>' +
     '<div><h4>คอร์สเรียน</h4><ul>' + Object.keys(subs).map(function (k) { return '<li><a href="#/" data-fsub="' + k + '">' + esc(subs[k]) + '</a></li>'; }).join('') + '</ul></div>' +
-    '<div><h4>ติดต่อ</h4><ul><li><a href="https://www.instagram.com/' + esc(ig) + '" target="_blank" rel="noopener">IG @' + esc(ig) + '</a></li>' + '</ul></div>' +
+    '<div><h4>ติดต่อ</h4><ul><li><a href="' + esc(cFb()) + '" target="_blank" rel="noopener">Facebook INeedBio</a></li><li><a href="https://www.instagram.com/' + esc(ig) + '" target="_blank" rel="noopener">IG @' + esc(ig) + '</a></li><li><a href="' + esc(cLine()) + '" target="_blank" rel="noopener">LINE</a></li></ul></div>' +
     '<div class="copy">© ' + new Date().getFullYear() + ' INeedBio · ineedbio.shop · <a href="#/terms">ข้อตกลงการใช้งาน</a> · <a href="#/privacy">นโยบายความเป็นส่วนตัว</a></div></div></footer>';
 }
 
@@ -413,7 +413,7 @@ function page(active, body, noFooter, skel) {
   if (fresh) { freshScroll(); setSubj(S.wantSubj, S.wantAcc); }
   var asTop = active === 'admin' && $('.aside') ? $('.aside').scrollTop : 0; glideSnap();
   var tmp = document.createElement('div'); tmp.innerHTML = (DEMO ? '<div class="demo-bar">เดโม: ข้อมูลทั้งหมดเป็นตัวอย่างและอยู่ในเบราว์เซอร์นี้เท่านั้น รีเฟรชแล้วจะเริ่มใหม่<button class="uisw" data-uisw="1">' + (UI2() ? 'ดูหน้าแรกแบบเดิม' : 'ดูหน้าแรกแบบใหม่') + '</button></div>' : '') + header(active) + '<main class="gut ' + anim + '"><div class="w">' + body + '</div></main>' + (noFooter ? '' : footer()) +
-    '<div class="fab"><a class="ig" href="https://www.instagram.com/' + esc(S.cfg.contact_ig || 'ineedbiochem') + '" target="_blank" rel="noopener" title="ทักแอดมินทาง IG" aria-label="ทักแอดมินทาง IG"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></svg></a><button data-top="1" title="กลับขึ้นบน" aria-label="กลับขึ้นบน"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>';
+    '<div class="fab"><a class="ig" style="background:#1877f2" href="' + esc(cFb()) + '" target="_blank" rel="noopener" title="ทักแอดมินทาง Facebook" aria-label="ทักแอดมินทาง Facebook"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 21v-7.5h2.6l.4-3h-3V8.6c0-.9.3-1.5 1.5-1.5h1.6V4.4c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.2H8v3h2.6V21z"/></svg></a><button data-top="1" title="กลับขึ้นบน" aria-label="กลับขึ้นบน"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>';
   var app = $('#app');
   if (!(UI2() && keepGlideBoxes(app, tmp))) { app.textContent = ''; while (tmp.firstChild) app.appendChild(tmp.firstChild); }
   fadeImgs();
@@ -526,11 +526,11 @@ function tileHtml(c, mine) {
 function viewHome() {
   var render = function () {
     var cs = S.courses, mine = S.mem.mine || {}, subs = S.cfg.subjects || {};
-    var ig = S.cfg.contact_ig || 'ineedbiochem';
+    var ig = S.cfg.contact_ig || 'ineedbio.official';
     var title = esc(S.cfg.hero_title || 'INeedBio').split('|');
     var html = '<section class="h2x"><div>' + (S.cfg.hero_eyebrow ? '<span class="kick">' + esc(S.cfg.hero_eyebrow) + '</span>' : '') +
       '<h1>' + title[0] + (title[1] ? '<br><em>' + title[1] + '</em>' : '') + '</h1>' + (S.cfg.hero_subtitle ? '<p class="lead">' + esc(S.cfg.hero_subtitle) + '</p>' : '') +
-      '<div class="cta"><button class="pill" data-jump2="courses">เลือกคอร์สเลย</button><a class="pill ghost" href="https://www.instagram.com/' + esc(ig) + '" target="_blank" rel="noopener">ปรึกษาแอดมินฟรี</a></div></div>' +
+      '<div class="cta"><button class="pill" data-jump2="courses">เลือกคอร์สเลย</button><a class="pill ghost" href="' + esc(cFb()) + '" target="_blank" rel="noopener">ปรึกษาแอดมินฟรี</a></div></div>' +
       (cs && cs.length ? '<a class="feat" id="feat" href="#/course/' + encodeURIComponent(cs[0].course_id) + '">' + cs.slice(0, 5).map(function (c, i) {
         return '<span class="slide' + sc(c.subject) + (i === 0 ? ' on' : '') + '" data-cid="' + esc(c.course_id) + '">' + cover(c) + '</span>';
       }).join('') + '<span class="info"><span><b id="feat-t">' + esc(cs[0].title) + '</b><span id="feat-p">' + featPrice(cs[0]) + '</span></span><span class="pill s">ดูคอร์ส</span></span>' +
@@ -578,7 +578,9 @@ function viewHome() {
       '<div><b class="n">PDF</b><h3>ชีทประกอบทุกบท</h3><p>เปิดชีทข้างคลิปได้เลย จดตามพี่ได้ทันที ไม่ต้องหาไฟล์เอง</p></div>' +
       '<div><b class="n">%</b><h3>รู้ว่าเรียนถึงไหน</h3><p>ติ๊กตอนที่ดูจบ ระบบนับให้ว่าเหลืออีกกี่ตอน วางแผนอ่านก่อนสอบได้ง่าย</p></div></div></section>' +
       '<section class="blk"><div class="sec-h"><div><small>Contact</small><h2>มีคำถาม ทักพี่ได้เลย</h2></div></div><div class="chan">' +
-      '<a class="ig" href="https://www.instagram.com/' + esc(ig) + '" target="_blank" rel="noopener"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg><span><b>Instagram</b><span>@' + esc(ig) + ' · ช่องทางหลัก สอบถาม/ส่งสลิป</span></span></a>' +
+      '<a class="ig" style="background:#1877f2" href="' + esc(cFb()) + '" target="_blank" rel="noopener"><svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 21v-7.5h2.6l.4-3h-3V8.6c0-.9.3-1.5 1.5-1.5h1.6V4.4c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.2H8v3h2.6V21z"/></svg><span><b>Facebook</b><span>INeedBio · ช่องทางหลัก สอบถาม/ส่งสลิป</span></span></a>' +
+      '<a class="ig" href="https://www.instagram.com/' + esc(ig) + '" target="_blank" rel="noopener"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg><span><b>Instagram</b><span>@' + esc(ig) + ' · ช่องทางสำรอง</span></span></a>' +
+      '<a class="ig" style="background:#06c755" href="' + esc(cLine()) + '" target="_blank" rel="noopener"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M21 10.8c0 4.3-4 7.8-9 7.8-.8 0-1.6-.1-2.4-.3L5.5 20.5l.9-3.4C4.3 15.7 3 13.4 3 10.8 3 6.5 7 3 12 3s9 3.5 9 7.8z"/></svg><span><b>LINE</b><span>INeedBio · ช่องทางสำรอง</span></span></a>' +
       '</div></section>';
     page('home', html);
     startFeat();
@@ -606,7 +608,7 @@ function rowHtml(id, kicker, title, cards, more) {
 }
 function viewHome2() {
   var render = function () {
-    var cs = S.courses, mine = S.mem.mine || {}, subs = S.cfg.subjects || {}, ig = S.cfg.contact_ig || 'ineedbiochem';
+    var cs = S.courses, mine = S.mem.mine || {}, subs = S.cfg.subjects || {}, ig = S.cfg.contact_ig || 'ineedbio.official';
     var title = (S.cfg.hero_title || 'ติวเข้ม ม.ปลาย|กับ INeedBio').split('|');
     var html = '<div class="v2"><div class="v2-hi"><div><h1>' + (S.user ? 'สวัสดี ' + esc(S.user.nickname) : esc(title[0]) + (title[1] ? ' ' + esc(title[1]) : '')) + '</h1><p>' + (S.user && S.cells ? (S.cells.today_done ? 'วันนี้เรียนครบแล้ว เรียนติดกัน ' + S.cells.streak + ' วัน' : 'วันนี้ดูคลิปไปแล้ว ' + S.cells.today_min + ' จาก 15 นาที') : esc(S.cfg.hero_subtitle || 'คอร์สเดียว เรียนได้ตลอดชีพ')) + '</p></div></div>';
     if (!cs) { page('home', html + '<div class="bbd sk" style="min-height:420px"></div>' + skTiles(3) + '</div>'); return; }
@@ -643,7 +645,7 @@ function viewHome2() {
     html += '<div class="prm"><div>' + ic('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>') + '<b>ดูได้ตลอดชีพ</b><span>ซื้อครั้งเดียว ไม่มีการลบคลิป</span></div>' +
       '<div>' + ic('<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>') + '<b>ชีทประกอบทุกบท</b><span>เปิดข้างคลิป จดตามได้ทันที</span></div>' +
       (cellsPromoOn() ? '<div>' + ic('<circle cx="9" cy="10" r="5"/><circle cx="16" cy="15" r="4"/>') + '<b>เรียนทุกวัน เซลล์แบ่งตัว</b><span>สะสมครบ 100 แลกส่วนลด 100 บาท</span></div>' : '<div>' + ic('<rect x="3" y="4" width="13" height="10" rx="2"/><rect x="15" y="9" width="6" height="11" rx="1.5"/><path d="M7 18h5"/>') + '<b>เรียนได้ทุกจอ</b><span>มือถือ แท็บเล็ต คอม ดูต่อจากที่ค้างไว้</span></div>') + '</div>' +
-      '<div class="ask"><div><b>ยังไม่แน่ใจว่าจะเริ่มคอร์สไหน?</b><p>ทักพี่ทาง IG บอกระดับชั้นกับสนามสอบ เดี๋ยวพี่แนะนำให้</p></div><a class="pill" href="https://www.instagram.com/' + esc(ig) + '" target="_blank" rel="noopener">ทัก IG @' + esc(ig) + '</a></div></div>';
+      '<div class="ask"><div><b>ยังไม่แน่ใจว่าจะเริ่มคอร์สไหน?</b><p>ทักพี่ทาง Facebook บอกระดับชั้นกับสนามสอบ เดี๋ยวพี่แนะนำให้</p></div><a class="pill" href="' + esc(cFb()) + '" target="_blank" rel="noopener">ทัก Facebook INeedBio</a></div></div>';
     page('home', html);
     startBillboard();
     $$('[data-rw]').forEach(function (b) { b.onclick = function () { var t = $('#rw-' + b.dataset.rw + ' .rw-t'); t.scrollBy({ left: Number(b.dataset.d) * t.clientWidth * 0.85, behavior: 'smooth' }); }; });
@@ -870,14 +872,14 @@ function viewCourse(id) {
     S.cd = c;
     var total = c.chapters.reduce(function (a, ch) { return a + ch.lessons.length; }, 0);
     var previews = []; c.chapters.forEach(function (ch) { ch.lessons.forEach(function (l) { if (l.is_preview) previews.push(l); }); });
-    var ig = S.cfg.contact_ig || 'ineedbiochem';
+    var ig = S.cfg.contact_ig || 'ineedbio.official';
     var faq = (c.faq || []).concat([
       { q: 'ซื้อแล้วดูได้นานแค่ไหน', a: 'ดูได้ตลอด ไม่มีวันหมดอายุ เปิดดูซ้ำได้ทุกตอนไม่จำกัดจำนวนครั้ง' },
       { q: 'ดูได้กี่เครื่อง', a: 'บัญชีหนึ่งใช้ได้ครั้งละ 1 เครื่อง ถ้าเข้าสู่ระบบจากเครื่องใหม่ เครื่องเดิมจะออกจากระบบเอง สลับเครื่องได้ตลอด' },
-      { q: 'ซื้อคอร์สยังไง', a: 'กดซื้อเลยหรือใส่ตะกร้า ใส่โค้ดส่วนลด (ถ้ามี) แล้วยืนยันคำสั่งซื้อ โอนเงินเข้าบัญชีที่แสดงในบิล แนบสลิปพร้อมกรอกข้อมูลการโอน จากนั้นแจ้งทาง IG @' + ig + ' อีกครั้ง' },
+      { q: 'ซื้อคอร์สยังไง', a: 'กดซื้อเลยหรือใส่ตะกร้า ใส่โค้ดส่วนลด (ถ้ามี) แล้วยืนยันคำสั่งซื้อ โอนเงินเข้าบัญชีที่แสดงในบิล แนบสลิปพร้อมกรอกข้อมูลการโอน จากนั้นแจ้งสลิปทาง Facebook INeedBio (หลัก) หรือ IG @' + ig + ' / LINE' },
       { q: 'โอนเงินแล้วเข้าเรียนได้เมื่อไร', a: 'หลังแอดมินตรวจยอดเงิน ปกติภายใน 24 ชั่วโมง ระบบจะส่งอีเมลแจ้งเมื่ออนุมัติ แล้วเข้าเรียนได้ที่เมนู “คอร์สของฉัน”' },
       { q: 'ขอคืนเงินได้ไหม', a: 'ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว และต้องโอนเข้าบัญชีที่แสดงในหน้าชำระเงินเท่านั้น' },
-      { q: 'มีคำถามเพิ่มเติม ติดต่อใคร', a: 'ทัก IG @' + ig + ' ได้เลย' }
+      { q: 'มีคำถามเพิ่มเติม ติดต่อใคร', a: 'ทัก Facebook INeedBio ได้เลย (สำรอง: IG @' + ig + ' หรือ LINE)' }
     ]);
     var jumps = [['overview', 'ภาพรวม'], ['syllabus', 'เนื้อหา']];
     if (c.instructor) jumps.push(['instructor', 'ผู้สอน']);
@@ -1036,17 +1038,19 @@ var CART = (function () { try { var a = JSON.parse(store('ib_cart') || '[]'); re
 function saveCart() { store('ib_cart', CART.length ? JSON.stringify(CART) : null); $$('.cart-n').forEach(function (b) { b.textContent = CART.length; b.hidden = !CART.length; b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }); }
 function cartAdd(id, silent) { if (CART.indexOf(id) < 0) { CART.push(id); saveCart(); } if (!silent) toast('เพิ่มลงตะกร้าแล้ว'); }
 function cartRemove(id) { CART = CART.filter(function (x) { return x !== id; }); saveCart(); }
-var DEFAULT_PAY_TERMS = '- ชำระเงินโดยโอนเข้าบัญชี {account} ที่แสดงในหน้าชำระเงินของบิลนี้เท่านั้น\n- INeedBio ไม่รับผิดชอบทุกกรณี หากโอนเข้าบัญชีอื่นที่ไม่ได้แสดงในหน้านี้ แม้จะมีผู้อ้างว่าเป็นทีมงาน\n- ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว\n- โอนแล้วแนบสลิปและกรอกข้อมูลการโอนให้ครบ แล้วแจ้งการชำระเงินทาง IG @{ig} อีกครั้ง\n- สิทธิ์เข้าเรียนจะเปิดหลังแอดมินตรวจยอดเงินแล้ว';
+var DEFAULT_PAY_TERMS = '- ชำระเงินโดยโอนเข้าบัญชี {account} ที่แสดงในหน้าชำระเงินของบิลนี้เท่านั้น\n- INeedBio ไม่รับผิดชอบทุกกรณี หากโอนเข้าบัญชีอื่นที่ไม่ได้แสดงในหน้านี้ แม้จะมีผู้อ้างว่าเป็นทีมงาน\n- ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว\n- โอนแล้วแนบสลิปและกรอกข้อมูลการโอนให้ครบ แล้วแจ้งสลิปทาง Facebook INeedBio (หลัก) หรือ IG @{ig} / LINE\n- สิทธิ์เข้าเรียนจะเปิดหลังแอดมินตรวจยอดเงินแล้ว';
 function ppFmt(id) { var n = String(id || '').replace(/\D/g, ''); return n.length === 10 ? n.slice(0, 3) + '-' + n.slice(3, 6) + '-' + n.slice(6) : n; }
 function accLine(a) { return [a.method === 'bank' ? (a.bank ? 'ธนาคาร' + a.bank : '') + (a.account_no ? ' เลขที่ ' + a.account_no : '') : (a.promptpay_id ? 'พร้อมเพย์ ' + ppFmt(a.promptpay_id) : ''), !a.account_no && !a.promptpay_id && a.qr_url ? 'ตาม QR ในหน้าบิล' : '', a.account_name ? 'ชื่อบัญชี ' + a.account_name : ''].filter(Boolean).join(' ').trim(); }
-function billIg(a) { return (a && a.ig) || S.cfg.contact_ig || 'ineedbiochem'; }
+function cFb() { return S.cfg.contact_fb || 'https://www.facebook.com/profile.php?id=61575435968083'; }
+function cLine() { return S.cfg.contact_line || 'https://lin.ee/t3jbjtN'; }
+function billIg(a) { return (a && a.ig) || S.cfg.contact_ig || 'ineedbio.official'; }
 function instBlock(t) {
   var ls = String(t.bio || '').split(/\n+/).filter(function (x) { return x.trim(); });
   return '<div class="inst"><div class="ph">' + '<img src="' + (t.photo ? esc(imgSrc(t.photo)) : CATSRC) + '" alt=""' + (t.photo ? ' onerror="this.src=CATSRC;this.className=\'cat\'"' : ' class="cat"') + '></div><div class="stack" style="gap:4px;flex:1;min-width:220px"><h3 style="font-size:20px">' + esc(t.name) + '</h3>' + (t.title ? '<span class="sm acc">' + esc(t.title) + '</span>' : '') +
     (ls.length > 1 ? '<ul class="bl">' + ls.map(function (l) { return '<li>' + esc(l.replace(/^[-•*]\s*/, '')) + '</li>'; }).join('') + '</ul>' : ls.length ? '<p class="ink2 desc" style="margin-top:6px">' + esc(ls[0]) + '</p>' : '') + '</div></div>';
 }
 function payTerms(a) {
-  return (S.cfg.pay_terms_text || DEFAULT_PAY_TERMS).replace(/\{account\}/g, a ? accLine(a) : 'ที่แสดงในหน้าชำระเงินของแต่ละบิล').replace(/\{ig\}/g, a ? billIg(a) : (S.cfg.contact_ig || 'ineedbiochem'));
+  return (S.cfg.pay_terms_text || DEFAULT_PAY_TERMS).replace(/\{account\}/g, a ? accLine(a) : 'ที่แสดงในหน้าชำระเงินของแต่ละบิล').replace(/\{ig\}/g, a ? billIg(a) : (S.cfg.contact_ig || 'ineedbio.official'));
 }
 function payTermsModal(a) { openModal(mhead('ข้อตกลงการชำระเงิน') + '<div class="legal in-modal">' + mdLite(payTerms(a)) + '</div><button class="pill block" data-close="1">รับทราบ</button>'); }
 function billBadge(s) {
@@ -1059,7 +1063,7 @@ function cartBtn() { return '<a class="cartbtn" href="#/cart" aria-label="ตะ
 function buyActions(c) {
   if (CART.indexOf(c.course_id) >= 0) return '<div class="note plain">คอร์สนี้อยู่ในตะกร้าแล้ว</div><a class="pill block" href="#/cart">ไปที่ตะกร้า · ชำระเงิน</a>';
   return '<button class="pill block" data-buy-now="' + esc(c.course_id) + '">ซื้อเลย</button><button class="pill ghost block" data-cart-add="' + esc(c.course_id) + '">เพิ่มลงตะกร้า</button>' +
-    '<ol class="steps"><li>ใส่ตะกร้า ใส่โค้ดส่วนลด (ถ้ามี)</li><li>โอนเงินตามบิล แนบสลิปและกรอกข้อมูลการโอน</li><li>แจ้งการชำระเงินทาง IG อีกครั้ง</li><li>แอดมินตรวจยอดแล้วเปิดสิทธิ์ ระบบส่งอีเมลแจ้ง</li></ol>';
+    '<ol class="steps"><li>ใส่ตะกร้า ใส่โค้ดส่วนลด (ถ้ามี)</li><li>โอนเงินตามบิล แนบสลิปและกรอกข้อมูลการโอน</li><li>แจ้งสลิปทาง Facebook INeedBio (หรือ IG / LINE)</li><li>แอดมินตรวจยอดแล้วเปิดสิทธิ์ ระบบส่งอีเมลแจ้ง</li></ol>';
 }
 function refreshBuy(c) { var b = $('#buy-act'); if (b) b.innerHTML = buyActions(c); var m = $('#mbar-cta'); if (m) m.innerHTML = CART.indexOf(c.course_id) >= 0 ? '<a class="pill" href="#/cart">ไปที่ตะกร้า</a>' : '<button class="pill" data-buy-now="' + esc(c.course_id) + '">ซื้อเลย</button>'; }
 
@@ -1152,7 +1156,7 @@ function billCard(b, i, n) {
       '<button class="link sm" data-bill-cancel="' + esc(b.bill_id) + '" style="justify-self:start;color:var(--muted)">ยกเลิกบิลนี้</button>';
   } else if (b.status === 'reviewing') {
     body = '<div class="note wait">ส่งหลักฐานแล้วเมื่อ ' + thDate(b.submitted_at, true) + ' แอดมินกำลังตรวจยอด ระบบจะส่งอีเมลแจ้งเมื่ออนุมัติ</div>' +
-      '<div class="rowx"><button class="pill" data-igm="' + esc(b.bill_id) + '">แจ้งทาง IG @' + esc(billIg(a)) + '</button><span class="sm muted">ถ้ายังไม่ได้แจ้ง ส่งข้อความหาแอดมินพร้อมสลิปอีกครั้ง</span></div>';
+      '<div class="rowx"><button class="pill" data-igm="' + esc(b.bill_id) + '">แจ้งสลิปทาง Facebook</button><span class="sm muted">ถ้ายังไม่ได้แจ้ง ส่งข้อความหาแอดมินพร้อมสลิปอีกครั้ง</span></div>';
   } else if (b.status === 'approved') {
     body = '<div class="note ok">ตรวจยอดแล้ว เข้าเรียนได้เลย</div><div class="rowx">' + b.items.map(function (it) { return '<a class="pill ghost s" href="#/learn/' + encodeURIComponent(it.course_id) + '">เรียน ' + esc(it.title) + '</a>'; }).join('') + '</div>';
   } else {
@@ -1206,10 +1210,11 @@ function igMsg(b) {
 }
 function igModal(b) {
   var ig = billIg(b.account), msg = igMsg(b);
-  openModal(mhead('ขั้นสุดท้าย: แจ้งทาง IG', 'ส่งข้อความนี้หาแอดมิน IG @' + esc(ig) + ' พร้อมแนบรูปสลิปอีกครั้ง แอดมินจะตรวจยอดได้เร็วขึ้น') +
-    '<ol class="steps"><li>กด "คัดลอกข้อความ"</li><li>กด "เปิด IG" แล้ววางข้อความในแชท</li><li>แนบรูปสลิปแล้วส่ง</li></ol>' +
+  openModal(mhead('ขั้นสุดท้าย: แจ้งสลิป', 'ส่งข้อความนี้หาแอดมินทาง Facebook INeedBio พร้อมแนบรูปสลิปอีกครั้ง แอดมินจะตรวจยอดได้เร็วขึ้น') +
+    '<ol class="steps"><li>กด "คัดลอกข้อความ"</li><li>กด "เปิด Facebook" แล้ววางข้อความในแชท</li><li>แนบรูปสลิปแล้วส่ง</li></ol>' +
     '<textarea class="i igmsg" id="ig-msg" readonly>' + esc(msg) + '</textarea>' +
-    '<div class="row2"><button class="pill ghost" id="ig-copy">คัดลอกข้อความ</button><a class="pill" href="https://ig.me/m/' + encodeURIComponent(ig) + '" target="_blank" rel="noopener">เปิด IG @' + esc(ig) + '</a></div>' +
+    '<div class="row2"><button class="pill ghost" id="ig-copy">คัดลอกข้อความ</button><a class="pill" href="' + esc(cFb()) + '" target="_blank" rel="noopener">เปิด Facebook</a></div>' +
+    '<p class="sm muted" style="text-align:center;margin:0">ช่องทางสำรอง: <a href="https://ig.me/m/' + encodeURIComponent(ig) + '" target="_blank" rel="noopener">IG @' + esc(ig) + '</a> · <a href="' + esc(cLine()) + '" target="_blank" rel="noopener">LINE</a></p>' +
     '<button class="link sm" data-close="1" style="justify-self:center">แจ้งแล้ว ปิดหน้าต่างนี้</button>');
   $('#ig-copy').onclick = function () { copyText(msg, $('#ig-msg')); };
 }
@@ -1231,7 +1236,7 @@ function viewMy() {
     page('my', '<div class="page-h"><span class="mono">สวัสดี ' + esc(S.user.nickname) + '</span><div class="spread"><h1>คอร์สของฉัน</h1><a class="pill quiet s" href="#/orders">คำสั่งซื้อทั้งหมด</a></div></div>' +
       (!S.user.has_photo && S.user.role !== 'admin' ? '<a class="note wait" style="display:block;margin-bottom:12px;text-decoration:none" href="#/profile">ยังไม่มีรูปถ่ายของน้องในบัญชี เพิ่มรูปไว้ แอดมินจะยืนยันตัวตนและตรวจการชำระเงินได้เร็วขึ้น → เพิ่มรูป</a>' : '') +
       (needPay.length ? '<a class="note no" style="display:block;margin-bottom:12px;text-decoration:none" href="#/orders/' + encodeURIComponent(needPay[0].o) + '">มีบิลรอชำระ/ส่งหลักฐาน ' + needPay.length + ' บิล · ' + needPay.map(function (x) { return x.b.items.map(function (i) { return esc(i.title); }).join(', '); }).join(' · ') + ' → ชำระเงิน</a>' : '') +
-      (S.user.role === 'student' ? '<div class="note plain" style="margin-bottom:12px">เคยเรียนกับ INeedBio ก่อนมีเว็บนี้? คอร์สเดิมจะขึ้นให้อัตโนมัติ ถ้าภายใน 24 ชม. ยังไม่ขึ้น ทักแอดมินที่ <a href="https://www.instagram.com/' + esc(S.cfg.contact_ig || 'ineedbiochem') + '" target="_blank" rel="noopener">IG @' + esc(S.cfg.contact_ig || 'ineedbiochem') + '</a></div>' : '') +
+      (S.user.role === 'student' ? '<div class="note plain" style="margin-bottom:12px">เคยเรียนกับ INeedBio ก่อนมีเว็บนี้? คอร์สเดิมจะขึ้นให้อัตโนมัติ ถ้าภายใน 24 ชม. ยังไม่ขึ้น ทักแอดมินที่ <a href="' + esc(cFb()) + '" target="_blank" rel="noopener">Facebook INeedBio</a></div>' : '') +
       (waitB.length ? '<div class="note wait" style="margin-bottom:12px">รอแอดมินตรวจยอด ' + waitB.length + ' บิล: ' + waitB.map(function (x) { return x.b.items.map(function (i) { return esc(i.title); }).join(', '); }).join(' · ') + '</div>' : '') +
       (list.length ? '<div class="mine">' + list.map(function (c, i) {
         var st = c.enrollment;
@@ -1409,7 +1414,7 @@ function safePlayer(el, vid, wm, opt) {
           if (nat) { var em = $('.yt-modebar .yt-endmsg'); if (em) setTimeout(function () { em.innerHTML = s === 1 ? '' : msg.innerHTML; }, 50); } // โหมด YouTube: ข้อความดูจบ/ตอนถัดไปย้ายมาไว้ใต้วิดีโอ
           tick();
         },
-        onError: function (e) { fail(e.data === 101 || e.data === 150 ? 'คลิปนี้ไม่ได้เปิดให้ฝังในเว็บ แจ้งแอดมินให้เปิด "อนุญาตการฝัง" ใน YouTube Studio' : 'เล่นคลิปนี้ไม่ได้ ลองรีเฟรชหน้า หรือแจ้งแอดมินทาง IG'); }
+        onError: function (e) { fail(e.data === 101 || e.data === 150 ? 'คลิปนี้ไม่ได้เปิดให้ฝังในเว็บ แจ้งแอดมินให้เปิด "อนุญาตการฝัง" ใน YouTube Studio' : 'เล่นคลิปนี้ไม่ได้ ลองรีเฟรชหน้า หรือแจ้งแอดมินทาง Facebook INeedBio'); }
       }
     });
     S.ytPend = P;
@@ -2100,7 +2105,7 @@ function viewProfile() {
     '<form class="card form" id="pw"><h3>เปลี่ยนรหัสผ่าน</h3>' + field('old_password', 'รหัสผ่านเดิม', '', { type: 'password', auto: 'current-password' }) + field('password', 'รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)', '', { type: 'password', auto: 'new-password', idp: '2' }) +
     '<p class="err" id="pw-err" hidden></p><button class="pill ghost" style="justify-self:start">เปลี่ยนรหัสผ่าน</button></form>' +
     '<div class="card spread"><div><h3>ธีมของเว็บ</h3><p class="sm ink2">ค่าเริ่มต้นจะสว่างหรือมืดตามการตั้งค่าของเครื่อง</p></div>' + themeSwitch() + '</div>' +
-    '<p class="sm muted">อ่าน <a href="#/terms">ข้อตกลงการใช้งาน</a> และ <a href="#/privacy">นโยบายความเป็นส่วนตัว</a> · ต้องการลบบัญชี ทักแอดมินทาง IG</p>' +
+    '<p class="sm muted">อ่าน <a href="#/terms">ข้อตกลงการใช้งาน</a> และ <a href="#/privacy">นโยบายความเป็นส่วนตัว</a> · ต้องการลบบัญชี ทักแอดมินทาง Facebook INeedBio</p>' +
     '<div class="card spread"><div><h3>ออกจากระบบ</h3><p class="sm ink2">ถ้าจะใช้เครื่องอื่น เข้าสู่ระบบที่เครื่องใหม่ได้เลย เครื่องนี้จะออกจากระบบเอง</p></div><button class="pill danger" data-act="logout">ออกจากระบบ</button></div></div>');
   bindGrade($('#pf')); S.photo = null; bindPhoto($('#pf'));
   if (u.has_photo) api('my.photo').then(function (ph) { var b = $('#ph-pick'); if (ph && b && !S.photo) b.innerHTML = '<img src="data:' + esc(ph.mime) + ';base64,' + ph.base64 + '" alt="">'; }).catch(function () {});
@@ -2740,7 +2745,8 @@ function aSettings(shell) {
       field('pay_terms_text', 'ข้อตกลงการชำระเงิน (แสดงตอนยืนยันคำสั่งซื้อและในทุกบิล)', s.pay_terms_text || DEFAULT_PAY_TERMS, { area: true, hint: 'บรรทัดละ 1 ข้อ ขึ้นต้นด้วย - · {account} = ชื่อและเลขบัญชีของบิลนั้น · {ig} = IG ที่ให้แจ้งโอน' }) +
       '<div class="f">ข้อมูลที่นักเรียนต้องกรอกตอนแจ้งโอน (รูปสลิปบังคับเสมอ)<div class="row2">' + [['paid_at', 'วันเวลาที่โอน'], ['amount', 'ยอดที่โอน'], ['from_bank', 'ธนาคารที่โอนออก'], ['payer_name', 'ชื่อเจ้าของบัญชีที่โอน']].map(function (x) { return field('proof_' + x[0], x[1], s['proof_' + x[0]] || 'required', { options: [['required', 'บังคับกรอก'], ['optional', 'ไม่บังคับ'], ['hidden', 'ไม่ต้องถาม']] }); }).join('') + '</div></div>' +
       field('proof_extra', 'ช่องที่อยากถามเพิ่ม (บรรทัดละ 1 ช่อง ใส่ |required ต่อท้ายถ้าบังคับ)', s.proof_extra, { area: true, ph: 'LINE ID|required\nหมายเหตุถึงแอดมิน' }) +
-      '<div class="row2">' + field('contact_ig', 'IG ติดต่อ (ไม่ต้องใส่ @)', s.contact_ig) + field('site_url', 'ที่อยู่เว็บ (ใช้ในปุ่มลิงก์ในอีเมล)', s.site_url || 'https://ineedbio.shop') + '</div>' +
+      '<div class="row2">' + field('contact_fb', 'Facebook ติดต่อ (ช่องทางหลัก · ลิงก์เต็ม)', s.contact_fb, { ph: 'https://www.facebook.com/profile.php?id=61575435968083' }) + field('contact_line', 'LINE ติดต่อ (ลิงก์เต็ม)', s.contact_line, { ph: 'https://lin.ee/t3jbjtN' }) + '</div>' +
+      '<div class="row2">' + field('contact_ig', 'IG ติดต่อ สำรอง (ไม่ต้องใส่ @)', s.contact_ig) + field('site_url', 'ที่อยู่เว็บ (ใช้ในปุ่มลิงก์ในอีเมล)', s.site_url || 'https://ineedbio.shop') + '</div>' +
       '<h3 style="font-size:16px;margin-top:6px">ข้อตกลงและนโยบาย</h3><p class="hint">เว้นว่างไว้ = ใช้ข้อความมาตรฐานของระบบ ถ้าจะแก้ ให้กดปุ่มด้านล่างเพื่อใส่ข้อความมาตรฐานลงช่องแล้วแก้ต่อ ใช้ # หัวข้อใหญ่, ## หัวข้อย่อย, - รายการ และ {ig} แทน IG ติดต่อ</p>' +
       '<button type="button" class="pill quiet s" id="copy-legal" style="justify-self:start">ใส่ข้อความมาตรฐานลงในช่องเพื่อแก้ไข</button>' +
       field('terms_text', 'ข้อตกลงการใช้งาน', s.terms_text, { area: true }) + field('privacy_text', 'นโยบายความเป็นส่วนตัว', s.privacy_text, { area: true }) +
@@ -2861,7 +2867,7 @@ function aOrders(shell) {
       (adm ? '<select class="i" id="bacc" style="width:auto;min-width:180px"><option value="">ทุกบัญชีรับเงิน</option><option value="DEFAULT"' + (acc === 'DEFAULT' ? ' selected' : '') + '>บัญชีหลัก</option>' + accs.map(function (a) { return '<option value="' + esc(a.account_id) + '"' + (acc === a.account_id ? ' selected' : '') + '>' + esc(a.label) + '</option>'; }).join('') + '</select>' : '') +
       '<form id="bqf" class="rowx"><input class="i" id="bq" style="width:220px" placeholder="' + (adm ? 'ค้นหาเลขบิล ชื่อ อีเมล เบอร์' : 'ค้นหาเลขบิล หรือชื่อ') + '" value="' + esc(q) + '"></form></div>' +
       (all.length ? '<div class="ofold" role="group" aria-label="แฟ้มวิชา"><button data-bsub="" aria-pressed="' + !fsub + '">ทุกวิชา <span class="n">' + all.length + '</span></button>' + fk.map(function (k) { return '<button class="' + (k === 'mix' ? '' : 's-' + k) + '" data-bsub="' + k + '" aria-pressed="' + (fsub === k) + '">' + esc(fname(k)) + ' <span class="n">' + all.filter(function (b) { return b._subj === k; }).length + '</span></button>'; }).join('') + '</div>' : '') +
-      (st === 'reviewing' ? '<p class="ink2 sm">เปิดดูสลิป เทียบยอดกับแอปธนาคารของบัญชีนั้น แล้วกดอนุมัติ นักเรียนได้อีเมลแจ้งและเข้าเรียนได้ทันที</p>' : st === 'awaiting_payment' ? '<p class="ink2 sm">บิลที่สร้างแล้วแต่ยังไม่ส่งหลักฐาน ถ้าน้องโอนแล้วแจ้งทาง IG อย่างเดียว เปิดบิลแล้วกดอนุมัติได้เลย</p>' : '') +
+      (st === 'reviewing' ? '<p class="ink2 sm">เปิดดูสลิป เทียบยอดกับแอปธนาคารของบัญชีนั้น แล้วกดอนุมัติ นักเรียนได้อีเมลแจ้งและเข้าเรียนได้ทันที</p>' : st === 'awaiting_payment' ? '<p class="ink2 sm">บิลที่สร้างแล้วแต่ยังไม่ส่งหลักฐาน ถ้าน้องโอนแล้วแจ้งทางแชท (Facebook / IG / LINE) อย่างเดียว เปิดบิลแล้วกดอนุมัติได้เลย</p>' : '') +
       (list.length ? '<div class="tbl"><table style="min-width:760px"><thead><tr><th>บิล</th><th>นักเรียน</th><th>คอร์ส</th><th class="num">ยอด</th><th>บัญชีรับ</th><th>ตรวจเบื้องต้น</th><th></th></tr></thead><tbody>' + list.map(function (b, ix, arr) {
         var bad = (b.checks || []).filter(function (c) { return !c.ok || c.warn; }).length;
         var gh = !fsub && fk.length > 1 && (ix === 0 || arr[ix - 1]._subj !== b._subj) ? '<tr class="grp-row' + (b._subj === 'mix' ? '' : ' s-' + b._subj) + '"><td colspan="7">' + esc(fname(b._subj)) + ' · ' + list.filter(function (x) { return x._subj === b._subj; }).length + ' บิล</td></tr>' : '';
@@ -2893,7 +2899,7 @@ function billModal(b) {
       row('ชื่อผู้โอน', esc(p.payer_name || '') + (p.payer_relation ? ' <span class="sub">(' + esc(p.payer_relation) + ')</span>' : '')) + extra.map(function (k) { return row(esc(k), esc(p[k])); }).join('') + row('ส่งเมื่อ', thDate(b.submitted_at, true)) + '</div>' : '') +
     (b.checks && b.checks.length ? '<ul class="chk">' + checksHtml(b.checks) + '</ul>' : '') +
     (b.note ? '<div class="note no">เหตุผลครั้งก่อน: ' + esc(b.note) + '</div>' : '') + '</div></div>' +
-    (canDecide ? '<form class="form" id="dec">' + (b.status === 'reviewing' ? field('note', 'เหตุผล (ใส่เมื่อไม่อนุมัติ นักเรียนจะเห็นในอีเมลและหน้าคำสั่งซื้อ)', '', { ph: 'เช่น ยอดโอนไม่ครบ, ไม่พบยอดเข้าบัญชี' }) : '<p class="hint">' + (b.status === 'awaiting_payment' ? 'น้องยังไม่ได้ส่งหลักฐานบนเว็บ ถ้าตรวจแล้วว่ายอดเข้าบัญชีจริง (เช่น แจ้งทาง IG) กดอนุมัติได้เลย' : 'อนุมัติได้ถ้าตรวจแล้วว่ายอดเข้าบัญชีจริง') + '</p>') +
+    (canDecide ? '<form class="form" id="dec">' + (b.status === 'reviewing' ? field('note', 'เหตุผล (ใส่เมื่อไม่อนุมัติ นักเรียนจะเห็นในอีเมลและหน้าคำสั่งซื้อ)', '', { ph: 'เช่น ยอดโอนไม่ครบ, ไม่พบยอดเข้าบัญชี' }) : '<p class="hint">' + (b.status === 'awaiting_payment' ? 'น้องยังไม่ได้ส่งหลักฐานบนเว็บ ถ้าตรวจแล้วว่ายอดเข้าบัญชีจริง (เช่น แจ้งทางแชท Facebook / IG / LINE) กดอนุมัติได้เลย' : 'อนุมัติได้ถ้าตรวจแล้วว่ายอดเข้าบัญชีจริง') + '</p>') +
       '<div class="rowx" style="justify-content:flex-end">' + (b.status === 'reviewing' ? '<button type="button" class="pill danger" id="rej">ไม่อนุมัติ</button>' : '') + '<button type="button" class="pill" id="apv">อนุมัติ · เปิดสิทธิ์ ' + b.items.length + ' คอร์ส</button></div></form>' : ''), true);
   if (b.has_photo) api('admin.user.photo', { user_id: b.user_id }).then(function (ph) { var v = $('#bph'); if (v && ph) v.innerHTML = '<a href="data:' + esc(ph.mime) + ';base64,' + ph.base64 + '" target="_blank" rel="noopener"><img alt="รูปนักเรียน" src="data:' + esc(ph.mime) + ';base64,' + ph.base64 + '"></a>'; }).catch(function () { var v = $('#bph'); if (v) v.textContent = '—'; });
   if (b.has_slip) api('admin.bill.slip', { bill_id: b.bill_id }).then(function (s) { var v = $('#slipv'); if (v) { v.className = ''; v.innerHTML = '<a href="data:' + esc(s.mime) + ';base64,' + s.base64 + '" target="_blank" rel="noopener"><img class="slipimg" alt="สลิปการโอน" src="data:' + esc(s.mime) + ';base64,' + s.base64 + '"></a>'; } })
@@ -3783,7 +3789,7 @@ function accountModal(a) {
     '<div class="row2 m-bank">' + field('bank', 'ธนาคาร', a.bank, { options: [['', '— เลือก —']].concat((S.cfg.banks || []).filter(function (x) { return !/Wallet|อื่นๆ/.test(x); }).map(function (x) { return [x, x]; })) }) + field('account_no', 'เลขบัญชี (ไม่มีก็เว้นว่าง)', a.account_no, { mode: 'numeric', ph: 'xxx-x-xxxxx-x' }) + '</div>' +
     field('account_name', 'ชื่อบัญชี (ต้องตรงกับที่ขึ้นในแอปธนาคาร · ไม่ใส่ก็ได้)', a.account_name) +
     field('qr_url', 'รูป QR รับเงินของตัวเอง', a.qr_url, { upload: true, ph: 'https://...', hint: 'ถ้าใส่ จะแสดงรูปนี้แทน QR ที่ระบบสร้าง · ต้องมีเลขพร้อมเพย์/เลขบัญชี หรือรูป QR อย่างน้อย 1 อย่าง' }) +
-    '<div class="row2">' + field('ig', 'IG ที่ให้น้องแจ้งโอน (ไม่ใส่ = IG หลัก)', a.ig, { ph: S.cfg.contact_ig || 'ineedbiochem' }) + field('sort_order', 'ลำดับ', a.sort_order, { mode: 'numeric' }) + '</div>' +
+    '<div class="row2">' + field('ig', 'IG ที่ให้น้องแจ้งโอน (ไม่ใส่ = IG หลัก)', a.ig, { ph: S.cfg.contact_ig || 'ineedbio.official' }) + field('sort_order', 'ลำดับ', a.sort_order, { mode: 'numeric' }) + '</div>' +
     field('note', 'หมายเหตุที่นักเรียนเห็น', a.note, { ph: 'เช่น โอนแล้วรออนุมัติไม่เกิน 12 ชม.' }) +
     '<div class="f">ใช้กับวิชา<div class="rowx">' + Object.keys(subs).map(function (k) { return '<label class="chk-l"><input type="checkbox" name="subj_' + k + '"' + (a.subjects.indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(subs[k]) + '</label>'; }).join('') + '</div><span class="hint">ถ้าเลือกวิชาเดียวกันหลายบัญชี ระบบใช้บัญชีที่ลำดับน้อยกว่า อยากให้บางคอร์สใช้บัญชีนี้ ตั้งได้ในหน้าแก้ไขคอร์ส</span></div>' +
     field('status', 'สถานะ', a.status, { options: [['active', 'ใช้งาน'], ['inactive', 'ปิดใช้งาน (คอร์สจะไปใช้บัญชีถัดไป)']] }) +

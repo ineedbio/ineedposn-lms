@@ -4,7 +4,7 @@
 import type { Course, User } from "@prisma/client";
 import { prisma } from "../prisma";
 import { subjectKey } from "./subjects";
-import { endSessions, getSetting, ig, isAdminUser, isStaffUser, isTeacherUser, log, rolePatch, rolesOf, siteUrlOf, teachSubjects, type Ctx, type Data } from "./api";
+import { endSessions, getSetting, mailContacts, isAdminUser, isStaffUser, isTeacherUser, log, rolePatch, rolesOf, siteUrlOf, teachSubjects, type Ctx, type Data } from "./api";
 import { sendTeacherInviteMail, teacherInviteHtml } from "./mail";
 import { saveSplitVersion, subjectSplits, dayLocked, dateOfDay, type Split } from "./staff";
 import { APP, clip, err, iso, lines, req, trim } from "./util";
@@ -254,7 +254,7 @@ async function teacherInviteMail(u: User) {
   const name = u.nickname || u.firstName || "";
   return {
     to: u.email, subject: "ยินดีต้อนรับผู้สอนวิชา" + subs + " · กรอกโปรไฟล์ให้ครบก่อนเริ่ม",
-    html: teacherInviteHtml({ name, subjects: subs, todo: todo.map((k) => TODO_LABEL[k] || k), link, email: u.email }, await ig()),
+    html: teacherInviteHtml({ name, subjects: subs, todo: todo.map((k) => TODO_LABEL[k] || k), link, email: u.email }, await mailContacts()),
   };
 }
 /** Readable reason for a failed send. */

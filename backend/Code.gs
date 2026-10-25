@@ -52,7 +52,7 @@ var SCHEMA = {
   LegacyClaims: ['claim_id','user_id','legacy_ids','reason','status','created_at','decided_by','decided_at']
 };
 
-var PUBLIC_SETTINGS = ['terms_text','privacy_text','hero_eyebrow','hero_title','hero_subtitle','announcement','promptpay_id','promptpay_name','contact_ig',
+var PUBLIC_SETTINGS = ['terms_text','privacy_text','hero_eyebrow','hero_title','hero_subtitle','announcement','promptpay_id','promptpay_name','contact_ig','contact_fb','contact_line',
   'pay_terms_text','order_expire_hours','proof_paid_at','proof_amount','proof_from_bank','proof_payer_name','proof_extra'];
 var DEFAULT_SETTINGS = {
   hero_eyebrow: 'INeedBio Online',
@@ -61,7 +61,9 @@ var DEFAULT_SETTINGS = {
   announcement: '',
   promptpay_id: '0910256171',
   promptpay_name: 'INeedBio',
-  contact_ig: 'ineedbiochem',
+  contact_ig: 'ineedbio.official',
+  contact_fb: 'https://www.facebook.com/profile.php?id=61575435968083',
+  contact_line: 'https://lin.ee/t3jbjtN',
   admin_emails: '',
   terms_text: '',
   privacy_text: '',
@@ -69,7 +71,7 @@ var DEFAULT_SETTINGS = {
   pay_terms_text: '- ชำระเงินโดยโอนเข้าบัญชี {account} ที่แสดงในหน้าชำระเงินของบิลนี้เท่านั้น\n' +
     '- INeedBio ไม่รับผิดชอบทุกกรณี หากโอนเข้าบัญชีอื่นที่ไม่ได้แสดงในหน้านี้ แม้จะมีผู้อ้างว่าเป็นทีมงาน\n' +
     '- ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว\n' +
-    '- โอนแล้วแนบสลิปและกรอกข้อมูลการโอนให้ครบ แล้วแจ้งการชำระเงินทาง IG @{ig} อีกครั้ง\n' +
+    '- โอนแล้วแนบสลิปและกรอกข้อมูลการโอนให้ครบ แล้วแจ้งสลิปทาง Facebook INeedBio (หลัก) หรือ IG @{ig} / LINE\n' +
     '- สิทธิ์เข้าเรียนจะเปิดหลังแอดมินตรวจยอดเงินแล้ว',
   order_expire_hours: '48',
   proof_paid_at: 'required', proof_amount: 'required', proof_from_bank: 'required', proof_payer_name: 'required',
@@ -295,7 +297,7 @@ function login_(d, p) {
   rate_('login:' + email, 8, 900, 'ลองเข้าสู่ระบบหลายครั้งเกินไป รอ 15 นาทีแล้วลองใหม่');
   var u = userByEmail_(email);
   if (!u || hashPw_(String(d.password || ''), u.salt) !== u.password_hash) throw err_('BAD_LOGIN', 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
-  if (u.status !== 'active') throw err_('BANNED', 'บัญชีนี้ถูกระงับ ติดต่อแอดมินทาง IG');
+  if (u.status !== 'active') throw err_('BANNED', 'บัญชีนี้ถูกระงับ ติดต่อแอดมินทาง Facebook INeedBio');
   return withLock_(function () {
     update_('Users', u._row, { last_login_at: now_() });
     return { token: newSession_(u.user_id, p), user: publicUser_(u) };
@@ -399,7 +401,7 @@ function auth_(p) {
   }
   var u = findOne_('Users', function (r) { return r.user_id === uid; });
   if (!u) throw err_('AUTH', 'กรุณาเข้าสู่ระบบ');
-  if (u.status !== 'active') throw err_('BANNED', 'บัญชีนี้ถูกระงับ ติดต่อแอดมินทาง IG');
+  if (u.status !== 'active') throw err_('BANNED', 'บัญชีนี้ถูกระงับ ติดต่อแอดมินทาง Facebook INeedBio');
   return u;
 }
 
@@ -838,7 +840,7 @@ function billProof_(d, p) {
     if (b.status === 'reviewing') throw err_('ALREADY', 'ส่งหลักฐานแล้ว กำลังรอแอดมินตรวจ');
     if (b.status !== 'awaiting_payment' && b.status !== 'rejected') throw err_('ALREADY', 'บิลนี้ปิดแล้ว');
     var dup = findOne_('Bills', function (r) { return r.slip_hash === hash && r.bill_id !== b.bill_id; });
-    if (dup) throw err_('SLIP_USED', 'สลิปนี้เคยถูกใช้ส่งแล้ว ถ้าคิดว่าผิดพลาด ทักแอดมินทาง IG');
+    if (dup) throw err_('SLIP_USED', 'สลิปนี้เคยถูกใช้ส่งแล้ว ถ้าคิดว่าผิดพลาด ทักแอดมินทาง Facebook INeedBio');
     var folder = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('SLIP_FOLDER_ID'));
     var file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(s.base64), s.mime, b.bill_id + '_' + u.user_id + (s.mime === 'image/png' ? '.png' : '.jpg')));
     update_('Bills', b._row, { status: 'reviewing', proof: JSON.stringify(proof), slip_file_id: file.getId(), slip_hash: hash, submitted_at: now_(), note: '' });
@@ -858,7 +860,7 @@ function billCancel_(d, p) {
   withLock_(function () {
     var b = findOne_('Bills', function (r) { return r.bill_id === d.bill_id && r.user_id === u.user_id; });
     if (!b) throw err_('NOT_FOUND', 'ไม่พบบิลนี้');
-    if (b.status !== 'awaiting_payment' && b.status !== 'rejected') throw err_('ALREADY', b.status === 'reviewing' ? 'ส่งหลักฐานแล้ว ยกเลิกเองไม่ได้ ทักแอดมินทาง IG' : 'บิลนี้ปิดแล้ว');
+    if (b.status !== 'awaiting_payment' && b.status !== 'rejected') throw err_('ALREADY', b.status === 'reviewing' ? 'ส่งหลักฐานแล้ว ยกเลิกเองไม่ได้ ทักแอดมินทาง Facebook INeedBio' : 'บิลนี้ปิดแล้ว');
     update_('Bills', b._row, { status: 'cancelled', decided_at: now_() });
   });
   return true;
@@ -1203,7 +1205,7 @@ function sendOrderEmail_(u, res) {
   if (MailApp.getRemainingDailyQuota() < 1) return;
   var bills = read_('Bills').filter(function (b) { return b.order_id === res.order_id; }).sort(function (a, b) { return a.bill_id < b.bill_id ? -1 : 1; });
   if (!bills.length) return;
-  var ig = getSetting_('contact_ig') || 'ineedbiochem', link = siteUrl_() + '/#/orders/' + encodeURIComponent(res.order_id);
+  var ig = getSetting_('contact_ig') || 'ineedbio.official', link = siteUrl_() + '/#/orders/' + encodeURIComponent(res.order_id);
   var open = bills.filter(function (b) { return b.status === 'awaiting_payment'; });
   var billBox = function (b, i) {
     var acc = (jsonParse_(b.account, {}) || {}).pub || {}, items = jsonParse_(b.items, []), paid = b.status === 'approved';
@@ -1224,7 +1226,7 @@ function sendOrderEmail_(u, res) {
     bills.map(billBox).join('') +
     (res.discount ? '<tr><td style="padding:0 32px 12px;font-size:13px;color:#1f7a4d;">ประหยัดไป ' + bahtTxt_(res.discount) + (res.coupon ? ' (รวมโค้ด ' + esc_(res.coupon) + ')' : '') + '</td></tr>' : '') +
     (open.length ? '<tr><td style="padding:4px 32px 8px;"><p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#0c0c0c;">ขั้นตอนต่อไป</p>' +
-      '<ol style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;color:#525252;"><li>โอนเงินตามยอดของแต่ละบิล</li><li>แนบสลิปและกรอกข้อมูลการโอนในหน้าคำสั่งซื้อ</li><li>แจ้งการชำระเงินทาง IG @' + esc_(ig) + ' อีกครั้ง</li><li>แอดมินตรวจยอดแล้วเปิดสิทธิ์ ระบบส่งอีเมลแจ้ง</li></ol></td></tr>' : '') +
+      '<ol style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;color:#525252;"><li>โอนเงินตามยอดของแต่ละบิล</li><li>แนบสลิปและกรอกข้อมูลการโอนในหน้าคำสั่งซื้อ</li><li>' + slipVia_() + '</li><li>แอดมินตรวจยอดแล้วเปิดสิทธิ์ ระบบส่งอีเมลแจ้ง</li></ol></td></tr>' : '') +
     '<tr><td style="padding:10px 32px 26px;">' + mailBtn_(open.length ? link : siteUrl_() + '/#/my', open.length ? 'ไปหน้าชำระเงิน' : 'เข้าห้องเรียน') +
     (open.length ? '<p style="margin:14px 0 0;font-size:12.5px;line-height:1.7;color:#8a8a8a;">ไม่มีนโยบายคืนเงินทุกกรณีเมื่อชำระเงินแล้ว · INeedBio ไม่รับผิดชอบการโอนเข้าบัญชีอื่นที่ไม่ได้แสดงในบิล</p>' : '') + '</td></tr>';
   var total = bills.reduce(function (a, b) { return a + (b.status === 'awaiting_payment' ? Number(b.total) || 0 : 0); }, 0);
@@ -1250,7 +1252,7 @@ function sendBillEmail_(u, b, decision, note) {
       '<p style="margin:14px 0 0;font-size:12.5px;line-height:1.7;color:#8a8a8a;">บัญชีหนึ่งใช้ได้ครั้งละ 1 เครื่อง ดูได้ตลอด ไม่มีวันหมดอายุ · เก็บอีเมลนี้ไว้เป็นหลักฐานการชำระเงิน</p></td></tr>'
     : '<tr><td style="padding:0 32px 16px;"><p style="margin:0 0 12px;font-size:15px;line-height:1.7;color:#525252;">สวัสดี ' + esc_(u.nickname) + '<br>หลักฐานการโอนของบิล <b style="color:#0c0c0c;">' + esc_(b.bill_id) + '</b> ยังไม่ผ่านการตรวจ</p>' +
       (note ? '<p style="margin:0 0 14px;padding:12px 14px;background:#fbe8e6;border-radius:10px;font-size:14px;color:#a3261e;">เหตุผล: ' + esc_(note) + '</p>' : '') + mailRows_(items) + '</td></tr>' +
-      '<tr><td style="padding:0 32px 26px;">' + mailBtn_(siteUrl_() + '/#/orders/' + encodeURIComponent(b.order_id), 'แก้ไขและส่งหลักฐานใหม่') + '<p style="margin:14px 0 0;font-size:13px;color:#525252;">สงสัยตรงไหน ทัก IG แอดมินได้เลย</p></td></tr>';
+      '<tr><td style="padding:0 32px 26px;">' + mailBtn_(siteUrl_() + '/#/orders/' + encodeURIComponent(b.order_id), 'แก้ไขและส่งหลักฐานใหม่') + '<p style="margin:14px 0 0;font-size:13px;color:#525252;">สงสัยตรงไหน ทัก ' + fbA_() + ' ได้เลย (สำรอง: ' + igA_() + ' · ' + lineA_() + ')</p></td></tr>';
   MailApp.sendEmail({ to: u.email, name: APP.NAME, subject: ok ? 'ชำระเงินสำเร็จ · เข้าเรียนได้แล้ว (' + b.bill_id + ')' : 'หลักฐานการโอนยังไม่ผ่าน · บิล ' + b.bill_id,
     body: (ok ? 'ชำระเงินสำเร็จ เข้าเรียนได้แล้ว: ' : 'หลักฐานการโอนยังไม่ผ่าน: ') + items.map(function (i) { return i.title; }).join(', ') + (note ? '\nเหตุผล: ' + note : ''),
     htmlBody: mailShell_(ok ? 'ชำระเงินสำเร็จ' : 'หลักฐานการโอนยังไม่ผ่าน', inner) });
@@ -1740,6 +1742,12 @@ function adminSettingsSave_(d, p, admin) {
 }
 
 // ───────────────────────── อีเมล ─────────────────────────
+// ช่องทางติดต่อ เรียงตามนี้ทุกที่: Facebook (หลัก) → IG (สำรอง) → LINE
+var CA_ = 'style="color:#0c0c0c;font-weight:600;text-decoration:none;" target="_blank" rel="noopener"';
+function fbA_() { return '<a href="' + esc_(getSetting_('contact_fb') || 'https://www.facebook.com/profile.php?id=61575435968083') + '" ' + CA_ + '>Facebook INeedBio</a>'; }
+function igA_() { var ig = getSetting_('contact_ig') || 'ineedbio.official'; return '<a href="https://www.instagram.com/' + esc_(ig) + '" ' + CA_ + '>IG @' + esc_(ig) + '</a>'; }
+function lineA_() { return '<a href="' + esc_(getSetting_('contact_line') || 'https://lin.ee/t3jbjtN') + '" ' + CA_ + '>LINE</a>'; }
+function slipVia_() { return 'แจ้งสลิปทาง ' + fbA_() + ' (หลัก) หรือ ' + igA_() + ' / ' + lineA_(); }
 function mailShell_(title, inner) {
   return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>' +
   '<body style="margin:0;padding:0;background:#f4f4f3;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f3;padding:32px 12px;"><tr><td align="center">' +
@@ -1748,12 +1756,12 @@ function mailShell_(title, inner) {
   '<tr><td style="padding:14px 32px 0;"><h1 style="margin:0 0 10px;font-size:20px;font-weight:700;color:#0c0c0c;">' + esc_(title) + '</h1></td></tr>' +
   inner +
   '<tr><td style="background:#fafafa;padding:18px 32px;font-size:12px;line-height:1.7;color:#8a8a8a;text-align:center;border-top:1px solid #efefed;">' +
-  'มีคำถาม? ทักมาได้ที่ IG <a href="https://www.instagram.com/' + esc_(getSetting_('contact_ig') || 'ineedbiochem') + '" style="color:#0c0c0c;font-weight:600;text-decoration:none;">@' + esc_(getSetting_('contact_ig') || 'ineedbiochem') + '</a><br>© ' + new Date().getFullYear() + ' INeedBio · อีเมลนี้ส่งอัตโนมัติ กรุณาอย่าตอบกลับ</td></tr>' +
+  'มีคำถามหรือแจ้งสลิป ทัก ' + fbA_() + '<br>สำรอง: ' + igA_() + ' · ' + lineA_() + '<br>© ' + new Date().getFullYear() + ' INeedBio · อีเมลนี้ส่งอัตโนมัติ กรุณาอย่าตอบกลับ</td></tr>' +
   '</table></td></tr></table></body></html>';
 }
 
 function sendOtpEmail_(email, otp, name, purpose) {
-  if (MailApp.getRemainingDailyQuota() < 1) throw err_('MAIL_QUOTA', 'วันนี้ระบบส่งอีเมลครบโควตาแล้ว ลองใหม่พรุ่งนี้ หรือทัก IG แอดมิน');
+  if (MailApp.getRemainingDailyQuota() < 1) throw err_('MAIL_QUOTA', 'วันนี้ระบบส่งอีเมลครบโควตาแล้ว ลองใหม่พรุ่งนี้ หรือทัก Facebook INeedBio');
   var reg = purpose === 'register';
   var cells = String(otp).split('').map(function (d) {
     return '<td style="padding:0 4px;"><div style="width:44px;height:56px;line-height:56px;border:1px solid #dcdcda;border-radius:10px;background:#fafafa;font-family:\'Courier New\',monospace;font-size:28px;font-weight:700;color:#0c0c0c;text-align:center;">' + d + '</div></td>';
@@ -1780,7 +1788,7 @@ function sendDecisionEmail_(u, c, decision, note) {
     (ok ? 'แอดมินตรวจสลิปแล้ว ตอนนี้เข้าเรียนคอร์ส <b style="color:#0c0c0c;">' + esc_(c.title) + '</b> ได้เลย เข้าสู่ระบบแล้วไปที่ “คอร์สของฉัน”'
         : 'คำขอเข้าเรียนคอร์ส <b style="color:#0c0c0c;">' + esc_(c.title) + '</b> ยังไม่ผ่านการตรวจสลิป') + '</p>' +
     (!ok && note ? '<p style="margin:0 0 14px;padding:12px 14px;background:#fafafa;border-radius:10px;font-size:14px;color:#0c0c0c;">เหตุผล: ' + esc_(note) + '</p>' : '') +
-    (!ok ? '<p style="margin:0;font-size:14px;color:#525252;">แก้ไขแล้วส่งสลิปใหม่ได้ที่หน้าคอร์ส หรือทัก IG แอดมินเพื่อสอบถาม</p>' : '') + '</td></tr>';
+    (!ok ? '<p style="margin:0;font-size:14px;color:#525252;">แก้ไขแล้วส่งสลิปใหม่ได้ที่หน้าคอร์ส หรือทัก ' + fbA_() + ' เพื่อสอบถาม (สำรอง: ' + igA_() + ' · ' + lineA_() + ')</p>' : '') + '</td></tr>';
   MailApp.sendEmail({ to: u.email, name: APP.NAME,
     subject: ok ? 'เข้าเรียนได้แล้ว: ' + c.title : 'คำขอเข้าเรียนยังไม่ผ่าน: ' + c.title,
     body: ok ? 'เข้าเรียนคอร์ส ' + c.title + ' ได้แล้ว' : 'คำขอเข้าเรียนคอร์ส ' + c.title + ' ยังไม่ผ่าน ' + (note || ''),
@@ -2361,7 +2369,7 @@ function legacyMatchUser_(u, manual) {
     if (!manual) return { matched: false };
     var near = read_('LegacyStudents').filter(function (r) { return r.status === 'open' && editDist_(r.norm, key) <= 2; });
     if (near.length) return queue(near.slice(0, 5).map(function (r) { return r.legacy_id; }), 'ชื่อใกล้เคียง (สะกดต่างกันเล็กน้อย)');
-    return { matched: false, message: 'ไม่พบชื่อ-นามสกุลนี้ในรายชื่อนักเรียนรุ่นเก่า ตรวจว่าสะกดตรงกับตอนสมัครครั้งแรก หรือทักแอดมินทาง IG' };
+    return { matched: false, message: 'ไม่พบชื่อ-นามสกุลนี้ในรายชื่อนักเรียนรุ่นเก่า ตรวจว่าสะกดตรงกับตอนสมัครครั้งแรก หรือทักแอดมินทาง Facebook INeedBio' };
   });
 }
 function legacyClaim_(d, p) {

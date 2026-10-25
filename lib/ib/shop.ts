@@ -8,7 +8,7 @@ import { prisma } from "../prisma";
 import { sendBillEmail, sendOrderEmail, notifyAdmins, type MailBill } from "./mail";
 import { subjectKey } from "./subjects";
 import {
-  auth, activate, adminEmails, canSubject, chapters, courseBySlug, courseCard, courseInclude, getSetting, ig, isAdminUser, log, rate,
+  auth, activate, adminEmails, canSubject, chapters, courseBySlug, courseCard, courseInclude, getSetting, mailContacts, ig, isAdminUser, log, rate,
   subjectsOf, type CourseRow, type Ctx, type Data,
 } from "./api";
 import { activeWhere, playlistId } from "./staff";
@@ -389,7 +389,7 @@ export async function orderCreate(d: Data, { p }: Ctx) {
   }
   try {
     const bills = await prisma.bill.findMany({ where: { orderId: oid }, orderBy: { id: "asc" } });
-    await sendOrderEmail(u, { order_id: oid, discount: q.discount, coupon: q.coupon ? String(q.coupon.code) : "" }, bills.map(mailBill), await siteUrl(), await ig());
+    await sendOrderEmail(u, { order_id: oid, discount: q.discount, coupon: q.coupon ? String(q.coupon.code) : "" }, bills.map(mailBill), await siteUrl(), await mailContacts());
   } catch (e) {
     console.error(e);
   }
@@ -463,7 +463,7 @@ export async function billProof(d: Data, { p }: Ctx) {
   if (isExpired(b)) { await prisma.bill.update({ where: { id: b.id }, data: { status: "expired" } }); throw err("EXPIRED", "บิลนี้หมดเวลาชำระแล้ว ใส่คอร์สลงตะกร้าแล้วสั่งซื้อใหม่ได้"); }
   if (b.status === "reviewing") throw err("ALREADY", "ส่งหลักฐานแล้ว กำลังรอแอดมินตรวจ");
   if (b.status !== "awaiting_payment" && b.status !== "rejected") throw err("ALREADY", "บิลนี้ปิดแล้ว");
-  if (await prisma.bill.findFirst({ where: { slipHash: hash, id: { not: b.id } } })) throw err("SLIP_USED", "สลิปนี้เคยถูกใช้ส่งแล้ว ถ้าคิดว่าผิดพลาด ทักแอดมินทาง IG");
+  if (await prisma.bill.findFirst({ where: { slipHash: hash, id: { not: b.id } } })) throw err("SLIP_USED", "สลิปนี้เคยถูกใช้ส่งแล้ว ถ้าคิดว่าผิดพลาด ทัก Facebook INeedBio");
   const blob = await prisma.fileBlob.create({ data: { mime: s.mime, data: Buffer.from(String(s.base64), "base64"), isPublic: false } });
   const changed = await prisma.bill.updateMany({
     where: { id: b.id, status: { in: ["awaiting_payment", "rejected"] } },
@@ -480,7 +480,7 @@ export async function billProof(d: Data, { p }: Ctx) {
      ["ยอดที่แจ้ง", proof.amount != null ? "฿" + baht(Number(proof.amount)) : "-"], ["บัญชีรับ", acc.label || ""],
      ["ผู้โอน", (proof.payer_name || "-") + (proof.payer_relation ? " (" + proof.payer_relation + ")" : "")]],
     "เข้าหลังบ้าน → คำสั่งซื้อ เพื่อตรวจยอดและอนุมัติ",
-    await ig()
+    await mailContacts()
   );
   return billPublic(out);
 }
@@ -489,7 +489,7 @@ export async function billCancel(d: Data, { p }: Ctx) {
   const u = await auth(p);
   const b = await prisma.bill.findFirst({ where: { id: String(d.bill_id || ""), userId: u.id } });
   if (!b) throw err("NOT_FOUND", "ไม่พบบิลนี้");
-  if (b.status !== "awaiting_payment" && b.status !== "rejected") throw err("ALREADY", b.status === "reviewing" ? "ส่งหลักฐานแล้ว ยกเลิกเองไม่ได้ ทักแอดมินทาง IG" : "บิลนี้ปิดแล้ว");
+  if (b.status !== "awaiting_payment" && b.status !== "rejected") throw err("ALREADY", b.status === "reviewing" ? "ส่งหลักฐานแล้ว ยกเลิกเองไม่ได้ ทัก Facebook INeedBio" : "บิลนี้ปิดแล้ว");
   await prisma.bill.update({ where: { id: b.id }, data: { status: "cancelled", decidedAt: new Date() } });
   return true;
 }
@@ -622,7 +622,7 @@ export async function adminBillDecide(d: Data, _c: Ctx, admin: User) {
     }
   }
   await log(admin, "bill." + (ok ? "approved" : "rejected"), x.id);
-  await sendBillEmail(x.user, mailBill(x), ok, note, await siteUrl(), await ig());
+  await sendBillEmail(x.user, mailBill(x), ok, note, await siteUrl(), await mailContacts());
   return { bill_id: x.id, status: ok ? "approved" : "rejected" };
 }
 
