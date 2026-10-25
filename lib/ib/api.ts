@@ -100,6 +100,8 @@ async function publicSettings() {
   const s = await allSettings();
   const o: Record<string, unknown> = {};
   for (const k of PUBLIC_SETTINGS) o[k] = k in s ? s[k] : DEFAULT_SETTINGS[k];
+  // contact links saved empty: the defaults, never an empty link
+  for (const k of ["contact_fb", "contact_ig", "contact_line"]) if (!String(o[k] || "").trim()) o[k] = DEFAULT_SETTINGS[k];
   o.subjects = APP.SUBJECTS;
   o.levels = APP.LEVELS;
   o.repeat_grades = APP.REPEAT_GRADES;

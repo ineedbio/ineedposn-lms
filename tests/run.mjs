@@ -1,6 +1,6 @@
 // Local test runner: a throwaway database in the LOCAL Postgres + its own dev server, then the role tests.
 //   TEST_PG=postgresql://postgres@localhost:5433/postgres?host=/tmp npm run test:roles
-// It refuses any database that is not on this machine. Per suite (roles+cells, newmember, finance, reviews, marketing, today) it creates a new
+// It refuses any database that is not on this machine. Per suite (roles+cells, newmember, finance, reviews, marketing, today, contact) it creates a new
 // database (ib_test_<time>), applies the migrations, runs the tests against http://localhost:3107 and drops that
 // database afterwards. `npm run test:roles -- finance` runs only the suites named.
 import { spawn, spawnSync } from "node:child_process";
@@ -40,7 +40,7 @@ await new Promise((r) => ytServer.listen(0, "127.0.0.1", r));
 const YT_BASE = `http://127.0.0.1:${ytServer.address().port}/`;
 
 // Each suite gets its own new database and dev server, like each reference test file gets a fresh Code.gs.
-const SUITES = [["roles", "cells"], ["newmember"], ["finance"], ["reviews"], ["marketing"], ["today"]];
+const SUITES = [["roles", "cells"], ["newmember"], ["finance"], ["reviews"], ["marketing"], ["today"], ["contact"]];
 const only = process.argv.slice(2);
 let code = 1;
 try {
