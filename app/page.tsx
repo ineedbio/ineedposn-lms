@@ -13,7 +13,7 @@ const PIXEL_ID = process.env.NEXT_PUBLIC_FB_PIXEL_ID || '';
 // new one as soon as it changes. The files themselves are not touched.
 const DIR = path.join(process.cwd(), 'public', 'ineedbio');
 const V: Record<string, string> = {};
-try { for (const f of readdirSync(DIR)) if (f.endsWith('.js')) V[f] = createHash('sha256').update(readFileSync(path.join(DIR, f))).digest('hex').slice(0, 10); } catch {}
+try { for (const f of readdirSync(DIR)) if (f.endsWith('.js') || f.endsWith('.json')) V[f] = createHash('sha256').update(readFileSync(path.join(DIR, f))).digest('hex').slice(0, 10); } catch {}
 const v = (src: string) => src + '?v=' + (V[src.replace(/^\/ineedbio\//, '')] || 'x');
 
 export default function Home() {
@@ -43,8 +43,9 @@ export default function Home() {
       <Script src={v('/ineedbio/app.js')} strategy="afterInteractive" />
       {/* หน้าคอร์ส: เล่นตอนดูฟรีอัตโนมัติ (ปิดเสียงไว้ก่อน) · ซ่อนจำนวนตอน/ชั่วโมงบนหน้าสาธารณะ */}
       <Script src={v('/ineedbio/course-page.js')} strategy="afterInteractive" />
-      {/* หน้าคอร์ส: ส่วน "Why INeedBio" (ปกหนังสือ 4 เล่ม) ต่อจากเมนูส่วนของหน้า เฉพาะคอร์สใน WHY_IB_COURSES */}
-      <Script src={v('/ineedbio/why-ib.js')} strategy="afterInteractive" />
+      {/* หน้าคอร์ส: ส่วน "Why INeedBio" ต่อจากเมนูส่วนของหน้า เฉพาะคอร์สใน WHY_IB_COURSES (170 อยู่ในไฟล์ js,
+          คอร์สอื่นโหลดจาก why-ib-sections.json ครั้งเดียว; data-sections-v = เวอร์ชันของ json ไว้ต่อท้าย URL) */}
+      <Script src={v('/ineedbio/why-ib.js')} data-sections-v={V['why-ib-sections.json'] || 'x'} strategy="afterInteractive" />
       {/* ขนาดวิดีโอตามกล่องจริง: หมุนจอ / เต็มจอ บน iPhone-iPad ไม่ครอปผิดตำแหน่ง */}
       <Script src={v('/ineedbio/player-fit.js')} strategy="afterInteractive" />
       {/* เลขคำสั่งซื้อ (BIO-0001 …) บนหลังบ้าน เห็นเฉพาะแอดมิน */}
