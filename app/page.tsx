@@ -43,6 +43,8 @@ export default function Home() {
       <Script src={v('/ineedbio/app.js')} strategy="afterInteractive" />
       {/* หน้าคอร์ส: เล่นตอนดูฟรีอัตโนมัติ (ปิดเสียงไว้ก่อน) · ซ่อนจำนวนตอน/ชั่วโมงบนหน้าสาธารณะ */}
       <Script src={v('/ineedbio/course-page.js')} strategy="afterInteractive" />
+      {/* หน้าคอร์ส: ส่วน "Why INeedBio" (ปกหนังสือ 4 เล่ม) ต่อจากเมนูส่วนของหน้า เฉพาะคอร์สใน WHY_IB_COURSES */}
+      <Script src={v('/ineedbio/why-ib.js')} strategy="afterInteractive" />
       {/* ขนาดวิดีโอตามกล่องจริง: หมุนจอ / เต็มจอ บน iPhone-iPad ไม่ครอปผิดตำแหน่ง */}
       <Script src={v('/ineedbio/player-fit.js')} strategy="afterInteractive" />
       {/* เลขคำสั่งซื้อ (BIO-0001 …) บนหลังบ้าน เห็นเฉพาะแอดมิน */}
