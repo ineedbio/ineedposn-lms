@@ -194,12 +194,63 @@
     var ann = $('.ann');
     if (ann) ann.classList.toggle('gv-ann', menuOn());
     navActive();
+    homeBB();
   }
   function navActive() {
     var nav = $('.hdr .nav'); if (!nav) return;
     var on = !!want(), a = $('.gv-nav', nav);
     if (on) $$('a.on', nav).forEach(function (x) { if (x !== a) x.classList.remove('on'); });
     if (a) { a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); }
+  }
+
+  /* ── home page billboard (#bbd): the campaign is the first slide while the menu link shows ──
+     app.js draws #bbd and starts its slider inside its own closure (startBillboard). The slider is copied as is:
+     #bbd is swapped for a clone (drops app.js's listeners), the campaign slide and its dot go first, then bbRun(). */
+  var BB_LABEL = 'Birthday Giveaway · แจกคอร์สเรียนฟรี';
+  function bbKey() { return phase() + (st.me && st.me.applied ? 1 : 0); }
+  function bbCta(ph) {
+    var more = '<a class="bbtn ' + (ph === 'open' || ph === 'announced' ? 'gh' : 'pri') + '" href="#/birthday">ดูรายละเอียด</a>';
+    if (ph === 'open') return '<a class="bbtn pri" href="#/birthday/apply">' + (st.me && st.me.applied ? 'ดูใบสมัครของฉัน' : 'สมัครเลย') + '</a>' + more;
+    if (ph === 'announced') return '<a class="bbtn pri" href="' + igUrl() + '" target="_blank" rel="noopener">ดูผลที่ Instagram</a>' + more;
+    return more;
+  }
+  function bbInner() {
+    var ph = phase();
+    return '<div class="bbd-in"><div><span class="bbd-k"><i></i>Birthday Giveaway · 12.11</span><h2>แจกคอร์สเรียนฟรี ' + Number(st.seats || 5) + ' ที่นั่ง</h2>' +
+      '<p class="sub">ฉลองวันเกิดพี่พร้อม เลือกได้ 1 คอร์สจากทุกวิชา ชีวะ เคมี ฟิสิกส์ คณิต</p>' + heroTime(ph) +
+      '<div class="bbd-cta">' + bbCta(ph) + '</div></div>' +
+      '<a class="bbd-art" href="#/birthday" tabindex="-1" aria-hidden="true">' + shelf() + '</a></div>';
+  }
+  function bbRun(bb) { // = app.js startBillboard()
+    var sl = $$('.bbd-s', bb), dots = $$('[data-bb]', bb), i = 0;
+    if (sl.length < 2) { sl.forEach(function (x) { x.classList.add('on'); x.setAttribute('aria-hidden', 'false'); }); return; }
+    var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var show = function (n) {
+      i = (n + sl.length) % sl.length;
+      sl.forEach(function (x, k) { x.classList.toggle('on', k === i); x.setAttribute('aria-hidden', String(k !== i)); });
+      dots.forEach(function (d, k) { d.classList.remove('on', 'run'); if (k === i) { d.classList.add('on'); void d.offsetWidth; if (!still) d.classList.add('run'); } });
+    };
+    bb.addEventListener('animationend', function (e) { if (e.target.matches && e.target.matches('[data-bb].run')) show(i + 1); });
+    dots.forEach(function (d) { d.onclick = function () { show(+d.dataset.bb); }; });
+    var x0 = null;
+    bb.addEventListener('pointerdown', function (e) { x0 = e.clientX; });
+    bb.addEventListener('pointerup', function (e) { if (x0 === null) return; var dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1)); });
+    show(0);
+  }
+  function homeBB() {
+    var bb = $('#bbd'); if (!bb || !st) return;
+    var have = $('.gv-bb', bb), on = menuOn();
+    if (have && on) { if (have.dataset.k !== bbKey()) { have.dataset.k = bbKey(); have.innerHTML = bbInner(); } return; }
+    if (!have && !on) return;
+    var labels = $$('[data-bb]', bb).map(function (d) { return d.getAttribute('aria-label') || ''; });
+    if (!labels.length) labels = $$('.bbd-s', bb).map(function (x) { var h = $('h2', x); return h ? h.textContent : ''; });
+    var nb = bb.cloneNode(true);
+    bb.parentNode.replaceChild(nb, bb);
+    if (on) { nb.insertAdjacentHTML('afterbegin', '<div class="bbd-s gv-bb" data-k="' + bbKey() + '" aria-hidden="true">' + bbInner() + '</div>'); labels.unshift(BB_LABEL); }
+    else { nb.removeChild($('.gv-bb', nb)); labels.shift(); }
+    var d = $('.bbd-dots', nb); if (d) nb.removeChild(d);
+    if (labels.length > 1) nb.insertAdjacentHTML('beforeend', '<div class="bbd-dots">' + labels.map(function (t, i) { return '<button type="button" data-bb="' + i + '" aria-label="' + esc(t) + '"></button>'; }).join('') + '</div>');
+    bbRun(nb);
   }
 
   /* ── #/birthday ── */
@@ -456,6 +507,7 @@
     var left = $('[data-left]');
     if (left) { var y = parts(T(st.close_at) + 1000 - now()); left.textContent = 'ปิดรับใน ' + (y.d ? y.d + ' วัน ' : '') + (y.d || y.h ? y.h + ' ชม. ' : '') + y.m + ' นาที'; }
     if (menuOn() !== !!$('.hdr .nav .gv-nav')) decorate();
+    homeBB();
   }
 
   /* ── events (public pages) ── */
@@ -709,6 +761,7 @@
   function onMut() {
     if ($('#app .hdr')) booted = true;
     fixUrl();
+    if (st && $('#bbd') && !$('#bbd .gv-bb')) homeBB(); // before the first paint: no flash of the course slide
     // app.js drew its page again while the campaign is showing (e.g. after loading something): put it back right away
     if (want() && $('#app main .w') && !$('#gv-root')) draw();
     clearTimeout(sch);
