@@ -88,7 +88,77 @@
     var v = (window.INEEDBIO_ASSETS || {})['giveaway.css'] || 'x';
     var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/ineedbio/giveaway.css?v=' + v; l.id = 'gv-css';
     document.head.appendChild(l);
+    if (!document.getElementById('gv-font')) {
+      var f = document.createElement('link'); f.rel = 'stylesheet'; f.id = 'gv-font';
+      f.href = 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,600;1,700&display=swap';
+      document.head.appendChild(f);
+    }
   })();
+
+  /* ── birthday theme (r8e "เค้กหนังสือ"): bunting, confetti, the book cake (blow out the candles) ── */
+  var GVB_COLS = ['#2fb37a', '#9b6be6', '#f2665a', '#f39a3a', '#ffd66b', '#fff'];
+  var GVB_NOTE = '<b>5 เทียน = 5 ที่นั่ง</b> · แตะเพื่อเป่าเทียน';
+  function gvbReduce() { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  function gvbDeco() {
+    return '<div class="gvb-flags" aria-hidden="true"><svg class="flags" viewBox="0 0 1000 64" preserveAspectRatio="none"></svg></div><div class="gvb-conf" aria-hidden="true"></div>';
+  }
+  function cakeHtml() {
+    var cn = function (c) { return '<span class="gvb-cn" style="--c:' + c + '"><span class="gvb-fl"></span><span class="gvb-smoke"></span></span>'; };
+    var bk = function (st_, t, lt) { return '<span class="gvb-bk' + (lt ? ' lt' : '') + '" style="' + st_ + '"><span>' + t + '</span></span>'; };
+    return '<button class="gvb-cake" type="button" aria-label="เป่าเทียนวันเกิด">' +
+      '<span class="gvb-glow"></span><span class="gvb-hbd" aria-hidden="true">Happy Birthday!</span>' +
+      '<span class="gvb-candles" aria-hidden="true">' + cn('#2fb37a') + cn('#9b6be6') + cn('#ffbf3c') + cn('#f2665a') + cn('#f39a3a') + '</span>' +
+      '<span class="gvb-tier gvb-t1" aria-hidden="true"><span class="gvb-drip"><svg viewBox="0 0 200 20" preserveAspectRatio="none"><path d="M4 0H196Q200 0 200 4V9C196 9 195 15 191 15S187 9 182 9 177 13 172 13 167 9 160 9 155 17 150 17 145 9 138 9 133 12 128 12 123 9 116 9 111 16 106 16 101 9 94 9 89 13 84 13 79 9 72 9 67 15 62 15 57 9 50 9 45 12 40 12 35 9 28 9 23 16 18 16 13 9 8 9 4 12 0 9V4Q0 0 4 0Z" fill="#fff6e6"/></svg></span>' +
+      bk('--c:#1d6b4a', 'Genesis') + bk('--c:#7a2340;--o:4%;--ml:2%', 'Corpus') + '</span>' +
+      '<span class="gvb-tier gvb-t2" aria-hidden="true"><span class="gvb-pipe"></span>' +
+      bk('--c:#f4f1ea;--o:3%', 'A-Level Chemistry', true) + bk('--c:#5b2a86;--o:1%;--ml:2%', 'Concepts of Chemistry') + bk('--c:#203a6b;--o:2%', 'Electromagnetism') + '</span>' +
+      '<span class="gvb-tier gvb-t3" aria-hidden="true"><span class="gvb-pipe"></span>' +
+      bk('--c:#2a2152;--o:2%;--ml:1%', 'Ars Logica') + bk('--c:#123c48;--o:3%;--ml:2%', 'Trigonometria') + bk('--c:#3b2a10', 'Calculus') + '</span>' +
+      '<span class="gvb-plate" aria-hidden="true"></span><span class="gvb-note">' + GVB_NOTE + '</span></button>';
+  }
+  function gvbInit(root) {
+    if (!root) return;
+    $$('svg.flags:not([data-ok])', root).forEach(function (el) {
+      el.setAttribute('data-ok', '1');
+      var h = '<path d="M0 8 Q500 46 1000 8" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>', n = 17;
+      for (var i = 1; i < n; i++) {
+        var x = i * 1000 / n, y = 8 + 38 * (1 - Math.pow((x - 500) / 500, 2));
+        h += '<path class="fl" d="M' + (x - 16) + ' ' + y + ' L' + (x + 16) + ' ' + y + ' L' + x + ' ' + (y + 24) + ' Z" fill="' + GVB_COLS[i % 5] + '" opacity=".9"/>';
+      }
+      el.innerHTML = h;
+    });
+    $$('.gvb-conf:not([data-ok])', root).forEach(function (c) {
+      c.setAttribute('data-ok', '1');
+      var h = '';
+      for (var i = 0; i < 26; i++) h += '<i style="left:' + (i * 37) % 100 + '%;background:' + GVB_COLS[i % 6] + ';animation-duration:' + (7 + (i % 5) * 1.6) + 's;animation-delay:' + -((i * 0.9) % 9) + 's;--dx:' + (i % 2 ? 1 : -1) * (10 + i % 30) + 'px;' + (i % 3 ? '' : 'width:5px;height:5px;border-radius:50%;') + '"></i>';
+      c.innerHTML = h;
+    });
+    $$('.gvb-cake:not([data-ok])', root).forEach(function (cake) {
+      cake.setAttribute('data-ok', '1');
+      var note = $('.gvb-note', cake), busy = false, x0 = null;
+      cake.addEventListener('pointerdown', function (e) { x0 = e.clientX; });
+      // on the home page banner: no slide change, no link (stopPropagation) · a swipe that starts on the cake is not a tap
+      cake.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var moved = x0 !== null && e.clientX && Math.abs(e.clientX - x0) > 10; x0 = null;
+        if (busy || moved) return; busy = true; cake.classList.add('out');
+        if (note) note.innerHTML = '<b>เป่าแล้ว!</b> ขอให้น้องได้คอร์สที่อยากเรียน';
+        gvbBurst(cake, 34, 70, 120, 40);
+        setTimeout(function () { cake.classList.remove('out'); if (note) note.innerHTML = GVB_NOTE; busy = false; }, 2800);
+      });
+    });
+  }
+  function gvbBurst(el, n, min, range, lift) {
+    if (!el || gvbReduce()) return;
+    n = n || 40; min = min || 80; range = range || 160; lift = lift == null ? 60 : lift;
+    for (var i = 0; i < n; i++) {
+      var p = document.createElement('span'), a = Math.random() * Math.PI * 2, d = min + Math.random() * range;
+      p.className = 'gvb-burst';
+      p.style.cssText = 'background:' + GVB_COLS[i % 6] + ';--x:' + Math.cos(a) * d + 'px;--y:' + (Math.sin(a) * d - lift) + 'px;--r:' + (Math.random() * 720 - 360) + 'deg';
+      el.appendChild(p);
+      (function (q) { setTimeout(function () { if (q.parentNode) q.parentNode.removeChild(q); }, 1300); })(p);
+    }
+  }
 
   /* ── data ── */
   function loadStatus(force) {
@@ -143,6 +213,7 @@
     var r = root(); if (!r || !st) return;
     lastPhase = phase();
     r.innerHTML = want() === 'apply' ? applyView() : mainView();
+    gvbInit(r);
     navActive();
     if (want() === 'apply') hydrateForm();
     clock();
@@ -209,17 +280,19 @@
   var BB_LABEL = 'Birthday Giveaway · แจกคอร์สเรียนฟรี';
   function bbKey() { return phase() + (st.me && st.me.applied ? 1 : 0); }
   function bbCta(ph) {
-    var more = '<a class="bbtn ' + (ph === 'open' || ph === 'announced' ? 'gh' : 'pri') + '" href="#/birthday">ดูรายละเอียด</a>';
-    if (ph === 'open') return '<a class="bbtn pri" href="#/birthday/apply">' + (st.me && st.me.applied ? 'ดูใบสมัครของฉัน' : 'สมัครเลย') + '</a>' + more;
-    if (ph === 'announced') return '<a class="bbtn pri" href="' + igUrl() + '" target="_blank" rel="noopener">ดูผลที่ Instagram</a>' + more;
+    var more = '<a class="pill gh" href="#/birthday">ดูรายละเอียด</a>';
+    if (ph === 'open') return '<a class="pill wh" href="#/birthday/apply">' + (st.me && st.me.applied ? 'ดูใบสมัครของฉัน' : 'สมัครเลย') + '</a>' + more;
+    if (ph === 'closed') return '<a class="pill wh" disabled aria-disabled="true">ปิดรับสมัครแล้ว</a>' + more;
+    if (ph === 'announced') return '<a class="pill wh" href="' + igUrl() + '" target="_blank" rel="noopener">ดูผลที่ Instagram</a>' + more;
     return more;
   }
   function bbInner() {
     var ph = phase();
-    return '<div class="bbd-in"><div><span class="bbd-k"><i></i>Birthday Giveaway · 12.11</span><h2>แจกคอร์สเรียนฟรี ' + Number(st.seats || 5) + ' ที่นั่ง</h2>' +
-      '<p class="sub">ฉลองวันเกิดพี่พร้อม เลือกได้ 1 คอร์สจากทุกวิชา ชีวะ เคมี ฟิสิกส์ คณิต</p>' + heroTime(ph) +
-      '<div class="bbd-cta">' + bbCta(ph) + '</div></div>' +
-      '<a class="bbd-art" href="#/birthday" tabindex="-1" aria-hidden="true">' + shelf() + '</a></div>';
+    return '<div class="gvb">' + gvbDeco() + '<div class="gvb-in"><div>' +
+      '<span class="gvb-k"><span class="gvb-date">12.11</span>INeedBio Birthday Giveaway</span><span class="gvb-hb">Happy Birthday to us</span>' +
+      '<h2>วันเกิดพี่พร้อม<br><span class="gift">ของขวัญเป็นของน้อง</span></h2>' +
+      '<p class="gvb-p">แจกคอร์สเรียนฟรี <span class="gvb-seat">🎁 ' + Number(st.seats || 5) + ' ที่นั่ง</span> เลือกได้ 1 คอร์สจากทุกวิชา ชีวะ เคมี ฟิสิกส์ คณิต</p>' +
+      heroTime(ph) + '<div class="gvb-cta">' + bbCta(ph) + '</div></div>' + cakeHtml() + '</div></div>';
   }
   function bbRun(bb) { // = app.js startBillboard()
     var sl = $$('.bbd-s', bb), dots = $$('[data-bb]', bb), i = 0;
@@ -240,13 +313,13 @@
   function homeBB() {
     var bb = $('#bbd'); if (!bb || !st) return;
     var have = $('.gv-bb', bb), on = menuOn();
-    if (have && on) { if (have.dataset.k !== bbKey()) { have.dataset.k = bbKey(); have.innerHTML = bbInner(); } return; }
+    if (have && on) { if (have.dataset.k !== bbKey()) { have.dataset.k = bbKey(); have.innerHTML = bbInner(); gvbInit(have); } return; }
     if (!have && !on) return;
     var labels = $$('[data-bb]', bb).map(function (d) { return d.getAttribute('aria-label') || ''; });
     if (!labels.length) labels = $$('.bbd-s', bb).map(function (x) { var h = $('h2', x); return h ? h.textContent : ''; });
     var nb = bb.cloneNode(true);
     bb.parentNode.replaceChild(nb, bb);
-    if (on) { nb.insertAdjacentHTML('afterbegin', '<div class="bbd-s gv-bb" data-k="' + bbKey() + '" aria-hidden="true">' + bbInner() + '</div>'); labels.unshift(BB_LABEL); }
+    if (on) { nb.insertAdjacentHTML('afterbegin', '<div class="bbd-s gv-bb" data-k="' + bbKey() + '" aria-hidden="true">' + bbInner() + '</div>'); gvbInit($('.gv-bb', nb)); labels.unshift(BB_LABEL); }
     else { nb.removeChild($('.gv-bb', nb)); labels.shift(); }
     var d = $('.bbd-dots', nb); if (d) nb.removeChild(d);
     if (labels.length > 1) nb.insertAdjacentHTML('beforeend', '<div class="bbd-dots">' + labels.map(function (t, i) { return '<button type="button" data-bb="' + i + '" aria-label="' + esc(t) + '"></button>'; }).join('') + '</div>');
@@ -256,16 +329,16 @@
   /* ── #/birthday ── */
   function countdown(label, to) {
     var x = parts(T(to) - now());
-    return '<div class="gv-cd" data-to="' + esc(to) + '"><div class="lb"><b><i></i>' + label + '</b></div>' +
-      '<div><b data-u="d">' + x.d + '</b><span>วัน</span></div><div><b data-u="h">' + p2(x.h) + '</b><span>ชั่วโมง</span></div>' +
-      '<div><b data-u="m">' + p2(x.m) + '</b><span>นาที</span></div><div><b data-u="s">' + p2(x.s) + '</b><span>วินาที</span></div></div>';
+    var tag = function (u, v, t) { return '<span class="gvb-tag"><b data-u="' + u + '">' + v + '</b><span>' + t + '</span></span>'; };
+    return '<div class="gvb-cd" data-to="' + esc(to) + '"><span class="lb"><i></i>' + label + '</span>' +
+      tag('d', x.d, 'วัน') + tag('h', p2(x.h), 'ชั่วโมง') + tag('m', p2(x.m), 'นาที') + tag('s', p2(x.s), 'วินาที') + '</div>';
   }
   function heroTime(ph) {
-    if (ph === 'pre') return '<div class="gv-msg"><b>เปิดรับสมัคร ' + thDT(st.open_at) + '</b><span>ปิดรับ ' + thDT(st.close_at) + (T(st.show_at) < T(st.open_at) ? ' · นับถอยหลังเริ่ม ' + thD(st.show_at).replace(/ \d+$/, '') : '') + '</span></div>';
+    if (ph === 'pre') return '<div class="gvb-msg"><b>เปิดรับสมัคร ' + thDT(st.open_at) + '</b><span>ปิดรับ ' + thDT(st.close_at) + (T(st.show_at) < T(st.open_at) ? ' · นับถอยหลังเริ่ม ' + thD(st.show_at).replace(/ \d+$/, '') : '') + '</span></div>';
     if (ph === 'countdown') return countdown('เปิดรับสมัครใน', st.open_at);
     if (ph === 'open') return countdown('ปิดรับสมัครใน', st.close_at);
-    if (ph === 'closed') return '<div class="gv-msg"><b>ปิดรับสมัครแล้ว</b><span>ประกาศผล ' + thDT(st.announce_at) + ' ทาง IG ' + igAt() + '</span></div>';
-    return '<div class="gv-msg"><b>ประกาศผลแล้ว</b><span>ดูรายชื่อผู้ได้รับรางวัลที่ IG ' + igAt() + ' ผู้ได้รับรางวัลได้สิทธิ์เรียนเข้าบัญชีแล้ว</span></div>';
+    if (ph === 'closed') return '<div class="gvb-msg"><b>ปิดรับสมัครแล้ว</b><span>ประกาศผล ' + thDT(st.announce_at) + ' ทาง IG ' + igAt() + '</span></div>';
+    return '<div class="gvb-msg"><b>ประกาศผลแล้ว</b><span>ดูรายชื่อผู้ได้รับรางวัลที่ IG ' + igAt() + ' ผู้ได้รับรางวัลได้สิทธิ์เรียนเข้าบัญชีแล้ว</span></div>';
   }
   function heroCta(ph) {
     var small = function (t) { return '<span class="gv-sm">' + t + '</span>'; };
@@ -276,12 +349,6 @@
     }
     if (ph === 'closed') return '<a class="pill wh" disabled aria-disabled="true">ปิดรับสมัครแล้ว</a>';
     return '<a class="pill wh" href="' + igUrl() + '" target="_blank" rel="noopener">ดูผลที่ Instagram</a>';
-  }
-  function shelf() {
-    var f = [['bio', 'bio70', 'สอวน. ปี 70'], ['bio', 'biop', 'สอวน. ค่าย 1'], ['chem', 'chemp', 'สอวน. ค่าย 1'], ['chem', 'chema', 'A-Level'], ['phys', 'phys', 'A-Level'], ['math', 'math', 'ม.4–ม.6']];
-    return '<div class="gv-shelf" aria-hidden="true">' + f.map(function (x) {
-      return '<figure class="s-' + x[0] + '"><span class="im"><img src="/images/giveaway/' + x[1] + '.webp" alt=""></span><figcaption><i></i><b>' + SUBJ[x[0]] + '</b><span>' + x[2] + '</span></figcaption></figure>';
-    }).join('') + '</div>';
   }
   function timeline(ph) {
     var idx = { open: 0, closed: 1, announced: 2 }[ph];
@@ -295,10 +362,10 @@
   }
   function steps() {
     return '<section class="gv-sec"><div class="sec-h"><div><small>วิธีร่วมกิจกรรม</small><h2>ทำครบ 4 ขั้น</h2></div></div><div class="gv-g4">' +
-      '<div class="card gv-st"><span class="ic ig">1</span><b>แชร์โพสต์ลง Story</b><p>แชร์โพสต์กิจกรรมลง IG Story แล้วแท็ก ' + igAt() + '</p><span class="where">ทำใน Instagram</span></div>' +
-      '<div class="card gv-st"><span class="ic ig">2</span><b>แท็กเพื่อน 3 คน</b><p>แท็กเพื่อน 3 คนใต้โพสต์กิจกรรม</p><span class="where">ทำใน Instagram</span></div>' +
-      '<div class="card gv-st"><span class="ic ig">3</span><b>รีโพสต์</b><p>กดรีโพสต์โพสต์กิจกรรม</p><span class="where">ทำใน Instagram</span></div>' +
-      '<div class="card gv-st web"><span class="ic web">4</span><b>กรอกใบสมัคร</b><p>เลือก 1 คอร์ส แล้วตอบ 2 คำถาม ทำไมอยากเรียน และจะเอาความรู้ไปใช้ทำอะไร</p><span class="where">ทำบนเว็บนี้</span></div>' +
+      '<div class="card gv-st"><span class="bow"></span><span class="ic ig">1</span><b>แชร์โพสต์ลง Story</b><p>แชร์โพสต์กิจกรรมลง IG Story แล้วแท็ก ' + igAt() + '</p><span class="where">ทำใน Instagram</span></div>' +
+      '<div class="card gv-st"><span class="bow"></span><span class="ic ig">2</span><b>แท็กเพื่อน 3 คน</b><p>แท็กเพื่อน 3 คนใต้โพสต์กิจกรรม</p><span class="where">ทำใน Instagram</span></div>' +
+      '<div class="card gv-st"><span class="bow"></span><span class="ic ig">3</span><b>รีโพสต์</b><p>กดรีโพสต์โพสต์กิจกรรม</p><span class="where">ทำใน Instagram</span></div>' +
+      '<div class="card gv-st web"><span class="bow"></span><span class="ic web">4</span><b>กรอกใบสมัคร</b><p>เลือก 1 คอร์ส แล้วตอบ 2 คำถาม ทำไมอยากเรียน และจะเอาความรู้ไปใช้ทำอะไร</p><span class="where">ทำบนเว็บนี้</span></div>' +
       '</div></section>';
   }
   function subjChips(sel, attr) {
@@ -337,11 +404,13 @@
   }
   function mainView() {
     var ph = phase();
-    return '<section class="res-h gv-hero"><div><small class="k">Birthday Giveaway · 12.11</small><h1>แจกคอร์สเรียนฟรี<br>' + Number(st.seats || 5) + ' ที่นั่ง</h1>' +
-      '<p>ฉลองวันเกิดพี่พร้อม เลือกได้ 1 คอร์สจากทุกวิชา ชีวะ เคมี ฟิสิกส์ คณิต พี่ๆ อ่านใบสมัครทุกใบแล้วคัดเลือกเอง ไม่ใช่การสุ่ม</p>' +
-      '<div id="cd">' + heroTime(ph) + '</div><div class="rowx gv-cta">' + heroCta(ph) + '</div></div>' + shelf() + '</section>' +
+    return '<section class="gvb gvb-hero" aria-label="INeedBio Birthday Giveaway">' + gvbDeco() + '<div class="gvb-in"><div>' +
+      '<span class="gvb-k"><span class="gvb-date">12.11</span>INeedBio Birthday Giveaway</span><span class="gvb-hb">Happy Birthday to us</span>' +
+      '<h1>วันเกิดพี่พร้อม<br><span class="gift">ของขวัญเป็นของน้อง</span></h1>' +
+      '<p class="gvb-p">แจกคอร์สเรียนฟรี <span class="gvb-seat">🎁 ' + Number(st.seats || 5) + ' ที่นั่ง</span> เลือกได้ 1 คอร์สจากทุกวิชา พี่ๆ อ่านใบสมัครทุกใบแล้วคัดเลือกเอง ไม่ใช่การสุ่ม</p>' +
+      '<div id="cd">' + heroTime(ph) + '</div><div class="rowx gvb-cta gv-cta">' + heroCta(ph) + '</div></div>' + cakeHtml() + '</div></section>' +
       timeline(ph) + steps() +
-      '<section class="gv-sec" id="gv-courses"><div class="rw-h"><div><small>คอร์สที่ร่วมรายการ</small><h2>เลือกได้ 1 คอร์ส</h2></div><span class="sm muted">ไม่รวมแพ็กเกจ</span></div>' +
+      '<section class="gv-sec" id="gv-courses"><div class="rw-h"><div><small>คอร์สที่ร่วมรายการ</small><h2>เลือกของขวัญ 1 คอร์ส</h2></div><span class="sm muted">ไม่รวมแพ็กเกจ</span></div>' +
       '<div class="gv-chips">' + subjChips(gsub, 'data-gvsub') + '</div><div class="gv-grid" id="gv-grid">' + courseGrid() + '</div></section>' +
       faq() +
       '<div class="card gv-end"><div class="who"><img src="' + esc(logo()) + '" alt=""><div><b>มีคำถามเรื่องกิจกรรม?</b><div class="sm ink2">ทักพี่ทาง IG ได้เลย ตอบทุกข้อความ</div></div></div><a class="pill" href="' + igUrl() + '" target="_blank" rel="noopener">ทัก IG ' + igAt() + '</a></div>';
@@ -352,7 +421,9 @@
     return '<div class="empty"><div class="gv-big">' + icon + '</div><b style="font-size:20px;color:var(--ink)">' + title + '</b><p>' + text + '</p>' + (buttons || '') + '</div>';
   }
   function applyHead() {
-    return '<section class="page-h"><small class="mono">Birthday Giveaway · ใบสมัคร</small><h1>เล่าให้พี่ฟังหน่อย</h1><p>ส่งได้ 1 ครั้งต่อบัญชี แก้ไขได้ถึง ' + thDT(st.close_at) + '</p></section>';
+    return '<section class="gvb gvb-mini">' + gvbDeco() + '<div class="gvb-in"><div>' +
+      '<span class="gvb-k"><span class="gvb-date">12.11</span>Birthday Giveaway · ใบสมัคร</span><h1>เล่าให้พี่ฟังหน่อย</h1>' +
+      '<p>ส่งได้ 1 ครั้งต่อบัญชี แก้ไขได้ถึง ' + thDT(st.close_at) + '</p></div>' + cakeHtml() + '</div></section>';
   }
   function applyView() {
     var ph = phase(), back = '<a class="pill ghost" href="#/birthday">';
@@ -360,7 +431,7 @@
     if (!loggedIn() || !(st.me && st.me.logged_in) && !mine)
       return head + box('🔒', 'เข้าสู่ระบบก่อนสมัคร', 'ใบสมัครผูกกับบัญชี INeedBio ของน้อง ยังไม่มีบัญชีสมัครได้ฟรี', '<div class="rowx" style="justify-content:center"><button class="pill ghost" data-act="login" data-gvauth="1">เข้าสู่ระบบ</button><button class="pill" data-act="signup" data-gvauth="1">สมัครสมาชิก</button></div>');
     if (mine && mine.staff) return head + box('🎂', 'บัญชีนี้ร่วมกิจกรรมไม่ได้', 'บัญชีแอดมินและผู้สอนร่วมกิจกรรมนี้ไม่ได้', back + 'กลับหน้ากิจกรรม</a>');
-    if (ph === 'pre' || ph === 'countdown') return head + box('⏳', 'ยังไม่เปิดรับสมัคร', 'เปิดรับ ' + thDT(st.open_at) + ' ระหว่างนี้ทำกติกาใน IG เตรียมไว้ได้', back + 'ดูรายละเอียดกิจกรรม</a>');
+    if (ph === 'pre' || ph === 'countdown') return head + box('🎂', 'ยังไม่เปิดรับสมัคร', 'เปิดรับ ' + thDT(st.open_at) + ' ระหว่างนี้ทำกติกาใน IG เตรียมไว้ได้', back + 'ดูรายละเอียดกิจกรรม</a>');
     var app = mine && mine.application;
     if (ph === 'closed' || ph === 'announced') return head + box('📮', 'ปิดรับสมัครแล้ว', (app ? 'ใบสมัครของน้องอยู่ในระบบแล้ว ' : '') + 'ประกาศผล ' + thDT(st.announce_at) + ' ทาง IG ' + igAt(), back + 'กลับหน้ากิจกรรม</a>');
     if (app && !editing) return head + recap(app);
@@ -368,7 +439,7 @@
   }
   function recap(a) {
     var row = function (k, v) { return '<div class="r"><span>' + k + '</span><div>' + v + '</div></div>'; };
-    return '<div class="empty gv-done"><div class="gv-big">✓</div><b style="font-size:20px;color:var(--ink)">ส่งใบสมัครแล้ว</b><p>พี่ได้รับใบสมัครของน้องแล้ว ประกาศผล ' + thDT(st.announce_at) + '</p>' +
+    return '<div class="empty gv-done"><div class="gv-big">🎁</div><b style="font-size:20px;color:var(--ink)">ส่งใบสมัครแล้ว ขอบคุณที่มาร่วมวันเกิดพี่นะ</b><p>พี่ได้รับใบสมัครของน้องแล้ว ประกาศผล ' + thDT(st.announce_at) + '</p>' +
       '<div class="card gv-recap">' + row('IG', '@' + esc(a.ig)) + row('คอร์ส', esc(a.course_title)) + row('เหตุผล', esc(a.reason)) + row('เป้าหมาย', esc(a.goal)) +
       row('รูป Story', a.has_story ? 'แนบแล้ว' : '—') + row('ส่งเมื่อ', esc(stamp(a.created_at))) + '</div>' +
       '<div class="rowx" style="justify-content:center;flex-wrap:wrap"><button class="pill ghost" data-gv="edit">แก้ไขใบสมัคร</button><a class="pill" href="#/birthday">กลับหน้ากิจกรรม</a><span class="sm muted">แก้ไขได้ถึง ' + thDT(st.close_at) + '</span></div></div>';
@@ -454,6 +525,7 @@
       return loadMine();
     }).then(function () {
       toast(app ? 'บันทึกการแก้ไขแล้ว' : 'ส่งใบสมัครแล้ว'); render(); window.scrollTo(0, 0);
+      gvbBurst($('.gv-done .gv-big'));
     }, function (e) {
       btn.disabled = false; btn.innerHTML = label; toast(e.message, true);
       if (e.code === 'CLOSED' || e.code === 'NOT_OPEN') loadStatus(true).then(render);
@@ -499,7 +571,7 @@
     if (!st) return;
     var ph = phase();
     if (want() && ph !== lastPhase) { loadStatus(true).then(function () { if (want()) { if (want() === 'apply') loadMine().then(render); else render(); } }); lastPhase = ph; return; }
-    $$('.gv-cd[data-to]').forEach(function (el) {
+    $$('.gvb-cd[data-to]').forEach(function (el) {
       var x = parts(T(el.dataset.to) - now());
       var put = function (u, v) { var b = $('[data-u="' + u + '"]', el); if (b && b.textContent !== v) b.textContent = v; };
       put('d', String(x.d)); put('h', p2(x.h)); put('m', p2(x.m)); put('s', p2(x.s));
