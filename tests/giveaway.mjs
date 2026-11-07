@@ -225,6 +225,16 @@ export async function run({ BASE, OUTBOX, db, makeAdmin }) {
     no(await call("admin.giveaway.award", { id: extra[1].app, course_id: "gv-a" }, adm), "ALREADY");
   });
 
+  await t("the old \"+ เพิ่มสิทธิ์ให้ผู้ใช้เอง\" (admin.grant) still emails the student, as before", async () => {
+    const G = await reg("gvg@x.com");
+    const before = outbox().filter((x) => x.to === G.email).length;
+    const r = ok(await call("admin.grant", { course_id: "gv-a", emails: G.email }, adm));
+    assert.equal(r.granted, 1);
+    const sent = outbox().filter((x) => x.to === G.email);
+    assert.equal(sent.length, before + 1, "อีเมลแจ้งสิทธิ์ 1 ฉบับ");
+    assert.ok((sent.at(-1).subject + sent.at(-1).html).includes("คอร์ส A"), sent.at(-1).subject);
+  });
+
   await t("CSV: BOM, Thai header, no email / phone / full reason", async () => {
     const c = ok(await call("admin.giveaway.csv", {}, adm));
     assert.ok(c.csv.startsWith("\uFEFFส่งเมื่อ,ชื่อเล่น,ชื่อ-นามสกุล,IG,วิชา,คอร์ส,สถานะ,คอร์สที่มอบ,หมายเหตุ"));
