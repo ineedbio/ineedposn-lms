@@ -13,7 +13,7 @@ const PIXEL_ID = process.env.NEXT_PUBLIC_FB_PIXEL_ID || '';
 // new one as soon as it changes. The files themselves are not touched.
 const DIR = path.join(process.cwd(), 'public', 'ineedbio');
 const V: Record<string, string> = {};
-try { for (const f of readdirSync(DIR)) if (f.endsWith('.js') || f.endsWith('.json')) V[f] = createHash('sha256').update(readFileSync(path.join(DIR, f))).digest('hex').slice(0, 10); } catch {}
+try { for (const f of readdirSync(DIR)) if (f.endsWith('.js') || f.endsWith('.json') || f.endsWith('.css')) V[f] = createHash('sha256').update(readFileSync(path.join(DIR, f))).digest('hex').slice(0, 10); } catch {}
 const v = (src: string) => src + '?v=' + (V[src.replace(/^\/ineedbio\//, '')] || 'x');
 
 export default function Home() {
@@ -40,6 +40,9 @@ export default function Home() {
       {/* ตัวเว็บทั้งหมด (หน้าแรก คอร์ส ห้องเรียน หลังบ้าน) — ใช้ hash route เช่น /#/course/ID */}
       {/* fixes for app.js that can't go in app.js itself (it must match the zip byte for byte) */}
       <Script src={v('/ineedbio/fixes.js')} strategy="afterInteractive" />
+      {/* Birthday Giveaway: #/birthday, #/birthday/apply, หลังบ้าน › Birthday Giveaway · ลิงก์ "แจกคอร์สฟรี" — ต้องมาก่อน app.js
+          (รับ route ที่ app.js ไม่รู้จักไว้ก่อน) · โหลด giveaway.css เอง */}
+      <Script src={v('/ineedbio/giveaway.js')} strategy="afterInteractive" />
       <Script src={v('/ineedbio/app.js')} strategy="afterInteractive" />
       {/* หน้าคอร์ส: เล่นตอนดูฟรีอัตโนมัติ (ปิดเสียงไว้ก่อน) · ซ่อนจำนวนตอน/ชั่วโมงบนหน้าสาธารณะ */}
       <Script src={v('/ineedbio/course-page.js')} strategy="afterInteractive" />

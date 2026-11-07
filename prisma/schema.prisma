@@ -829,3 +829,43 @@ model GradeReport {
   @@unique([userId, year, term])
   @@index([status])
 }
+
+// ============= BIRTHDAY GIVEAWAY (round 8c) =============
+// One application per account per campaign (lib/giveaway-config.ts holds the campaign's dates). The status, the
+// admin note and the result are never sent to the student. A winner gets access through the usual free grant
+// (a Payment with amount 0, source "grant": not income, no teacher share); awardRef = that Payment.id.
+model GiveawayApplication {
+  id              String    @id @default(cuid())
+  campaign        String    @default("bday2569")
+  userId          String
+  igUsername      String // lower case, no "@"
+  courseId        String // Course.id chosen by the student
+  reason          String // why this course (50–5,000 characters)
+  goal            String // what they will use it for (50–5,000 characters)
+  storyFile       String? // FileBlob.id of the Story screenshot (required; private, admins only); null once purged
+  consentPdpa     Boolean   @default(false)
+  consentPdpaAt   DateTime?
+  status          String    @default("pending") // pending | review | approved | rejected
+  adminNote       String?
+  awardedCourseId String? // Course.id given
+  awardedAt       DateTime?
+  awardedBy       String? // admin User.id
+  awardRef        String? // Payment.id of the grant
+  storyPurgedAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  @@unique([campaign, userId])
+  @@index([campaign, status])
+}
+
+model GiveawayEvent {
+  id            String   @id @default(cuid())
+  applicationId String
+  actorId       String // User.id (the student or an admin)
+  action        String // submit | edit | status | note | award | purge_story
+  detail        Json     @default("{}")
+  createdAt     DateTime @default(now())
+
+  @@index([applicationId])
+}

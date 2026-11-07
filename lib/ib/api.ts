@@ -18,6 +18,7 @@ import * as team from "./team";
 import * as cells from "./cells";
 import * as marketing from "./marketing";
 import * as todayPage from "./today";
+import * as giveaway from "./giveaway";
 import { notifyAdmins, remainingQuota, sendDecisionEmail, sendOtpEmail } from "./mail";
 import {
   APP, ApiError, bkkDate, checkImageUrl, checkPassword, clip, err, iso, isRepeat, lines, normEmail, otpCode, parseFaq,
@@ -730,6 +731,24 @@ async function adminDecide(d: Data, _c: Ctx, admin: User) {
   return { enroll_id: id, status: ok ? "approved" : "rejected" };
 }
 
+/** One access given by staff (หลังบ้าน "+ เพิ่มสิทธิ์ให้ผู้ใช้เอง", and a Birthday Giveaway winner): an APPROVED Payment
+    (amount 0 = free, so not income and no teacher share; a PENDING request for the same course is reused) + ACTIVE
+    Enrollment, written to the audit log. Sends no email: the caller decides. */
+export async function grantAccess(admin: User, u: User, c: Course, o: { amount: number; source: string; reason: string; note?: string; expires: Date | null }) {
+  const { amount, source, reason, expires } = o;
+  const row = {
+    status: "APPROVED" as const, amount, note: o.note || reason || (source === "test" ? "ทดสอบโดยทีมงาน" : amount > 0 ? "รับเงินช่องทางอื่น" : "ให้สิทธิ์ฟรี"),
+    reviewedBy: admin.id, reviewedAt: new Date(), source, reason,
+  };
+  const pending = await prisma.payment.findFirst({ where: { userId: u.id, courseId: c.id, status: "PENDING" }, orderBy: { createdAt: "desc" } });
+  const pay = pending
+    ? await prisma.payment.update({ where: { id: pending.id }, data: row })
+    : await prisma.payment.create({ data: { ...row, userId: u.id, courseId: c.id, promptpayRef: "GRANT-" + randToken(8) } });
+  await activate(u.id, c.id, expires);
+  await log(admin, "grant", (pay.orderNumber ? pay.orderNumber + " " : "") + u.email + " → " + c.slug + " (" + source + (amount ? " ฿" + amount : "") + (expires ? " ถึง " + bkkDate(expires) : "") + ")");
+  return pay;
+}
+
 /** Give access (free, or paid some other way) to one or more emails. Teachers: their subjects only, no amount. */
 async function adminGrant(d: Data, _c: Ctx, admin: User) {
   // One course (course_id) or several at once (course_ids: array, or course_id "a,b,c").
@@ -762,16 +781,7 @@ async function adminGrant(d: Data, _c: Ctx, admin: User) {
     for (const c of courses) {
       if (await staff.hasAccess(u.id, c.id)) { out.skipped.push({ email: multi ? em + " · " + c.title : em, why: "มีสิทธิ์อยู่แล้ว" }); continue; }
       const source = amount > 0 ? "manual" : u.id === admin.id ? "test" : "grant";
-      const row = {
-        status: "APPROVED" as const, amount, note: reason || (source === "test" ? "ทดสอบโดยทีมงาน" : amount > 0 ? "รับเงินช่องทางอื่น" : "ให้สิทธิ์ฟรี"),
-        reviewedBy: admin.id, reviewedAt: new Date(), source, reason,
-      };
-      const pending = await prisma.payment.findFirst({ where: { userId: u.id, courseId: c.id, status: "PENDING" }, orderBy: { createdAt: "desc" } });
-      const pay = pending
-        ? await prisma.payment.update({ where: { id: pending.id }, data: row })
-        : await prisma.payment.create({ data: { ...row, userId: u.id, courseId: c.id, promptpayRef: "GRANT-" + randToken(8) } });
-      await activate(u.id, c.id, expires);
-      await log(admin, "grant", (pay.orderNumber ? pay.orderNumber + " " : "") + u.email + " → " + c.slug + " (" + source + (amount ? " ฿" + amount : "") + (expires ? " ถึง " + bkkDate(expires) : "") + ")");
+      await grantAccess(admin, u, c, { amount, source, reason, expires });
       out.granted++;
       if (!out.added.includes(em)) out.added.push(em);
       if (source !== "test") { const m = mail.get(u.id) || { u, titles: [] }; m.titles.push(c.title); mail.set(u.id, m); }
@@ -1111,6 +1121,20 @@ const ROUTES: Record<string, Handler> = {
   "trial.unlock": marketing.trialUnlock,
   "admin.marketing": adminOnly((d) => marketing.adminMarketing(d)),
   "admin.today": adminOnly((d) => todayPage.adminToday(d)),
+  // INeedBio Birthday Giveaway (round 8c) — lib/ib/giveaway.ts · dates in lib/giveaway-config.ts
+  "giveaway.status": giveaway.status,
+  "giveaway.mine": giveaway.mine,
+  "giveaway.apply": giveaway.apply,
+  "giveaway.edit": giveaway.edit,
+  "admin.giveaway.count": adminOnly(() => giveaway.adminCount()),
+  "admin.giveaway.list": adminOnly(() => giveaway.adminList()),
+  "admin.giveaway.get": adminOnly((d) => giveaway.adminGet(d)),
+  "admin.giveaway.story": adminOnly((d) => giveaway.adminStory(d)),
+  "admin.giveaway.status": adminOnly(giveaway.adminStatus),
+  "admin.giveaway.note": adminOnly(giveaway.adminNote),
+  "admin.giveaway.award": adminOnly(giveaway.adminAward),
+  "admin.giveaway.csv": adminOnly(giveaway.adminCsv),
+  "admin.giveaway.purge": adminOnly(giveaway.adminPurge),
   "admin.course.trial": adminOnly(marketing.adminCourseTrial),
   "grades.submit": cells.gradesSubmit,
   "my.submissions": cells.mySubmissions,
@@ -1217,7 +1241,7 @@ const ROUTES: Record<string, Handler> = {
   "admin.legacy.delete": adminOnly(staff.adminLegacyDelete),
   // Local tests only (IB_TEST_HOOKS=1 on the test server, never in production): close a period the way the half-month
   // closing does, also one that fin.close may not close yet (the reference tests call closePeriod_ directly).
-  ...(process.env.IB_TEST_HOOKS === "1" && process.env.NODE_ENV !== "production" ? { "test.fin.close": adminOnly((d) => staff.testClosePeriod(d)) } : {}),
+  ...(process.env.IB_TEST_HOOKS === "1" && process.env.NODE_ENV !== "production" ? { "test.fin.close": adminOnly((d) => staff.testClosePeriod(d)), "test.giveaway.now": adminOnly((d) => giveaway.testSetNow(d)) } : {}),
 };
 
 const ORDER_KEYS = new Set(["order_number", "order_numbers", "orderNumber"]);
